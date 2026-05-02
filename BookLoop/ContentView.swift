@@ -116,10 +116,13 @@ final class PlayerModel {
         }
     }
 
-    func loadFolder(_ url: URL) {
+    func loadFolder(_ url: URL, autoplay: Bool = true) {
         stop() // stop current playback when selecting a new folder/file
 
         folderURL = url
+        
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
         
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
@@ -134,7 +137,7 @@ final class PlayerModel {
 
         if let first = tracks.first {
             currentTitle = first.title
-            prepareToPlay(index: 0, autoplay: false)
+            prepareToPlay(index: 0, autoplay: autoplay)
         } else {
             currentTitle = "No .mp3/.m4a/.m4b files found"
             updateNowPlayingInfo(isPaused: true) // keep something stable in Now Playing
@@ -145,7 +148,7 @@ final class PlayerModel {
 
     func restoreLastSelectionIfPossible() {
         guard let url = persistence.restoreBookmark() else { return }
-        loadFolder(url)
+        loadFolder(url, autoplay: false)
     }
 
     private func loadTracks(from folder: URL) -> [Track] {
