@@ -175,12 +175,9 @@ final class PlayerModel {
         player?.pause()
         isPlaying = false
 
-        // Hold a background task while paused so the process is less likely to be
-        // evicted from the system's "Now Playing" slot during short pauses.
+        // Battery-friendly: do NOT keep a background task running while paused.
+        // (We still keep Now Playing metadata + playbackRate=0.0 so the UI stays stable.)
         endBackgroundTask()
-        pauseBackgroundTask = UIApplication.shared.beginBackgroundTask(withName: "LoopPlayerPausedNowPlaying") { [weak self] in
-            self?.endBackgroundTask()
-        }
 
         // CRUCIAL: keep Now Playing metadata, but mark paused + playbackRate = 0.0
         updateNowPlayingInfo(isPaused: true)
@@ -1070,7 +1067,7 @@ struct ContentView: View {
 
 private struct Persistence {
     private let defaults = UserDefaults.standard
-    private let bookmarkKey = "LoopPlayer.selection.bookmark"
+    private let bookmarkKey = "BookLoop.selection.bookmark"
 
     func saveBookmark(url: URL) {
         do {

@@ -12,50 +12,50 @@
 			containerPortal = CC08EC512F9522F600206D2F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = CC08EC582F9522F600206D2F;
-			remoteInfo = LoopPlayer;
+			remoteInfo = BookLoop;
 		};
 		CC08EC712F9522F800206D2F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CC08EC512F9522F600206D2F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = CC08EC582F9522F600206D2F;
-			remoteInfo = LoopPlayer;
+			remoteInfo = BookLoop;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		CC08EC592F9522F600206D2F /* LoopPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LoopPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC08EC662F9522F800206D2F /* LoopPlayerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LoopPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC08EC702F9522F800206D2F /* LoopPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LoopPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC08EC592F9522F600206D2F /* BookLoop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BookLoop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC08EC662F9522F800206D2F /* BookLoopTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BookLoopTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC08EC702F9522F800206D2F /* BookLoopUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BookLoopUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CC08EC842F95256B00206D2F /* Exceptions for "LoopPlayer" folder in "LoopPlayer" target */ = {
+		CC08EC842F95256B00206D2F /* Exceptions for "BookLoop" folder in "BookLoop" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = CC08EC582F9522F600206D2F /* LoopPlayer */;
+			target = CC08EC582F9522F600206D2F /* BookLoop */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		CC08EC5B2F9522F600206D2F /* LoopPlayer */ = {
+		CC08EC5B2F9522F600206D2F /* BookLoop */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				CC08EC842F95256B00206D2F /* Exceptions for "LoopPlayer" folder in "LoopPlayer" target */,
+				CC08EC842F95256B00206D2F /* Exceptions for "BookLoop" folder in "BookLoop" target */,
 			);
-			path = LoopPlayer;
+			path = BookLoop;
 			sourceTree = "<group>";
 		};
-		CC08EC692F9522F800206D2F /* LoopPlayerTests */ = {
+		CC08EC692F9522F800206D2F /* BookLoopTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = LoopPlayerTests;
+			path = BookLoopTests;
 			sourceTree = "<group>";
 		};
-		CC08EC732F9522F800206D2F /* LoopPlayerUITests */ = {
+		CC08EC732F9522F800206D2F /* BookLoopUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = LoopPlayerUITests;
+			path = BookLoopUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -88,9 +88,9 @@
 		CC08EC502F9522F600206D2F = {
 			isa = PBXGroup;
 			children = (
-				CC08EC5B2F9522F600206D2F /* LoopPlayer */,
-				CC08EC692F9522F800206D2F /* LoopPlayerTests */,
-				CC08EC732F9522F800206D2F /* LoopPlayerUITests */,
+				CC08EC5B2F9522F600206D2F /* BookLoop */,
+				CC08EC692F9522F800206D2F /* BookLoopTests */,
+				CC08EC732F9522F800206D2F /* BookLoopUITests */,
 				CC08EC5A2F9522F600206D2F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,9 +98,9 @@
 		CC08EC5A2F9522F600206D2F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CC08EC592F9522F600206D2F /* LoopPlayer.app */,
-				CC08EC662F9522F800206D2F /* LoopPlayerTests.xctest */,
-				CC08EC702F9522F800206D2F /* LoopPlayerUITests.xctest */,
+				CC08EC592F9522F600206D2F /* BookLoop.app */,
+				CC08EC662F9522F800206D2F /* BookLoopTests.xctest */,
+				CC08EC702F9522F800206D2F /* BookLoopUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,9 +108,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		CC08EC582F9522F600206D2F /* LoopPlayer */ = {
+		CC08EC582F9522F600206D2F /* BookLoop */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CC08EC7A2F9522F800206D2F /* Build configuration list for PBXNativeTarget "LoopPlayer" */;
+			buildConfigurationList = CC08EC7A2F9522F800206D2F /* Build configuration list for PBXNativeTarget "BookLoop" */;
 			buildPhases = (
 				CC08EC552F9522F600206D2F /* Sources */,
 				CC08EC562F9522F600206D2F /* Frameworks */,
@@ -121,18 +121,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				CC08EC5B2F9522F600206D2F /* LoopPlayer */,
+				CC08EC5B2F9522F600206D2F /* BookLoop */,
 			);
-			name = LoopPlayer;
+			name = BookLoop;
 			packageProductDependencies = (
 			);
-			productName = LoopPlayer;
-			productReference = CC08EC592F9522F600206D2F /* LoopPlayer.app */;
+			productName = BookLoop;
+			productReference = CC08EC592F9522F600206D2F /* BookLoop.app */;
 			productType = "com.apple.product-type.application";
 		};
-		CC08EC652F9522F800206D2F /* LoopPlayerTests */ = {
+		CC08EC652F9522F800206D2F /* BookLoopTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CC08EC7D2F9522F800206D2F /* Build configuration list for PBXNativeTarget "LoopPlayerTests" */;
+			buildConfigurationList = CC08EC7D2F9522F800206D2F /* Build configuration list for PBXNativeTarget "BookLoopTests" */;
 			buildPhases = (
 				CC08EC622F9522F800206D2F /* Sources */,
 				CC08EC632F9522F800206D2F /* Frameworks */,
@@ -144,18 +144,18 @@
 				CC08EC682F9522F800206D2F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				CC08EC692F9522F800206D2F /* LoopPlayerTests */,
+				CC08EC692F9522F800206D2F /* BookLoopTests */,
 			);
-			name = LoopPlayerTests;
+			name = BookLoopTests;
 			packageProductDependencies = (
 			);
-			productName = LoopPlayerTests;
-			productReference = CC08EC662F9522F800206D2F /* LoopPlayerTests.xctest */;
+			productName = BookLoopTests;
+			productReference = CC08EC662F9522F800206D2F /* BookLoopTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		CC08EC6F2F9522F800206D2F /* LoopPlayerUITests */ = {
+		CC08EC6F2F9522F800206D2F /* BookLoopUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CC08EC802F9522F800206D2F /* Build configuration list for PBXNativeTarget "LoopPlayerUITests" */;
+			buildConfigurationList = CC08EC802F9522F800206D2F /* Build configuration list for PBXNativeTarget "BookLoopUITests" */;
 			buildPhases = (
 				CC08EC6C2F9522F800206D2F /* Sources */,
 				CC08EC6D2F9522F800206D2F /* Frameworks */,
@@ -167,13 +167,13 @@
 				CC08EC722F9522F800206D2F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				CC08EC732F9522F800206D2F /* LoopPlayerUITests */,
+				CC08EC732F9522F800206D2F /* BookLoopUITests */,
 			);
-			name = LoopPlayerUITests;
+			name = BookLoopUITests;
 			packageProductDependencies = (
 			);
-			productName = LoopPlayerUITests;
-			productReference = CC08EC702F9522F800206D2F /* LoopPlayerUITests.xctest */;
+			productName = BookLoopUITests;
+			productReference = CC08EC702F9522F800206D2F /* BookLoopUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -199,7 +199,7 @@
 					};
 				};
 			};
-			buildConfigurationList = CC08EC542F9522F600206D2F /* Build configuration list for PBXProject "LoopPlayer" */;
+			buildConfigurationList = CC08EC542F9522F600206D2F /* Build configuration list for PBXProject "BookLoop" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -213,9 +213,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				CC08EC582F9522F600206D2F /* LoopPlayer */,
-				CC08EC652F9522F800206D2F /* LoopPlayerTests */,
-				CC08EC6F2F9522F800206D2F /* LoopPlayerUITests */,
+				CC08EC582F9522F600206D2F /* BookLoop */,
+				CC08EC652F9522F800206D2F /* BookLoopTests */,
+				CC08EC6F2F9522F800206D2F /* BookLoopUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -271,12 +271,12 @@
 /* Begin PBXTargetDependency section */
 		CC08EC682F9522F800206D2F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = CC08EC582F9522F600206D2F /* LoopPlayer */;
+			target = CC08EC582F9522F600206D2F /* BookLoop */;
 			targetProxy = CC08EC672F9522F800206D2F /* PBXContainerItemProxy */;
 		};
 		CC08EC722F9522F800206D2F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = CC08EC582F9522F600206D2F /* LoopPlayer */;
+			target = CC08EC582F9522F600206D2F /* BookLoop */;
 			targetProxy = CC08EC712F9522F800206D2F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -411,7 +411,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = LoopPlayer/Info.plist;
+				INFOPLIST_FILE = BookLoop/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -427,7 +427,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Dan.LoopPlayer;
+				PRODUCT_BUNDLE_IDENTIFIER = Dan.BookLoop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -456,7 +456,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = LoopPlayer/Info.plist;
+				INFOPLIST_FILE = BookLoop/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -472,7 +472,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Dan.LoopPlayer;
+				PRODUCT_BUNDLE_IDENTIFIER = Dan.BookLoop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -499,7 +499,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Dan.LoopPlayerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = Dan.BookLoopTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -509,7 +509,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LoopPlayer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LoopPlayer";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BookLoop.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BookLoop";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -525,7 +525,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Dan.LoopPlayerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = Dan.BookLoopTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -535,7 +535,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LoopPlayer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LoopPlayer";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BookLoop.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BookLoop";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -550,7 +550,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Dan.LoopPlayerUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = Dan.BookLoopUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -560,7 +560,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = LoopPlayer;
+				TEST_TARGET_NAME = BookLoop;
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -575,7 +575,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Dan.LoopPlayerUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = Dan.BookLoopUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -585,7 +585,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = LoopPlayer;
+				TEST_TARGET_NAME = BookLoop;
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -593,7 +593,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CC08EC542F9522F600206D2F /* Build configuration list for PBXProject "LoopPlayer" */ = {
+		CC08EC542F9522F600206D2F /* Build configuration list for PBXProject "BookLoop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CC08EC782F9522F800206D2F /* Debug */,
@@ -602,7 +602,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CC08EC7A2F9522F800206D2F /* Build configuration list for PBXNativeTarget "LoopPlayer" */ = {
+		CC08EC7A2F9522F800206D2F /* Build configuration list for PBXNativeTarget "BookLoop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CC08EC7B2F9522F800206D2F /* Debug */,
@@ -611,7 +611,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CC08EC7D2F9522F800206D2F /* Build configuration list for PBXNativeTarget "LoopPlayerTests" */ = {
+		CC08EC7D2F9522F800206D2F /* Build configuration list for PBXNativeTarget "BookLoopTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CC08EC7E2F9522F800206D2F /* Debug */,
@@ -620,7 +620,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CC08EC802F9522F800206D2F /* Build configuration list for PBXNativeTarget "LoopPlayerUITests" */ = {
+		CC08EC802F9522F800206D2F /* Build configuration list for PBXNativeTarget "BookLoopUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CC08EC812F9522F800206D2F /* Debug */,

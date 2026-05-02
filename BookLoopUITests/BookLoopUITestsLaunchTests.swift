@@ -1,13 +1,13 @@
 //
-//  LoopPlayerUITestsLaunchTests.swift
-//  LoopPlayerUITests
+//  BookLoopUITestsLaunchTests.swift
+//  BookLoopUITests
 //
 //  Created by Dan Fakkeldy on 2026-04-19.
 //
 
 import XCTest
 
-final class LoopPlayerUITestsLaunchTests: XCTestCase {
+final class BookLoopUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

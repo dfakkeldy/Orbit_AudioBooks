@@ -1,13 +1,13 @@
 //
-//  LoopPlayerUITests.swift
-//  LoopPlayerUITests
+//  BookLoopUITests.swift
+//  BookLoopUITests
 //
 //  Created by Dan Fakkeldy on 2026-04-19.
 //
 
 import XCTest
 
-final class LoopPlayerUITests: XCTestCase {
+final class BookLoopUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
