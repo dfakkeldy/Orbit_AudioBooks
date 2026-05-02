@@ -25,6 +25,7 @@ final class PlayerModel {
         let id = UUID()
         let url: URL
         let title: String
+        var isEnabled: Bool = true
     }
 
     struct Chapter: Identifiable, Equatable {
@@ -33,6 +34,7 @@ final class PlayerModel {
         let title: String?
         let startSeconds: Double
         let endSeconds: Double
+        var isEnabled: Bool = true
     }
 
     // UI state
@@ -40,7 +42,7 @@ final class PlayerModel {
     var speed: Float = 1.25 // default 1.25x (your requirement)
 
     private(set) var folderURL: URL?
-    private(set) var tracks: [Track] = []
+    var tracks: [Track] = []
     private(set) var currentIndex: Int = 0
 
     private(set) var isPlaying: Bool = false
@@ -55,9 +57,9 @@ final class PlayerModel {
     private(set) var thumbnailImage: UIImage? = nil
 
     // Chapters (for .m4b with chapter markers)
-    private(set) var chapters: [Chapter] = []
+    var chapters: [Chapter] = []
     private(set) var currentChapterIndex: Int? = nil
-    private var isSeekingForChapterLoop: Bool = false
+    private var isSeekingForChapterBoundary: Bool = false
     private var isManualSeeking: Bool = false
 
     // iOS 26: avoid UIScreen.main usage; set from SwiftUI environment.
@@ -97,6 +99,22 @@ final class PlayerModel {
     }
 
     // MARK: Folder + track loading
+
+    func moveTracks(from source: IndexSet, to destination: Int) {
+        let currentURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil
+        tracks.move(fromOffsets: source, toOffset: destination)
+        if let currentURL, let newIdx = tracks.firstIndex(where: { $0.url == currentURL }) {
+            currentIndex = newIdx
+        }
+    }
+
+    func moveChapters(from source: IndexSet, to destination: Int) {
+        let currentID = (currentChapterIndex != nil && chapters.indices.contains(currentChapterIndex!)) ? chapters[currentChapterIndex!].id : nil
+        chapters.move(fromOffsets: source, toOffset: destination)
+        if let currentID, let newIdx = chapters.firstIndex(where: { $0.id == currentID }) {
+            currentChapterIndex = newIdx
+        }
+    }
 
     func loadFolder(_ url: URL) {
         stop() // stop current playback when selecting a new folder/file
@@ -200,14 +218,52 @@ final class PlayerModel {
         pauseBackgroundTask = .invalid
     }
 
+    private func findNextEnabledTrackIndex() -> Int? {
+        guard !tracks.isEmpty else { return nil }
+        for i in (currentIndex + 1)..<tracks.count {
+            if tracks[i].isEnabled { return i }
+        }
+        for i in 0...currentIndex {
+            if tracks[i].isEnabled { return i }
+        }
+        return nil
+    }
+
+    private func findPrevEnabledTrackIndex() -> Int? {
+        guard !tracks.isEmpty else { return nil }
+        for i in stride(from: currentIndex - 1, through: 0, by: -1) {
+            if tracks[i].isEnabled { return i }
+        }
+        for i in stride(from: tracks.count - 1, through: currentIndex, by: -1) {
+            if tracks[i].isEnabled { return i }
+        }
+        return nil
+    }
+
+    private func findNextEnabledChapterIndex(after idx: Int) -> Int? {
+        guard chapters.count >= 2 else { return nil }
+        for i in (idx + 1)..<chapters.count {
+            if chapters[i].isEnabled { return i }
+        }
+        return nil
+    }
+
+    private func findPrevEnabledChapterIndex(before idx: Int) -> Int? {
+        guard chapters.count >= 2 else { return nil }
+        for i in stride(from: idx - 1, through: 0, by: -1) {
+            if chapters[i].isEnabled { return i }
+        }
+        return nil
+    }
+
     func nextTrack() {
         if chapters.count >= 2 {
             nextChapter()
             return
         }
-        guard !tracks.isEmpty else { return }
-        let newIndex = (currentIndex + 1) % tracks.count
-        prepareToPlay(index: newIndex, autoplay: true)
+        if let newIndex = findNextEnabledTrackIndex() {
+            prepareToPlay(index: newIndex, autoplay: true)
+        }
     }
 
     func previousTrackOrRestart() {
@@ -229,8 +285,9 @@ final class PlayerModel {
             return
         }
 
-        let newIndex = (currentIndex - 1 + tracks.count) % tracks.count
-        prepareToPlay(index: newIndex, autoplay: true)
+        if let newIndex = findPrevEnabledTrackIndex() {
+            prepareToPlay(index: newIndex, autoplay: true)
+        }
     }
 
     func nextChapter() {
@@ -238,22 +295,13 @@ final class PlayerModel {
             nextTrack()
             return
         }
-        guard let player else { return }
-
-        let t = player.currentTime().seconds
-        guard t.isFinite else { return }
-
-        // Find the next chapter whose *start* is meaningfully after the current time.
-        // This prevents "Next Chapter" from seeking back to 0 when metadata indices are odd.
-        let epsilon = 0.5
-        if let next = chapters.first(where: { $0.startSeconds > t + epsilon }) {
-            seekToChapter(at: next.index)
+        let currentIdx = currentChapterIndex ?? -1
+        if let nextIdx = findNextEnabledChapterIndex(after: currentIdx) {
+            seekToChapter(at: nextIdx)
         } else {
-            // Already at or beyond the final chapter start.
-            // Go to next track.
-            guard !tracks.isEmpty else { return }
-            let newIndex = (currentIndex + 1) % tracks.count
-            prepareToPlay(index: newIndex, autoplay: true)
+            if let newIndex = findNextEnabledTrackIndex() {
+                prepareToPlay(index: newIndex, autoplay: true)
+            }
         }
     }
 
@@ -267,19 +315,20 @@ final class PlayerModel {
         let t = player.currentTime().seconds
         guard t.isFinite else { return }
 
-        // If we're more than 5s into the current chapter, restart it.
-        if let current = currentChapterForTime(t), (t - current.startSeconds) > 5 {
+        if let _ = currentChapterIndex, let current = currentChapterForTime(t), (t - current.startSeconds) > 5 {
             seekToChapter(at: current.index)
             return
         }
 
-        // Otherwise go to previous chapter start (strictly before current time).
-        let epsilon = 0.5
-        if let prev = chapters.last(where: { $0.startSeconds < t - epsilon }) {
-            seekToChapter(at: prev.index)
+        let currentIdx = currentChapterIndex ?? 0
+        if let prevIdx = findPrevEnabledChapterIndex(before: currentIdx) {
+            seekToChapter(at: prevIdx)
         } else {
-            // We're at the beginning already.
-            seekToChapter(at: chapters.first?.index ?? 0)
+            if let firstEnabled = findNextEnabledChapterIndex(after: -1) {
+                seekToChapter(at: firstEnabled)
+            } else {
+                seekToChapter(at: chapters.first?.index ?? 0)
+            }
         }
     }
 
@@ -332,7 +381,7 @@ final class PlayerModel {
         currentSubtitle = ""
         chapters = []
         currentChapterIndex = nil
-        isSeekingForChapterLoop = false
+        isSeekingForChapterBoundary = false
         isManualSeeking = false
 
         // Clean old observers
@@ -426,8 +475,6 @@ final class PlayerModel {
     private func handleTrackEnded() {
         guard let player else { return }
         if loopModeOn {
-            // If this file has chapters, Loop Mode should loop the *current chapter*,
-            // not necessarily the whole file.
             if chapters.count >= 2, let idx = currentChapterIndex {
                 let c = chapters[idx]
                 player.seek(to: CMTime(seconds: c.startSeconds, preferredTimescale: 600)) { [weak self] _ in
@@ -446,7 +493,6 @@ final class PlayerModel {
                 return
             }
 
-            // Fallback: restart the whole track.
             player.seek(to: .zero) { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
@@ -454,14 +500,12 @@ final class PlayerModel {
                         self.applySpeedToCurrentItem()
                         self.player?.play()
                     } else {
-                        // Even if not playing, keep metadata stable + paused state
                         self.updateNowPlayingInfo(isPaused: true)
                     }
                     self.updateProgressFromPlayer()
                 }
             }
         } else {
-            // If loop mode is off, move forward
             nextTrack()
         }
     }
@@ -791,19 +835,23 @@ final class PlayerModel {
         guard ext == "m4b" || ext == "m4a" else { return }
 
         // Most audiobooks expose chapters via AVAsset timed chapter metadata groups.
-        // This API is available broadly and avoids newer marker-group types that may not exist in all SDKs.
-        let locales = asset.availableChapterLocales
-        let groups: [AVTimedMetadataGroup]
-        if let firstLocale = locales.first {
-            groups = asset.chapterMetadataGroups(
-                withTitleLocale: firstLocale,
-                containingItemsWithCommonKeys: nil
-            )
-        } else {
-            groups = asset.chapterMetadataGroups(
-                withTitleLocale: Locale.current,
-                containingItemsWithCommonKeys: nil
-            )
+        var groups: [AVTimedMetadataGroup] = []
+        
+        do {
+            let locales = try await asset.load(.availableChapterLocales)
+            if let firstLocale = locales.first {
+                groups = try await asset.loadChapterMetadataGroups(
+                    withTitleLocale: firstLocale,
+                    containingItemsWithCommonKeys: []
+                )
+            } else {
+                groups = try await asset.loadChapterMetadataGroups(
+                    withTitleLocale: Locale.current,
+                    containingItemsWithCommonKeys: []
+                )
+            }
+        } catch {
+            groups = []
         }
 
         var built: [Chapter] = []
@@ -815,9 +863,9 @@ final class PlayerModel {
 
             var title: String? = nil
             if let item = g.items.first(where: { $0.commonKey?.rawValue == AVMetadataKey.commonKeyTitle.rawValue }) {
-                title = item.stringValue
+                title = try? await item.load(.stringValue)
             } else if let item = g.items.first {
-                title = item.stringValue
+                title = try? await item.load(.stringValue)
             }
 
             if start.isFinite, end.isFinite, end > start {
@@ -871,27 +919,53 @@ final class PlayerModel {
 
     private func applyChapterLoopIfNeeded() {
         guard !isManualSeeking else { return }
-        guard loopModeOn, chapters.count >= 2, let idx = currentChapterIndex, let player else { return }
-        guard !isSeekingForChapterLoop else { return }
+        guard chapters.count >= 2, let idx = currentChapterIndex, let player else { return }
+        guard !isSeekingForChapterBoundary else { return }
 
         let t = player.currentTime().seconds
         guard t.isFinite else { return }
 
         let c = chapters[idx]
-        // Be forgiving: with a 1s observer tick and speeds > 1.0, we can jump past the boundary.
-        // Use a wider window to reliably catch the chapter end.
         if t >= (c.endSeconds - 1.5) {
-            isSeekingForChapterLoop = true
-            player.seek(to: CMTime(seconds: c.startSeconds, preferredTimescale: 600)) { [weak self] _ in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.isSeekingForChapterLoop = false
-                    if self.isPlaying {
-                        self.applySpeedToCurrentItem()
-                        self.player?.play()
+            isSeekingForChapterBoundary = true
+            
+            if loopModeOn {
+                player.seek(to: CMTime(seconds: c.startSeconds, preferredTimescale: 600)) { [weak self] _ in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        self.isSeekingForChapterBoundary = false
+                        if self.isPlaying {
+                            self.applySpeedToCurrentItem()
+                            self.player?.play()
+                        } else {
+                            self.updateNowPlayingInfo(isPaused: true)
+                        }
+                        self.updateNowPlayingElapsedTime()
+                        self.updateProgressFromPlayer()
                     }
-                    self.updateNowPlayingElapsedTime()
-                    self.updateProgressFromPlayer()
+                }
+            } else {
+                if let nextIdx = findNextEnabledChapterIndex(after: idx) {
+                    let nextC = chapters[nextIdx]
+                    player.seek(to: CMTime(seconds: nextC.startSeconds, preferredTimescale: 600)) { [weak self] _ in
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            self.isSeekingForChapterBoundary = false
+                            if self.isPlaying {
+                                self.applySpeedToCurrentItem()
+                                self.player?.play()
+                            } else {
+                                self.updateNowPlayingInfo(isPaused: true)
+                            }
+                            self.updateNowPlayingElapsedTime()
+                            self.updateProgressFromPlayer()
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.isSeekingForChapterBoundary = false
+                        self?.nextTrack()
+                    }
                 }
             }
         }
@@ -968,6 +1042,7 @@ struct FolderPicker: UIViewControllerRepresentable {
 struct ContentView: View {
     @State private var model = PlayerModel()
     @State private var showingFolderPicker = false
+    @State private var showingPlaylist = false
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -1098,7 +1173,17 @@ struct ContentView: View {
                 Button {
                     showingFolderPicker = true
                 } label: {
-                    Label("Select Folder or File", systemImage: "folder")
+                    Label("Select", systemImage: "folder")
+                        .font(.title3.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button {
+                    showingPlaylist = true
+                } label: {
+                    Label("Playlist", systemImage: "list.bullet")
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 56)
                 }
@@ -1126,6 +1211,9 @@ struct ContentView: View {
                 model.loadFolder(url)
             }
         }
+        .sheet(isPresented: $showingPlaylist) {
+            PlaylistView(model: model)
+        }
         .onAppear {
             // Configure remote commands early so the Watch/Now Playing UI is stable once audio starts.
             // (The model also guards to configure only once.)
@@ -1134,6 +1222,50 @@ struct ContentView: View {
             model.restoreLastSelectionIfPossible()
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+struct PlaylistView: View {
+    @Bindable var model: PlayerModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if model.chapters.count >= 2 {
+                    ForEach($model.chapters) { $chapter in
+                        HStack {
+                            Toggle("", isOn: $chapter.isEnabled)
+                                .labelsHidden()
+                            Text(chapter.title ?? "Chapter \(chapter.index + 1)")
+                        }
+                    }
+                    .onMove { source, destination in
+                        model.moveChapters(from: source, to: destination)
+                    }
+                } else {
+                    ForEach($model.tracks) { $track in
+                        HStack {
+                            Toggle("", isOn: $track.isEnabled)
+                                .labelsHidden()
+                            Text(track.title)
+                        }
+                    }
+                    .onMove { source, destination in
+                        model.moveTracks(from: source, to: destination)
+                    }
+                }
+            }
+            .navigationTitle("Playlist")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 
