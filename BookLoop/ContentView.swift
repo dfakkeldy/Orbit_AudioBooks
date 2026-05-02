@@ -22,14 +22,14 @@ import QuickLookThumbnailing
 @Observable
 final class PlayerModel {
     struct Track: Identifiable, Equatable {
-        let id = UUID()
+        var id: String { url.absoluteString }
         let url: URL
         let title: String
         var isEnabled: Bool = true
     }
 
     struct Chapter: Identifiable, Equatable {
-        let id = UUID()
+        var id: String { "\(index)-\(title ?? "unknown")" }
         let index: Int
         let title: String?
         let startSeconds: Double
@@ -106,6 +106,9 @@ final class PlayerModel {
         if let currentURL, let newIdx = tracks.firstIndex(where: { $0.url == currentURL }) {
             currentIndex = newIdx
         }
+        if let folderURL = folderURL {
+            persistence.saveOrder(for: folderURL.absoluteString, ids: tracks.map { $0.id })
+        }
     }
 
     func moveChapters(from source: IndexSet, to destination: Int) {
@@ -113,6 +116,27 @@ final class PlayerModel {
         chapters.move(fromOffsets: source, toOffset: destination)
         if let currentID, let newIdx = chapters.firstIndex(where: { $0.id == currentID }) {
             currentChapterIndex = newIdx
+        }
+        if let currentTrackURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil {
+            persistence.saveOrder(for: currentTrackURL.absoluteString, ids: chapters.map { $0.id })
+        }
+    }
+    
+    func toggleTrackEnabled(at index: Int) {
+        tracks[index].isEnabled.toggle()
+        if let folderURL = folderURL {
+            var states = persistence.loadEnabledState(for: folderURL.absoluteString) ?? [:]
+            states[tracks[index].id] = tracks[index].isEnabled
+            persistence.saveEnabledState(for: folderURL.absoluteString, states: states)
+        }
+    }
+    
+    func toggleChapterEnabled(at index: Int) {
+        chapters[index].isEnabled.toggle()
+        if let currentTrackURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil {
+            var states = persistence.loadEnabledState(for: currentTrackURL.absoluteString) ?? [:]
+            states[chapters[index].id] = chapters[index].isEnabled
+            persistence.saveEnabledState(for: currentTrackURL.absoluteString, states: states)
         }
     }
 
@@ -166,13 +190,36 @@ final class PlayerModel {
         ) else { return [] }
 
         let allowed = Set(["mp3", "m4a", "m4b"])
-        let tracks: [Track] = urls.compactMap { url in
+        var loadedTracks: [Track] = urls.compactMap { url in
             let ext = url.pathExtension.lowercased()
             guard allowed.contains(ext) else { return nil }
             return Track(url: url, title: url.deletingPathExtension().lastPathComponent)
         }
 
-        return tracks.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        loadedTracks.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        
+        let folderKey = folder.absoluteString
+        if let savedStates = persistence.loadEnabledState(for: folderKey) {
+            for i in 0..<loadedTracks.count {
+                if let isEnabled = savedStates[loadedTracks[i].id] {
+                    loadedTracks[i].isEnabled = isEnabled
+                }
+            }
+        }
+        
+        if let savedOrder = persistence.loadOrder(for: folderKey) {
+            var orderedTracks: [Track] = []
+            var remainingTracks = loadedTracks
+            for id in savedOrder {
+                if let idx = remainingTracks.firstIndex(where: { $0.id == id }) {
+                    orderedTracks.append(remainingTracks.remove(at: idx))
+                }
+            }
+            orderedTracks.append(contentsOf: remainingTracks)
+            loadedTracks = orderedTracks
+        }
+
+        return loadedTracks
     }
 
     // MARK: Playback controls
@@ -213,6 +260,11 @@ final class PlayerModel {
 
         // CRUCIAL: keep Now Playing metadata, but mark paused + playbackRate = 0.0
         updateNowPlayingInfo(isPaused: true)
+        
+        // Save progress when paused
+        if let player = player {
+            persistence.saveProgress(for: currentTitle, time: player.currentTime().seconds)
+        }
     }
 
     private func endBackgroundTask() {
@@ -378,6 +430,11 @@ final class PlayerModel {
 
     private func prepareToPlay(index: Int, autoplay: Bool) {
         guard tracks.indices.contains(index) else { return }
+
+        // Save progress before changing track
+        if let player = player {
+            persistence.saveProgress(for: currentTitle, time: player.currentTime().seconds)
+        }
 
         currentIndex = index
         currentTitle = tracks[index].title
@@ -817,6 +874,22 @@ final class PlayerModel {
                 durationSeconds = seconds
                 updateNowPlayingInfo(isPaused: !isPlaying)
                 updateProgressFromPlayer()
+                
+                // Once asset is ready, check for saved progress and seek
+                if let savedTime = persistence.getProgress(for: currentTitle),
+                   savedTime > 0, savedTime < seconds {
+                    await MainActor.run {
+                        self.isManualSeeking = true
+                        self.player?.seek(to: CMTime(seconds: savedTime, preferredTimescale: 600)) { [weak self] _ in
+                            DispatchQueue.main.async {
+                                self?.isManualSeeking = false
+                                self?.updateCurrentChapterFromPlayerTime()
+                                self?.updateNowPlayingElapsedTime()
+                                self?.updateProgressFromPlayer()
+                            }
+                        }
+                    }
+                }
             }
         } catch {
             print("Duration load error: \(error)")
@@ -892,6 +965,26 @@ final class PlayerModel {
         built.sort { $0.startSeconds < $1.startSeconds }
         for i in 0..<built.count {
             built[i] = Chapter(index: i, title: built[i].title, startSeconds: built[i].startSeconds, endSeconds: built[i].endSeconds)
+        }
+
+        let trackKey = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url.absoluteString : ""
+        if let savedStates = persistence.loadEnabledState(for: trackKey) {
+            for i in 0..<built.count {
+                if let isEnabled = savedStates[built[i].id] {
+                    built[i].isEnabled = isEnabled
+                }
+            }
+        }
+        if let savedOrder = persistence.loadOrder(for: trackKey) {
+            var orderedChapters: [Chapter] = []
+            var remainingChapters = built
+            for id in savedOrder {
+                if let idx = remainingChapters.firstIndex(where: { $0.id == id }) {
+                    orderedChapters.append(remainingChapters.remove(at: idx))
+                }
+            }
+            orderedChapters.append(contentsOf: remainingChapters)
+            built = orderedChapters
         }
 
         // Some files return a single "chapter" spanning whole book; treat that as "no chapters".
@@ -1253,10 +1346,13 @@ struct PlaylistView: View {
         NavigationStack {
             List {
                 if model.chapters.count >= 2 {
-                    ForEach($model.chapters) { $chapter in
+                    ForEach(Array(model.chapters.enumerated()), id: \.element.id) { index, chapter in
                         HStack {
-                            Toggle("", isOn: $chapter.isEnabled)
-                                .labelsHidden()
+                            Toggle("", isOn: Binding(
+                                get: { model.chapters[index].isEnabled },
+                                set: { _ in model.toggleChapterEnabled(at: index) }
+                            ))
+                            .labelsHidden()
                             Text(chapter.title ?? "Chapter \(chapter.index + 1)")
                         }
                     }
@@ -1264,10 +1360,13 @@ struct PlaylistView: View {
                         model.moveChapters(from: source, to: destination)
                     }
                 } else {
-                    ForEach($model.tracks) { $track in
+                    ForEach(Array(model.tracks.enumerated()), id: \.element.id) { index, track in
                         HStack {
-                            Toggle("", isOn: $track.isEnabled)
-                                .labelsHidden()
+                            Toggle("", isOn: Binding(
+                                get: { model.tracks[index].isEnabled },
+                                set: { _ in model.toggleTrackEnabled(at: index) }
+                            ))
+                            .labelsHidden()
                             Text(track.title)
                         }
                     }
@@ -1294,6 +1393,34 @@ struct PlaylistView: View {
 private struct Persistence {
     private let defaults = UserDefaults.standard
     private let bookmarkKey = "BookLoop.selection.bookmark"
+    private let progressKey = "BookLoop.progress.dictionary"
+
+    func saveOrder(for key: String, ids: [String]) {
+        defaults.set(ids, forKey: "order_\(key)")
+    }
+    
+    func loadOrder(for key: String) -> [String]? {
+        defaults.stringArray(forKey: "order_\(key)")
+    }
+    
+    func saveEnabledState(for key: String, states: [String: Bool]) {
+        defaults.set(states, forKey: "enabled_\(key)")
+    }
+    
+    func loadEnabledState(for key: String) -> [String: Bool]? {
+        defaults.dictionary(forKey: "enabled_\(key)") as? [String: Bool]
+    }
+
+    func saveProgress(for title: String, time: Double) {
+        var dict = defaults.dictionary(forKey: progressKey) as? [String: Double] ?? [:]
+        dict[title] = time
+        defaults.set(dict, forKey: progressKey)
+    }
+
+    func getProgress(for title: String) -> Double? {
+        let dict = defaults.dictionary(forKey: progressKey) as? [String: Double] ?? [:]
+        return dict[title]
+    }
 
     func saveBookmark(url: URL) {
         do {
