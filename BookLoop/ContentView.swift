@@ -1122,20 +1122,26 @@ struct ContentView: View {
             }
 
             HStack(spacing: 12) {
-                Toggle("Loop Mode", isOn: $model.loopModeOn)
+                Toggle("Loop", isOn: $model.loopModeOn)
                     .toggleStyle(.switch)
+                    .fixedSize()
 
                 Spacer(minLength: 12)
 
-                Picker("Speed", selection: Binding(
-                    get: { model.speed },
-                    set: { model.setSpeed($0) }
-                )) {
-                    Text("1x").tag(Float(1.0))
-                    Text("1.25x").tag(Float(1.25))
+                Button {
+                    let speeds: [Float] = [1.0, 1.25, 1.5, 2.0]
+                    if let index = speeds.firstIndex(of: model.speed) {
+                        let nextIndex = (index + 1) % speeds.count
+                        model.setSpeed(speeds[nextIndex])
+                    } else {
+                        model.setSpeed(1.0)
+                    }
+                } label: {
+                    Text(String(format: "%gx", model.speed))
+                        .font(.headline)
+                        .frame(minWidth: 60, minHeight: 32)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 180)
+                .buttonStyle(.bordered)
             }
 
             HStack(spacing: 12) {
