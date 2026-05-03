@@ -1291,34 +1291,72 @@ struct ContentView: View {
             }
 
             HStack(spacing: 12) {
+                Text(model.elapsedText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                ProgressView(value: model.progressFraction)
+                    .frame(maxWidth: .infinity)
+                Text(model.progressText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 32) {
                 Button {
-                    model.togglePlayPause()
+                    if model.chapters.count >= 2 {
+                        model.previousChapterOrRestart()
+                    } else {
+                        model.previousTrackOrRestart()
+                    }
                 } label: {
-                    Label(model.isPlaying ? "Pause" : "Play",
-                          systemImage: model.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
+                    Image(systemName: "backward.end.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.primary)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
 
                 Button {
                     model.skipBackward30()
                 } label: {
-                    Label("Back 30s", systemImage: "gobackward.30")
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
+                    Image(systemName: "gobackward.30")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.primary)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+
+                Button {
+                    model.togglePlayPause()
+                } label: {
+                    Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 40))
+                        .frame(width: 88, height: 88)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .foregroundStyle(.primary)
+                }
+
+                Button {
+                    if model.chapters.count >= 2 {
+                        model.nextChapter()
+                    } else {
+                        model.nextTrack()
+                    }
+                } label: {
+                    Image(systemName: "forward.end.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.primary)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
 
             HStack(spacing: 12) {
                 Toggle("Loop", isOn: $model.loopModeOn)
                     .toggleStyle(.switch)
                     .fixedSize()
 
-                Spacer(minLength: 12)
+                Spacer()
 
                 Button {
                     let speeds: [Float] = [1.0, 1.25, 1.5, 2.0]
@@ -1336,72 +1374,33 @@ struct ContentView: View {
                 .buttonStyle(.bordered)
             }
 
-            HStack(spacing: 12) {
-                Text(model.elapsedText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                ProgressView(value: model.progressFraction)
-                    .frame(maxWidth: .infinity)
-                Text(model.progressText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-
-            HStack(spacing: 12) {
-                Button {
-                    // If this file has chapters, Previous behaves like "Previous Chapter"
-                    // (restart chapter if you're >5s in).
-                    if model.chapters.count >= 2 {
-                        model.previousChapterOrRestart()
-                    } else {
-                        model.previousTrackOrRestart()
-                    }
-                } label: {
-                    Label(model.chapters.count >= 2 ? "Prev Chapter" : "Previous", systemImage: "backward.end.fill")
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
-                Button {
-                    if model.chapters.count >= 2 {
-                        model.nextChapter()
-                    } else {
-                        model.nextTrack()
-                    }
-                } label: {
-                    Label(model.chapters.count >= 2 ? "Next Chapter" : "Next", systemImage: "forward.end.fill")
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-            }
-
-            HStack(spacing: 12) {
+            HStack(spacing: 60) {
                 Button {
                     showingFolderPicker = true
                 } label: {
-                    Label("Select", systemImage: "folder")
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
+                    VStack(spacing: 4) {
+                        Image(systemName: "folder")
+                            .font(.title2)
+                        Text("Select")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
 
                 Button {
                     showingPlaylist = true
                 } label: {
-                    Label("Playlist", systemImage: "list.bullet")
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
+                    VStack(spacing: 4) {
+                        Image(systemName: "list.bullet")
+                            .font(.title2)
+                        Text("Playlist")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
 
             if !model.tracks.isEmpty {
                 Text("Tracks: \(model.tracks.count)  •  Current: \(model.currentIndex + 1)")
@@ -1440,6 +1439,16 @@ struct PlaylistView: View {
     @Bindable var model: PlayerModel
     @Environment(\.dismiss) private var dismiss
 
+    private func formatDuration(_ seconds: Double) -> String {
+        let h = Int(seconds) / 3600
+        let m = (Int(seconds) % 3600) / 60
+        if h > 0 {
+            return "\(h)h \(String(format: "%02d", m))m"
+        } else {
+            return "\(m)m"
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -1452,6 +1461,10 @@ struct PlaylistView: View {
                             ))
                             .labelsHidden()
                             Text(chapter.title ?? "Chapter \(chapter.index + 1)")
+                            Spacer()
+                            Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .onMove { source, destination in

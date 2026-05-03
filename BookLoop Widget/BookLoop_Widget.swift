@@ -89,33 +89,27 @@ struct BookLoop_WidgetEntryView : View {
             .containerBackground(.fill.tertiary, for: .widget)
 
         case .accessoryCircular:
-            ZStack {
+            Gauge(value: entry.progressFraction) {
+                EmptyView()
+            } currentValueLabel: {
                 if let data = entry.thumbnailData, let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
                         .clipShape(Circle())
-                        .opacity(0.8)
                 } else {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: "music.note")
-                        )
+                    Image(systemName: "music.note")
                 }
-                
-                ProgressView(value: entry.progressFraction)
-                    .progressViewStyle(.circular)
-                    .tint(Color.accentColor)
-                    // The ProgressView naturally wraps around the edge in an accessoryCircular complication
-                
-                // Make the entire widget interactive to toggle playback
+            }
+            .gaugeStyle(.accessoryCircular)
+            .tint(Color.accentColor)
+            .containerBackground(.fill.tertiary, for: .widget)
+            // Wrapping it in a Button allows us to trigger the intent
+            .overlay(
                 Button(intent: TogglePlaybackIntent()) {
                     Color.clear
-                }
-                .buttonStyle(.plain)
-            }
-            .containerBackground(.fill.tertiary, for: .widget)
+                }.buttonStyle(.plain)
+            )
 
         default:
             Text(entry.title)
@@ -124,7 +118,6 @@ struct BookLoop_WidgetEntryView : View {
     }
 }
 
-@main
 struct BookLoop_Widget: Widget {
     let kind: String = "BookLoop_Widget"
 

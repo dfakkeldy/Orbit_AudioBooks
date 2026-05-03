@@ -102,7 +102,7 @@ struct ContentView: View {
                         .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
                 } else {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(.ultraThinMaterial)
                         .frame(width: 80, height: 80)
                         .overlay(
                             Image(systemName: "music.note")
@@ -129,21 +129,25 @@ struct ContentView: View {
                     .buttonStyle(PlainButtonStyle())
                     
                     ZStack {
-                        ProgressView(value: viewModel.progressFraction)
-                            .progressViewStyle(.circular)
-                            .tint(Color.accentColor)
-                            .scaleEffect(1.5) // Make it large enough to wrap the button
+                        Circle()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 4)
+                            .frame(width: 52, height: 52)
+                        
+                        Circle()
+                            .trim(from: 0, to: viewModel.progressFraction)
+                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .frame(width: 52, height: 52)
+                            .rotationEffect(.degrees(-90))
                         
                         Button {
                             viewModel.sendCommand(viewModel.isPlaying ? "pause" : "play")
                             viewModel.isPlaying.toggle()
                         } label: {
                             Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 24))
+                                .font(.system(size: 22))
                                 .frame(width: 44, height: 44)
-                                .background(Color.black.opacity(0.5))
+                                .background(.ultraThinMaterial)
                                 .clipShape(Circle())
-                                .shadow(color: Color.white.opacity(0.3), radius: 5, x: 0, y: 0)
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
