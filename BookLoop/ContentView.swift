@@ -222,6 +222,37 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    func resetPlaylist() {
+        if chapters.count >= 2 {
+            chapters.sort { $0.startSeconds < $1.startSeconds }
+            for i in 0..<chapters.count {
+                chapters[i].isEnabled = true
+            }
+            if let currentTrackURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil {
+                persistence.saveOrder(for: currentTrackURL.absoluteString, ids: chapters.map { $0.id })
+                var states: [String: Bool] = [:]
+                for c in chapters { states[c.id] = true }
+                persistence.saveEnabledState(for: currentTrackURL.absoluteString, states: states)
+            }
+            updateCurrentChapterFromPlayerTime()
+        } else {
+            let currentURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil
+            tracks.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            for i in 0..<tracks.count {
+                tracks[i].isEnabled = true
+            }
+            if let folderURL = folderURL {
+                persistence.saveOrder(for: folderURL.absoluteString, ids: tracks.map { $0.id })
+                var states: [String: Bool] = [:]
+                for t in tracks { states[t.id] = true }
+                persistence.saveEnabledState(for: folderURL.absoluteString, states: states)
+            }
+            if let currentURL, let newIdx = tracks.firstIndex(where: { $0.url == currentURL }) {
+                currentIndex = newIdx
+            }
+        }
+    }
+
     func loadFolder(_ url: URL, autoplay: Bool = true) {
         stop() // stop current playback when selecting a new folder/file
 
@@ -1362,8 +1393,10 @@ struct FolderPicker: UIViewControllerRepresentable {
 
 struct ContentView: View {
     @State private var model = PlayerModel()
+    @AppStorage("isDarkMode") private var isDarkMode = true
     @State private var showingFolderPicker = false
     @State private var showingPlaylist = false
+    @State private var showingSettings = false
     @State private var isScrubbing = false
     @State private var scrubFraction: Double = 0.0
     @Environment(\.displayScale) private var displayScale
@@ -1559,6 +1592,15 @@ struct ContentView: View {
                         Image(systemName: "list.bullet")
                             .font(.title2)
                     }
+                    
+                    Spacer()
+                    
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.title2)
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -1577,20 +1619,46 @@ struct ContentView: View {
         .sheet(isPresented: $showingPlaylist) {
             PlaylistView(model: model)
         }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
         .onAppear {
             // Configure remote commands early so the Watch/Now Playing UI is stable once audio starts.
             // (The model also guards to configure only once.)
             model.setDisplayScale(displayScale)
             model.restoreLastSelectionIfPossible()
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(isDarkMode ? .dark : .light)
         }
+    }
+}
+
+struct SettingsView: View {
+    @AppStorage("isDarkMode") private var isDarkMode = true
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Dark Mode", isOn: $isDarkMode)
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 }
 
 struct PlaylistView: View {
     @Bindable var model: PlayerModel
     @Environment(\.dismiss) private var dismiss
+    @State private var editMode: EditMode = .active
 
     private func formatDuration(_ seconds: Double) -> String {
         let h = Int(seconds) / 3600
@@ -1607,17 +1675,16 @@ struct PlaylistView: View {
             List {
                 if model.chapters.count >= 2 {
                     ForEach(Array(model.chapters.enumerated()), id: \.element.id) { index, chapter in
-                        HStack {
-                            Toggle("", isOn: Binding(
-                                get: { model.chapters[index].isEnabled },
-                                set: { _ in model.toggleChapterEnabled(at: index) }
-                            ))
-                            .labelsHidden()
-                            Text(chapter.title ?? "Chapter \(chapter.index + 1)")
-                            Spacer()
-                            Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        Button {
+                            model.toggleChapterEnabled(at: index)
+                        } label: {
+                            HStack {
+                                Text(chapter.title ?? "Chapter \(chapter.index + 1)")
+                                Spacer()
+                                Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(chapter.isEnabled ? .primary : .tertiary)
                         }
                     }
                     .onMove { source, destination in
@@ -1625,13 +1692,13 @@ struct PlaylistView: View {
                     }
                 } else {
                     ForEach(Array(model.tracks.enumerated()), id: \.element.id) { index, track in
-                        HStack {
-                            Toggle("", isOn: Binding(
-                                get: { model.tracks[index].isEnabled },
-                                set: { _ in model.toggleTrackEnabled(at: index) }
-                            ))
-                            .labelsHidden()
-                            Text(track.title)
+                        Button {
+                            model.toggleTrackEnabled(at: index)
+                        } label: {
+                            HStack {
+                                Text(track.title)
+                            }
+                            .foregroundStyle(track.isEnabled ? .primary : .tertiary)
                         }
                     }
                     .onMove { source, destination in
@@ -1639,12 +1706,15 @@ struct PlaylistView: View {
                     }
                 }
             }
+            .environment(\.editMode, $editMode)
             .navigationTitle("Playlist")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    EditButton()
-                }
                 ToolbarItem(placement: .topBarLeading) {
+                    Button("Reset") {
+                        model.resetPlaylist()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }
