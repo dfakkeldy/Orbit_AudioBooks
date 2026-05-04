@@ -7,12 +7,23 @@ struct Provider: TimelineProvider {
         SimpleEntry(date: Date(), title: "Book Title", isPlaying: false, progressFraction: 0.3, thumbnailData: nil)
     }
 
+    // Helper to ensure image data isn't too large for the widget
+    private func safelyDownsampledData(_ data: Data?) -> Data? {
+        guard let data = data, let image = UIImage(data: data) else { return nil }
+        // If the legacy image is too large, it crashes widget archival.
+        // Discard it. The updated iOS app will sync a properly sized 60x60 image.
+        if image.size.width > 100 || image.size.height > 100 {
+            return nil
+        }
+        return data
+    }
+
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
         let defaults = UserDefaults(suiteName: "group.com.bookloop")
         let title = defaults?.string(forKey: "title") ?? "No track"
         let isPlaying = defaults?.bool(forKey: "isPlaying") ?? false
         let progressFraction = defaults?.double(forKey: "progressFraction") ?? 0.0
-        let thumbnailData = defaults?.data(forKey: "thumbnailData")
+        let thumbnailData = safelyDownsampledData(defaults?.data(forKey: "thumbnailData"))
         
         let entry = SimpleEntry(date: Date(), title: title, isPlaying: isPlaying, progressFraction: progressFraction, thumbnailData: thumbnailData)
         completion(entry)
@@ -23,7 +34,7 @@ struct Provider: TimelineProvider {
         let title = defaults?.string(forKey: "title") ?? "No track"
         let isPlaying = defaults?.bool(forKey: "isPlaying") ?? false
         let progressFraction = defaults?.double(forKey: "progressFraction") ?? 0.0
-        let thumbnailData = defaults?.data(forKey: "thumbnailData")
+        let thumbnailData = safelyDownsampledData(defaults?.data(forKey: "thumbnailData"))
 
         let entry = SimpleEntry(date: Date(), title: title, isPlaying: isPlaying, progressFraction: progressFraction, thumbnailData: thumbnailData)
         

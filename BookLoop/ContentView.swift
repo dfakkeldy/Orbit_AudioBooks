@@ -111,6 +111,19 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
     
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        handleMessage(message)
+    }
+    
+    func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
+        handleMessage(message)
+        replyHandler(["status": "ok"])
+    }
+    
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
+        handleMessage(userInfo)
+    }
+    
+    private func handleMessage(_ message: [String: Any]) {
         DispatchQueue.main.async {
             if let command = message["command"] as? String {
                 switch command {
@@ -147,8 +160,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         context["title"] = title
         
         if let image = thumbnailImage {
-            let targetSize = CGSize(width: 200, height: 200)
-            let renderer = UIGraphicsImageRenderer(size: targetSize)
+            let targetSize = CGSize(width: 60, height: 60)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0 // Force 1.0 scale so it's exactly 60x60 pixels
+            let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
             let scaledImage = renderer.image { _ in
                 image.draw(in: CGRect(origin: .zero, size: targetSize))
             }

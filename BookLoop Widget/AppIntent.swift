@@ -2,27 +2,54 @@ import WidgetKit
 import AppIntents
 import WatchConnectivity
 
+class SessionDelegator: NSObject, WCSessionDelegate {
+    var continuation: CheckedContinuation<Void, Never>?
+    
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 struct TogglePlaybackIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle Playback"
+    static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
         // Toggle playback via WCSession
         if WCSession.isSupported() {
             let session = WCSession.default
-            if session.activationState != .activated {
-                session.activate()
+            
+            let delegator = SessionDelegator()
+            if session.delegate == nil {
+                session.delegate = delegator
             }
             
-            // Try to update application context as well as send message
-            // in case the iPhone is reachable or not.
-            if session.isReachable {
-                session.sendMessage(["command": "toggle"], replyHandler: nil, errorHandler: nil)
-            } else {
-                do {
-                    try session.updateApplicationContext(["command": "toggle", "timestamp": Date().timeIntervalSince1970])
-                } catch {
-                    print("Failed to toggle playback: \(error)")
+            if session.activationState != .activated {
+                session.activate()
+                await withCheckedContinuation { continuation in
+                    delegator.continuation = continuation
                 }
+            }
+            
+            _ = delegator
+            
+            let message = ["command": "toggle", "timestamp": Date().timeIntervalSince1970] as [String : Any]
+            
+            if session.isReachable {
+                await withCheckedContinuation { continuation in
+                    session.sendMessage(message) { _ in
+                        continuation.resume()
+                    } errorHandler: { _ in
+                        continuation.resume()
+                    }
+                }
+            } else {
+                // Use transferUserInfo which is queued by the OS and sent even if the extension suspends!
+                session.transferUserInfo(message)
+                
+                // Wait briefly to allow the WCSession daemon to pick up the transfer
+                try? await Task.sleep(nanoseconds: 500_000_000)
             }
         }
         
