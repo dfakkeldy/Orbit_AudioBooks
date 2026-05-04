@@ -56,6 +56,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     private(set) var elapsedText: String = "--:--"
     private(set) var durationSeconds: Double? = nil
     private(set) var thumbnailImage: UIImage? = nil
+    private(set) var watchThumbnailData: Data? = nil
 
     // Chapters (for .m4b with chapter markers)
     var chapters: [Chapter] = []
@@ -159,17 +160,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let title = chapters.count >= 2 ? (currentSubtitle.isEmpty ? "Chapter \((currentChapterIndex ?? 0) + 1)" : currentSubtitle) : currentTitle
         context["title"] = title
         
-        if let image = thumbnailImage {
-            let targetSize = CGSize(width: 60, height: 60)
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1.0 // Force 1.0 scale so it's exactly 60x60 pixels
-            let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-            let scaledImage = renderer.image { _ in
-                image.draw(in: CGRect(origin: .zero, size: targetSize))
-            }
-            if let jpegData = scaledImage.jpegData(compressionQuality: 0.6) {
-                context["thumbnailData"] = jpegData
-            }
+        if let data = watchThumbnailData {
+            context["thumbnailData"] = data
         }
         
         do {
@@ -1039,11 +1031,24 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         do {
             let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-            thumbnailImage = representation.uiImage
+            let image = representation.uiImage
+            thumbnailImage = image
+            
+            // Pre-compute watch thumbnail data to avoid re-encoding on every sync
+            let targetSize = CGSize(width: 60, height: 60)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0
+            let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+            let scaledImage = renderer.image { _ in
+                image.draw(in: CGRect(origin: .zero, size: targetSize))
+            }
+            watchThumbnailData = scaledImage.jpegData(compressionQuality: 0.6)
+            
             updateNowPlayingInfo(isPaused: !isPlaying)
             syncToWatch()
         } catch {
             thumbnailImage = nil
+            watchThumbnailData = nil
             updateNowPlayingInfo(isPaused: !isPlaying)
             syncToWatch()
         }
