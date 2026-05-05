@@ -442,8 +442,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         syncToWatch()
         
         // Save progress when paused
-        if let player = player {
-            persistence.saveProgress(for: currentTitle, time: player.currentTime().seconds)
+        if let player = player, let folder = folderURL?.absoluteString, tracks.indices.contains(currentIndex) {
+            persistence.saveBookProgress(for: folder, trackId: tracks[currentIndex].id, time: player.currentTime().seconds)
         }
     }
 
@@ -662,6 +662,13 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         updateProgressFromPlayer()
     }
 
+    func setLoopMode(_ mode: Bool) {
+        loopModeOn = mode
+        if let key = folderURL?.absoluteString {
+            persistence.saveLoopMode(for: key, loopMode: mode)
+        }
+    }
+
     private func stop() {
         player?.pause()
         isPlaying = false
@@ -681,8 +688,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         guard tracks.indices.contains(index) else { return }
 
         // Save progress before changing track
-        if let player = player {
-            persistence.saveProgress(for: currentTitle, time: player.currentTime().seconds)
+        if let player = player, let folder = folderURL?.absoluteString, tracks.indices.contains(currentIndex) {
+            persistence.saveBookProgress(for: folder, trackId: tracks[currentIndex].id, time: player.currentTime().seconds)
         }
 
         currentIndex = index
@@ -696,8 +703,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         // Load the specific speed for this book
         if let key = folderURL?.absoluteString {
             speed = persistence.getSpeed(for: key) ?? 1.25
+            loopModeOn = persistence.getLoopMode(for: key) ?? true
         } else {
             speed = 1.25
+            loopModeOn = true
         }
         chapters = []
         currentChapterIndex = nil
@@ -1152,8 +1161,12 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                 updateProgressFromPlayer()
                 
                 // Once asset is ready, check for saved progress and seek
-                if let savedTime = persistence.getProgress(for: currentTitle),
-                   savedTime > 0, savedTime < seconds {
+                if let folder = folderURL?.absoluteString,
+                   let progress = persistence.getBookProgress(for: folder),
+                   tracks.indices.contains(currentIndex),
+                   progress.trackId == tracks[currentIndex].id,
+                   progress.time > 0, progress.time < seconds {
+                    let savedTime = progress.time
                     await MainActor.run {
                         self.isManualSeeking = true
                         self.player?.seek(to: CMTime(seconds: savedTime, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
@@ -1631,7 +1644,7 @@ struct ContentView: View {
                 Divider()
                 HStack {
                     Button {
-                        model.loopModeOn.toggle()
+                        model.setLoopMode(!model.loopModeOn)
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         Image(systemName: model.loopModeOn ? "infinity.circle.fill" : "infinity.circle")
@@ -1833,6 +1846,7 @@ private struct Persistence {
     private let bookmarkKey = "AuDioHD.selection.bookmark"
     private let progressKey = "AuDioHD.progress.dictionary"
     private let speedKey = "AuDioHD.playback.speed.dictionary"
+    private let loopModeKey = "AuDioHD.playback.loopMode.dictionary"
     private let lastTrackKey = "AuDioHD.lastTrack.dictionary"
     
     func saveLastTrack(for folderKey: String, trackId: String) {
@@ -1856,6 +1870,17 @@ private struct Persistence {
         let dict = defaults.dictionary(forKey: speedKey) as? [String: Float] ?? [:]
         return dict[title]
     }
+    
+    func saveLoopMode(for key: String, loopMode: Bool) {
+        var dict = defaults.dictionary(forKey: loopModeKey) as? [String: Bool] ?? [:]
+        dict[key] = loopMode
+        defaults.set(dict, forKey: loopModeKey)
+    }
+    
+    func getLoopMode(for key: String) -> Bool? {
+        let dict = defaults.dictionary(forKey: loopModeKey) as? [String: Bool] ?? [:]
+        return dict[key]
+    }
 
     func saveOrder(for key: String, ids: [String]) {
         defaults.set(ids, forKey: "order_\(key)")
@@ -1873,15 +1898,18 @@ private struct Persistence {
         defaults.dictionary(forKey: "enabled_\(key)") as? [String: Bool]
     }
 
-    func saveProgress(for title: String, time: Double) {
-        var dict = defaults.dictionary(forKey: progressKey) as? [String: Double] ?? [:]
-        dict[title] = time
+    func saveBookProgress(for folderKey: String, trackId: String, time: Double) {
+        var dict = defaults.dictionary(forKey: progressKey) as? [String: [String: Any]] ?? [:]
+        dict[folderKey] = ["trackId": trackId, "time": time]
         defaults.set(dict, forKey: progressKey)
     }
 
-    func getProgress(for title: String) -> Double? {
-        let dict = defaults.dictionary(forKey: progressKey) as? [String: Double] ?? [:]
-        return dict[title]
+    func getBookProgress(for folderKey: String) -> (trackId: String, time: Double)? {
+        let dict = defaults.dictionary(forKey: progressKey) as? [String: [String: Any]] ?? [:]
+        if let item = dict[folderKey], let trackId = item["trackId"] as? String, let time = item["time"] as? Double {
+            return (trackId, time)
+        }
+        return nil
     }
 
     func saveBookmark(url: URL) {
