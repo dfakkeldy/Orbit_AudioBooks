@@ -620,7 +620,6 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = "Dan.AuDioHD.watchkitapp.AuDioHD-Widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -631,6 +630,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -655,7 +655,6 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = "Dan.AuDioHD.watchkitapp.AuDioHD-Widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -667,6 +666,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -818,7 +818,6 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHD;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -832,6 +831,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
+				VERSIONING_SYSTEM = "apple-generic";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -867,7 +867,6 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHD;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -881,6 +880,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
+				VERSIONING_SYSTEM = "apple-generic";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -896,7 +896,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHDTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -908,6 +907,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AuDioHD.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AuDioHD";
+				VERSIONING_SYSTEM = "apple-generic";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -923,7 +923,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHDTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -935,6 +934,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AuDioHD.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AuDioHD";
+				VERSIONING_SYSTEM = "apple-generic";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -949,7 +949,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHDUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -961,6 +960,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_TARGET_NAME = AuDioHD;
+				VERSIONING_SYSTEM = "apple-generic";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -975,7 +975,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHDUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -987,6 +986,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_TARGET_NAME = AuDioHD;
+				VERSIONING_SYSTEM = "apple-generic";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -1010,7 +1010,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHD.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1022,6 +1021,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -1045,7 +1045,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = Dan.AuDioHD.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1058,6 +1057,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -1071,7 +1071,6 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = "Dan.AuDioHD-Watch-App-Watch-AppTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1082,6 +1081,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AuDioHD Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AuDioHD Watch App";
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -1095,7 +1095,6 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = "Dan.AuDioHD-Watch-App-Watch-AppTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1107,6 +1106,7 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AuDioHD Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AuDioHD Watch App";
 				VALIDATE_PRODUCT = YES;
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -1119,7 +1119,6 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = "Dan.AuDioHD-Watch-App-Watch-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1130,6 +1129,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "AuDioHD Watch App";
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -1142,7 +1142,6 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.5;
-				VERSIONING_SYSTEM = "apple-generic";
 				PRODUCT_BUNDLE_IDENTIFIER = "Dan.AuDioHD-Watch-App-Watch-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1154,6 +1153,7 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "AuDioHD Watch App";
 				VALIDATE_PRODUCT = YES;
+				VERSIONING_SYSTEM = "apple-generic";
 				WATCHOS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;

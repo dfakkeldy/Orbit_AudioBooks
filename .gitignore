@@ -1,29 +1,56 @@
-# --- Xcode ---
-# User-specific files (window positions, open tabs, etc.)
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# --- Xcode: User-specific ---
 xcuserdata/
 *.xcuserstate
+*.xcuserdatad/
 *.xcscmblueprint
+*.xccheckout
+*.moved-aside
 
-# Build artifacts
+# --- Xcode: Build artifacts ---
 build/
 DerivedData/
-*.moved-aside
 *.hmap
 *.ipa
-*.dSYM.zip
 *.dSYM
+*.dSYM.zip
+*.app
+*.appex
+
+# --- Xcode: Workspace settings (keep shared, ignore per-user) ---
+*.xcworkspace/xcuserdata/
+project.xcworkspace/xcuserdata/
 
 # --- Swift Package Manager ---
 .build/
 .swiftpm/
-# Uncomment the line below if you want to ignore dependency version locking
-# Package.resolved
+Package.resolved
 
-# --- CocoaPods (If you ever use them) ---
+# --- CocoaPods ---
 Pods/
-Array.xcworkspace
+
+# --- Carthage ---
+Carthage/Build/
+Carthage/Checkouts/
+
+# --- Fastlane ---
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
 
 # --- Misc ---
-.DS_Store
 *.swp
 *.lock
+*.log
+*.tmp
+out.txt
+out2.txt
+.env
+.env.local
