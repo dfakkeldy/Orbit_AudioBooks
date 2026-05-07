@@ -94,6 +94,22 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private let persistence = Persistence()
 
+    @ObservationIgnored private var _volumeView: MPVolumeView?
+
+    private func setSystemVolume(_ level: Float) {
+        if _volumeView == nil {
+            let view = MPVolumeView(frame: CGRect(x: -2000, y: -2000, width: 0, height: 0))
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = scene.windows.first {
+                window.addSubview(view)
+            }
+            _volumeView = view
+        }
+        guard let slider = _volumeView?.subviews.compactMap({ $0 as? UISlider }).first else { return }
+        slider.value = level
+        slider.sendActions(for: .valueChanged)
+    }
+
     override init() {
         speed = 1.25
         super.init()
@@ -143,17 +159,21 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                     }
                 case "scrubDelta":
                     if let d = message["delta"] as? Double {
+                        let sens = UserDefaults.standard.double(forKey: "crownScrubSensitivity")
+                        let mult = sens > 0 ? sens : 0.5
                         let current = self.player?.currentTime().seconds ?? 0
                         let duration = self.durationSeconds ?? 0
-                        // Make scrubbing gentle: e.g. 15 seconds per unit of delta
-                        let target = max(0, min(duration, current + (d * 15.0)))
+                        let target = max(0, min(duration, current + (d * 30.0 * mult)))
                         self.seek(toSeconds: target)
                     }
                 case "volumeDelta":
                     if let d = message["delta"] as? Double {
-                        let currentVol = self.player?.volume ?? 1.0
-                        let newVol = max(0, min(1, currentVol + Float(d * 0.05)))
-                        self.player?.volume = newVol
+                        let sens = UserDefaults.standard.double(forKey: "crownVolumeSensitivity")
+                        let mult = sens > 0 ? sens : 0.05
+                        let session = AVAudioSession.sharedInstance()
+                        let currentVol = session.outputVolume
+                        let newVol = max(0, min(1, currentVol + Float(d * 0.4 * mult)))
+                        self.setSystemVolume(newVol)
                     }
                 case "toggle": self.togglePlayPause()
                 case "toggleLoopMode":
@@ -427,7 +447,6 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         // Ensure the current item is configured for speech-quality playback before starting.
         applySpeedToCurrentItem()
 
-        player?.volume = 1.0
         player?.defaultRate = speed
         player?.rate = speed
         isPlaying = true
@@ -2126,6 +2145,8 @@ struct WatchAppSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("crownAction") private var crownAction: String = "volume"
+    @AppStorage("crownVolumeSensitivity") private var volumeSensitivity: Double = 0.05
+    @AppStorage("crownScrubSensitivity") private var scrubSensitivity: Double = 0.5
     @AppStorage("watchPage1") private var page1Raw: String = "empty,empty,skipBackward,playPause,skipForward"
     @AppStorage("watchPage2") private var page2Raw: String = "loopMode,empty,speed,sleepTimer,bookmark"
 
@@ -2161,6 +2182,39 @@ struct WatchAppSettingsView: View {
                     )
                     .onChange(of: crownAction) { _, _ in
                         model.syncToWatch()
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Volume Sensitivity")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Image(systemName: "tortoise")
+                                .foregroundStyle(.secondary)
+                            Slider(value: $volumeSensitivity, in: 0.01...0.1, step: 0.01)
+                            Image(systemName: "hare")
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("\(volumeSensitivity, specifier: "%.2f")×")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.top, 4)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Scrubbing Sensitivity")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Image(systemName: "tortoise")
+                                .foregroundStyle(.secondary)
+                            Slider(value: $scrubSensitivity, in: 0.1...1.0, step: 0.1)
+                            Image(systemName: "hare")
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("\(scrubSensitivity, specifier: "%.1f")×")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
 

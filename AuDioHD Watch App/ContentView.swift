@@ -206,7 +206,6 @@ struct ContentView: View {
     @State private var viewModel = WatchViewModel()
     @AppStorage("crownAction", store: UserDefaults(suiteName: "group.com.bookloop")) private var crownAction = "volume"
     @State private var crownAccumulator: Double = 0.0
-    @State private var lastAccumulator: Double = 0.0
     @State private var selectedPage: Int = 0
     @FocusState private var isFocused: Bool
 
@@ -232,12 +231,11 @@ struct ContentView: View {
             }
             .tabViewStyle(.page)
         }
-        .focusable(true)
-        .focused($isFocused)
+        .focusable()
         .digitalCrownRotation($crownAccumulator)
-        .onChange(of: crownAccumulator) { _, newValue in
-            let delta = newValue - lastAccumulator
-            lastAccumulator = newValue
+        .focused($isFocused)
+        .onChange(of: crownAccumulator) { oldValue, newValue in
+            let delta = newValue - oldValue
             if crownAction == "scrub" {
                 viewModel.sendCommand("scrubDelta", params: ["delta": delta])
             } else {
