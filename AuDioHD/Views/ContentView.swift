@@ -113,6 +113,16 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     override init() {
         speed = 1.25
         super.init()
+        UserDefaults.standard.register(defaults: [
+            "isRewindEnabled": false,
+            "rewindPauseSecondsThreshold": 30,
+            "rewindAmountAfterSeconds": 10,
+            "rewindPauseMinutesThreshold": 5,
+            "rewindAmountAfterMinutes": 30,
+            "rewindPauseHoursThreshold": 1,
+            "rewindAmountAfterHours": 90,
+            "rewindHoursToChapterStart": false
+        ])
         setupWatchConnectivity()
     }
 
@@ -399,6 +409,48 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     // MARK: Playback controls
 
+    private func smartRewindAmount(for pausedDuration: TimeInterval) -> Double {
+        let defaults = UserDefaults.standard
+
+        let secondsThreshold = defaults.integer(forKey: "rewindPauseSecondsThreshold")
+        let secondsAmount = defaults.integer(forKey: "rewindAmountAfterSeconds")
+
+        let minutesThreshold = defaults.integer(forKey: "rewindPauseMinutesThreshold")
+        let minutesAmount = defaults.integer(forKey: "rewindAmountAfterMinutes")
+
+        let hoursThreshold = defaults.integer(forKey: "rewindPauseHoursThreshold")
+        let hoursAmount = defaults.integer(forKey: "rewindAmountAfterHours")
+
+        var rewindAmount = 0
+        if pausedDuration >= Double(secondsThreshold) {
+            rewindAmount = secondsAmount
+        }
+        if pausedDuration >= Double(minutesThreshold * 60) {
+            rewindAmount = minutesAmount
+        }
+        if pausedDuration >= Double(hoursThreshold * 3600) {
+            rewindAmount = hoursAmount
+        }
+
+        // Backward compatibility with previous single-level rewind settings.
+        if rewindAmount == 0 {
+            let legacyThreshold = defaults.integer(forKey: "rewindPauseDuration")
+            let legacyAmount = defaults.integer(forKey: "rewindAmount")
+            if legacyThreshold > 0, pausedDuration >= Double(legacyThreshold) {
+                rewindAmount = legacyAmount
+            }
+        }
+
+        return Double(rewindAmount)
+    }
+
+    private func shouldJumpToChapterStartForHoursLevel(pausedDuration: TimeInterval) -> Bool {
+        let defaults = UserDefaults.standard
+        let hoursThreshold = defaults.integer(forKey: "rewindPauseHoursThreshold")
+        let hoursToChapterStart = defaults.bool(forKey: "rewindHoursToChapterStart")
+        return hoursToChapterStart && pausedDuration >= Double(hoursThreshold * 3600)
+    }
+
     func togglePlayPause() {
         if isPlaying { pause() } else { play() }
     }
@@ -407,26 +459,35 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         // Check for rewind before playing
         if let pausedAt = pauseTimestamp {
             let pausedDuration = Date().timeIntervalSince(pausedAt)
-            if UserDefaults.standard.bool(forKey: "isRewindEnabled"),
-               pausedDuration >= Double(UserDefaults.standard.integer(forKey: "rewindPauseDuration")) {
-                let rewindAmount = Double(UserDefaults.standard.integer(forKey: "rewindAmount"))
+            if UserDefaults.standard.bool(forKey: "isRewindEnabled") {
                 if let player = player {
                     let current = player.currentTime().seconds
-                    var target = max(0, current - rewindAmount)
-                    
-                    // Don't rewind past the start of the current chapter
-                    if chapters.count >= 2, let idx = currentChapterIndex {
-                        let c = chapters[idx]
-                        if target < c.startSeconds {
-                            target = c.startSeconds
+                    let rewindAmount = smartRewindAmount(for: pausedDuration)
+                    var target = current
+
+                    if shouldJumpToChapterStartForHoursLevel(pausedDuration: pausedDuration),
+                       chapters.count >= 2,
+                       let idx = currentChapterIndex {
+                        target = chapters[idx].startSeconds
+                    } else if rewindAmount > 0 {
+                        target = max(0, current - rewindAmount)
+                        
+                        // Don't rewind past the start of the current chapter
+                        if chapters.count >= 2, let idx = currentChapterIndex {
+                            let c = chapters[idx]
+                            if target < c.startSeconds {
+                                target = c.startSeconds
+                            }
                         }
                     }
 
-                    isManualSeeking = true
-                    player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
-                        DispatchQueue.main.async {
-                            self?.isManualSeeking = false
-                            self?.updateCurrentChapterFromPlayerTime()
+                    if target != current {
+                        isManualSeeking = true
+                        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                            DispatchQueue.main.async {
+                                self?.isManualSeeking = false
+                                self?.updateCurrentChapterFromPlayerTime()
+                            }
                         }
                     }
                 }
@@ -1872,9 +1933,6 @@ struct SettingsView: View {
     @Bindable var model: PlayerModel
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("appFont") private var appFont = "Helvetica"
-    @AppStorage("isRewindEnabled") private var isRewindEnabled = false
-    @AppStorage("rewindPauseDuration") private var rewindPauseDuration = 60 // 1 minute default
-    @AppStorage("rewindAmount") private var rewindAmount = 15 // 15 seconds default
     @Environment(\.dismiss) private var dismiss
 
     @State private var localCrownAction: String = UserDefaults.standard.string(forKey: "crownAction") ?? "volume"
@@ -1904,11 +1962,9 @@ struct SettingsView: View {
                         WatchAppSettingsView(model: model)
                     }
                 }
-                Section(header: Text("Smart Rewind"), footer: Text("Automatically rewind playback after being paused for a specific duration.")) {
-                    Toggle("Enable Smart Rewind", isOn: $isRewindEnabled)
-                    if isRewindEnabled {
-                        Stepper("Pause Duration: \(rewindPauseDuration)s", value: $rewindPauseDuration, in: 5...3600, step: 5)
-                        Stepper("Rewind Amount: \(rewindAmount)s", value: $rewindAmount, in: 5...300, step: 5)
+                Section {
+                    NavigationLink("Smart Rewind") {
+                        SmartRewindSettingsView()
                     }
                 }
             }
@@ -1921,6 +1977,124 @@ struct SettingsView: View {
         }
         .environment(\.font, appFont == "Helvetica" ? .body : .custom(appFont, size: 17, relativeTo: .body))
         .preferredColorScheme(isDarkMode ? .dark : .light)
+    }
+}
+
+private struct SmartRewindSettingsView: View {
+    @AppStorage("isRewindEnabled") private var isRewindEnabled = false
+    @AppStorage("rewindPauseSecondsThreshold") private var rewindPauseSecondsThreshold = 30
+    @AppStorage("rewindAmountAfterSeconds") private var rewindAmountAfterSeconds = 10
+    @AppStorage("rewindPauseMinutesThreshold") private var rewindPauseMinutesThreshold = 5
+    @AppStorage("rewindAmountAfterMinutes") private var rewindAmountAfterMinutes = 30
+    @AppStorage("rewindPauseHoursThreshold") private var rewindPauseHoursThreshold = 1
+    @AppStorage("rewindAmountAfterHours") private var rewindAmountAfterHours = 90
+    @AppStorage("rewindHoursToChapterStart") private var rewindHoursToChapterStart = false
+
+    var body: some View {
+        Form {
+            Section(
+                footer: Text("Automatically rewinds on resume. Longer pause rules override shorter pause rules.")
+            ) {
+                Toggle("Enable Smart Rewind", isOn: $isRewindEnabled)
+            }
+
+            if isRewindEnabled {
+                Section("Short Pauses") {
+                    InlineStepperRow(
+                        title: "Trigger after:",
+                        value: $rewindPauseSecondsThreshold,
+                        range: 5...300,
+                        step: 5,
+                        valueText: "\(rewindPauseSecondsThreshold)s"
+                    )
+                    InlineStepperRow(
+                        title: "Rewind by:",
+                        value: $rewindAmountAfterSeconds,
+                        range: 5...180,
+                        step: 5,
+                        valueText: "\(rewindAmountAfterSeconds)s"
+                    )
+                }
+
+                Section("Medium Pauses") {
+                    InlineStepperRow(
+                        title: "Trigger after:",
+                        value: $rewindPauseMinutesThreshold,
+                        range: 1...120,
+                        step: 1,
+                        valueText: "\(rewindPauseMinutesThreshold)m"
+                    )
+                    InlineStepperRow(
+                        title: "Rewind by:",
+                        value: $rewindAmountAfterMinutes,
+                        range: 10...600,
+                        step: 5,
+                        valueText: "\(rewindAmountAfterMinutes)s"
+                    )
+                }
+
+                Section("Long Pauses") {
+                    InlineStepperRow(
+                        title: "Trigger after:",
+                        value: $rewindPauseHoursThreshold,
+                        range: 1...24,
+                        step: 1,
+                        valueText: "\(rewindPauseHoursThreshold)h"
+                    )
+                    if !rewindHoursToChapterStart {
+                        InlineStepperRow(
+                            title: "Rewind by:",
+                            value: $rewindAmountAfterHours,
+                            range: 15...3600,
+                            step: 15,
+                            valueText: "\(rewindAmountAfterHours)s"
+                        )
+                    }
+                    Toggle("Jump to chapter start", isOn: $rewindHoursToChapterStart)
+                }
+            }
+        }
+        .navigationTitle("Smart Rewind")
+    }
+}
+
+private struct InlineStepperRow: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let step: Int
+    let valueText: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer(minLength: 12)
+            HStack(spacing: 12) {
+                Button {
+                    value = max(range.lowerBound, value - step)
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .disabled(value <= range.lowerBound)
+
+                Text(valueText)
+                    .monospacedDigit()
+                    .frame(minWidth: 56, alignment: .center)
+
+                Button {
+                    value = min(range.upperBound, value + step)
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .disabled(value >= range.upperBound)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(title)
+            .accessibilityValue(valueText)
+            .accessibilityHint("Use minus and plus buttons to adjust")
+        }
     }
 }
 
