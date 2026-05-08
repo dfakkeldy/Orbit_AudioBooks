@@ -4,7 +4,6 @@ import AVFoundation
 import MediaPlayer
 import UniformTypeIdentifiers
 import UIKit
-import QuickLookThumbnailing
 import WatchConnectivity
 
 // MARK: - Beginner notes (Xcode settings you MUST enable)
@@ -1299,20 +1298,19 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func generateThumbnail(for url: URL) async {
-        // Quick Look thumbnail for the selected file (often shows album art / document icon).
-        let request = QLThumbnailGenerator.Request(
-            fileAt: url,
-            size: CGSize(width: 240, height: 240),
-            scale: displayScale,
-            representationTypes: .all
-        )
+        let image: UIImage?
+        if let embedded = await embeddedArtworkImage(for: url) {
+            image = embedded
+        } else if let folderImage = await folderArtworkImage(near: url) {
+            image = folderImage
+        } else {
+            image = loadAppIconImage()
+        }
 
-        do {
-            let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-            let image = representation.uiImage
-            thumbnailImage = image
-            
-            // Pre-compute watch thumbnail data to avoid re-encoding on every sync
+        thumbnailImage = image
+
+        if let image {
+            // Pre-compute watch thumbnail data to avoid re-encoding on every sync.
             let targetSize = CGSize(width: 60, height: 60)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1.0
@@ -1321,15 +1319,92 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                 image.draw(in: CGRect(origin: .zero, size: targetSize))
             }
             watchThumbnailData = scaledImage.jpegData(compressionQuality: 0.6)
-            
-            updateNowPlayingInfo(isPaused: !isPlaying)
-            syncToWatch()
-        } catch {
-            thumbnailImage = nil
+        } else {
             watchThumbnailData = nil
-            updateNowPlayingInfo(isPaused: !isPlaying)
-            syncToWatch()
         }
+
+        updateNowPlayingInfo(isPaused: !isPlaying)
+        syncToWatch()
+    }
+
+    private func embeddedArtworkImage(for url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
+        let metadata = (try? await asset.load(.commonMetadata)) ?? []
+
+        for item in metadata where item.commonKey == .commonKeyArtwork {
+            if let data = try? await item.load(.dataValue),
+               let image = UIImage(data: data) {
+                return image
+            }
+        }
+
+        return nil
+    }
+
+    private func folderArtworkImage(near url: URL) async -> UIImage? {
+        let folderURL = url.deletingLastPathComponent()
+        let imageExtensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "gif", "bmp", "tiff"]
+        let imageExtensionSet = Set(imageExtensions)
+
+        let files = listFilesInFolder(folderURL)
+        let images = files.filter { fileURL in
+            imageExtensionSet.contains(fileURL.pathExtension.lowercased())
+        }
+
+        if !images.isEmpty {
+            let preferred = images.first { fileURL in
+                fileURL.deletingPathExtension().lastPathComponent.lowercased() == "cover"
+            }
+
+            let selected = preferred ?? images.sorted {
+                $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+            }.first
+
+            if let selected, let image = await loadImageFile(at: selected) {
+                return image
+            }
+        }
+
+        // If directory enumeration is blocked, still try direct cover.* paths.
+        for ext in imageExtensions {
+            let candidate = folderURL.appendingPathComponent("cover").appendingPathExtension(ext)
+            if let image = await loadImageFile(at: candidate) {
+                return image
+            }
+        }
+
+        return nil
+    }
+
+    private func listFilesInFolder(_ folderURL: URL) -> [URL] {
+        if let files = try? FileManager.default.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            return files
+        }
+
+        let didStart = folderURL.startAccessingSecurityScopedResource()
+        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
+
+        return (try? FileManager.default.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+    }
+
+    private func loadImageFile(at imageURL: URL) async -> UIImage? {
+        await ensureItemIsAvailable(url: imageURL)
+
+        let didStart = imageURL.startAccessingSecurityScopedResource()
+        defer { if didStart { imageURL.stopAccessingSecurityScopedResource() } }
+
+        guard let data = try? Data(contentsOf: imageURL), let image = UIImage(data: data) else {
+            return nil
+        }
+        return image
     }
 
     private func loadChaptersForCurrentItem() async {
@@ -2694,15 +2769,19 @@ private struct AppIconThumbnail: View {
     }
 
     private static func loadAppIcon() -> UIImage? {
-        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let files = primary["CFBundleIconFiles"] as? [String],
-           let last = files.last,
-           let img = UIImage(named: last) {
-            return img
-        }
-        return UIImage(named: "AppIcon")
+        loadAppIconImage()
     }
+}
+
+private func loadAppIconImage() -> UIImage? {
+    if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+       let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+       let files = primary["CFBundleIconFiles"] as? [String],
+       let last = files.last,
+       let img = UIImage(named: last) {
+        return img
+    }
+    return UIImage(named: "AppIcon")
 }
 
 #Preview {
