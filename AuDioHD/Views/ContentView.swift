@@ -159,15 +159,14 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
     }
     
     func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
-        handleMessage(message)
-        replyHandler(["status": "ok"])
+        handleMessage(message, replyHandler: replyHandler)
     }
     
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
         handleMessage(userInfo)
     }
     
-    private func handleMessage(_ message: [String: Any]) {
+    private func handleMessage(_ message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
         DispatchQueue.main.async {
             if let command = message["command"] as? String {
                 switch command {
@@ -203,9 +202,12 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
                 case "toggleLoopMode":
                     self.setLoopMode(!self.loopModeOn)
                     self.syncToWatch()
+                case "requestState":
+                    break
                 default: break
                 }
             }
+            replyHandler?(self.watchStateContext())
         }
     }
     
@@ -221,7 +223,17 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
     
     func syncToWatch() {
         guard WCSession.default.activationState == .activated else { return }
-        
+
+        let context = watchStateContext()
+
+        do {
+            try WCSession.default.updateApplicationContext(context)
+        } catch {
+            print("Failed to sync to watch: \(error)")
+        }
+    }
+
+    private func watchStateContext() -> [String: Any] {
         var context: [String: Any] = [:]
         context["isPlaying"] = isPlaying
         context["progressFraction"] = progressFraction
@@ -235,16 +247,13 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
         
         context["watchPage1"] = UserDefaults.standard.string(forKey: "watchPage1") ?? "empty,empty,skipBackward,playPause,skipForward"
         context["watchPage2"] = UserDefaults.standard.string(forKey: "watchPage2") ?? "loopMode,empty,speed,sleepTimer,bookmark"
+        context["hasThumbnail"] = watchThumbnailData != nil
 
         if let data = watchThumbnailData {
             context["thumbnailData"] = data
         }
-        
-        do {
-            try WCSession.default.updateApplicationContext(context)
-        } catch {
-            print("Failed to sync to watch: \(error)")
-        }
+
+        return context
     }
 
     deinit {

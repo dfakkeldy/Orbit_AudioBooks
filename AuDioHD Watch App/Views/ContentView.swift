@@ -56,17 +56,19 @@ enum WatchAction: String, Codable, CaseIterable, Identifiable {
 @Observable
 class WatchViewModel: NSObject, WCSessionDelegate {
     var isPlaying: Bool = false
-    var title: String = "No track"
+    var title: String = "No track selected"
     var thumbnailImage: UIImage? = nil
     var progressFraction: Double = 0.0
-    var loopModeOn: Bool = true
+    var loopModeOn: Bool = false
 
     var page1Slots: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
     var page2Slots: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
 
+    private let defaults = UserDefaults(suiteName: "group.com.audiohd")
+
     override init() {
         super.init()
-        loadPersistedSlots()
+        loadPersistedState()
         if WCSession.isSupported() {
             let session = WCSession.default
             session.delegate = self
@@ -74,8 +76,17 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         }
     }
 
-    private func loadPersistedSlots() {
-        let defaults = UserDefaults(suiteName: "group.com.audiohd")
+    private func loadPersistedState() {
+        isPlaying = defaults?.bool(forKey: "isPlaying") ?? false
+        title = defaults?.string(forKey: "title") ?? "No track selected"
+        progressFraction = defaults?.double(forKey: "progressFraction") ?? 0.0
+        loopModeOn = defaults?.bool(forKey: "loopModeOn") ?? false
+
+        if let thumbnailData = defaults?.data(forKey: "thumbnailData"),
+           let image = UIImage(data: thumbnailData) {
+            thumbnailImage = image
+        }
+
         if let raw = defaults?.string(forKey: "watchPage1") {
             page1Slots = padded(parseSlots(raw))
         }
@@ -94,63 +105,108 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         return Array(s.prefix(5))
     }
 
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {}
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        guard activationState == .activated else { return }
+        applyState(session.receivedApplicationContext)
+        requestCurrentState()
+    }
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        requestCurrentState()
+    }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+        applyState(applicationContext)
+    }
+
+    private func applyState(_ state: [String: Any]) {
+        guard !state.isEmpty else { return }
         DispatchQueue.main.async {
-            let defaults = UserDefaults(suiteName: "group.com.audiohd")
-            if let crownAction = applicationContext["crownAction"] as? String {
-                defaults?.set(crownAction, forKey: "crownAction")
+            if let crownAction = state["crownAction"] as? String {
+                self.defaults?.set(crownAction, forKey: "crownAction")
             }
-            if let isPlaying = applicationContext["isPlaying"] as? Bool {
+            if let isPlaying = state["isPlaying"] as? Bool {
                 self.isPlaying = isPlaying
-                defaults?.set(isPlaying, forKey: "isPlaying")
+                self.defaults?.set(isPlaying, forKey: "isPlaying")
             }
-            if let title = applicationContext["title"] as? String {
+            if let title = state["title"] as? String {
                 self.title = title
-                defaults?.set(title, forKey: "title")
+                self.defaults?.set(title, forKey: "title")
             }
-            if let progressFraction = applicationContext["progressFraction"] as? Double {
+            if let progressFraction = state["progressFraction"] as? Double {
                 self.progressFraction = progressFraction
-                defaults?.set(progressFraction, forKey: "progressFraction")
+                self.defaults?.set(progressFraction, forKey: "progressFraction")
             }
-            if let loopModeOn = applicationContext["loopModeOn"] as? Bool {
+            if let loopModeOn = state["loopModeOn"] as? Bool {
                 self.loopModeOn = loopModeOn
-                defaults?.set(loopModeOn, forKey: "loopModeOn")
+                self.defaults?.set(loopModeOn, forKey: "loopModeOn")
             }
-            if let watchPage1 = applicationContext["watchPage1"] as? String {
+            if let watchPage1 = state["watchPage1"] as? String {
                 self.page1Slots = self.padded(self.parseSlots(watchPage1))
-                defaults?.set(watchPage1, forKey: "watchPage1")
+                self.defaults?.set(watchPage1, forKey: "watchPage1")
             }
-            if let watchPage2 = applicationContext["watchPage2"] as? String {
+            if let watchPage2 = state["watchPage2"] as? String {
                 self.page2Slots = self.padded(self.parseSlots(watchPage2))
-                defaults?.set(watchPage2, forKey: "watchPage2")
+                self.defaults?.set(watchPage2, forKey: "watchPage2")
             }
-            if let thumbnailData = applicationContext["thumbnailData"] as? Data {
-                defaults?.set(thumbnailData, forKey: "thumbnailData")
+            if let thumbnailData = state["thumbnailData"] as? Data {
+                self.defaults?.set(thumbnailData, forKey: "thumbnailData")
                 if let image = UIImage(data: thumbnailData) {
                     self.thumbnailImage = image
                 }
-            } else {
-                defaults?.removeObject(forKey: "thumbnailData")
+            } else if let hasThumbnail = state["hasThumbnail"] as? Bool, !hasThumbnail {
+                self.defaults?.removeObject(forKey: "thumbnailData")
                 self.thumbnailImage = nil
             }
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
-    func sendCommand(_ command: String, params: [String: Any]? = nil) {
-        guard !command.isEmpty else { return }
-        if WCSession.default.isReachable {
+    func requestCurrentState() {
+        guard WCSession.isSupported() else { return }
+
+        let session = WCSession.default
+        if session.activationState == .activated {
+            applyState(session.receivedApplicationContext)
+        }
+
+        guard session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(["command": "requestState"], replyHandler: { [weak self] reply in
+            self?.applyState(reply)
+        }, errorHandler: { error in
+            print("Error requesting state: \(error)")
+        })
+    }
+
+    @discardableResult
+    func sendCommand(_ command: String, params: [String: Any]? = nil) -> Bool {
+        guard !command.isEmpty else { return false }
+        let session = WCSession.default
+        if session.activationState == .activated {
+            applyState(session.receivedApplicationContext)
+        }
+
+        var didSend = false
+        if session.activationState == .activated, session.isReachable {
             var message: [String: Any] = ["command": command]
             if let params = params {
                 for (key, value) in params {
                     message[key] = value
                 }
             }
-            WCSession.default.sendMessage(message, replyHandler: nil, errorHandler: { error in
+            session.sendMessage(message, replyHandler: { [weak self] reply in
+                self?.applyState(reply)
+            }, errorHandler: { [weak self] error in
                 print("Error sending command: \(error)")
+                self?.requestCurrentState()
             })
+            didSend = true
+        }
+
+        guard didSend else {
+            requestCurrentState()
+            return false
         }
 
         switch command {
@@ -163,6 +219,8 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         default:
             WKInterfaceDevice.current().play(.click)
         }
+
+        return true
     }
 
     /// Trigger the action for a tapped slot, with local state echoes for
@@ -172,11 +230,13 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         case .empty:
             return
         case .playPause:
-            sendCommand(isPlaying ? "pause" : "play")
-            isPlaying.toggle()
+            if sendCommand(isPlaying ? "pause" : "play") {
+                isPlaying.toggle()
+            }
         case .loopMode:
-            sendCommand("toggleLoopMode")
-            loopModeOn.toggle()
+            if sendCommand("toggleLoopMode") {
+                loopModeOn.toggle()
+            }
         default:
             sendCommand(action.command)
         }
@@ -203,6 +263,7 @@ private struct ToggleTraitModifier: ViewModifier {
 // MARK: - Content View
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = WatchViewModel()
     @AppStorage("crownAction", store: UserDefaults(suiteName: "group.com.audiohd")) private var crownAction = "volume"
     @State private var crownAccumulator: Double = 0.0
@@ -242,7 +303,15 @@ struct ContentView: View {
                 viewModel.sendCommand("volumeDelta", params: ["delta": delta])
             }
         }
-        .onAppear { isFocused = true }
+        .onAppear {
+            isFocused = true
+            viewModel.requestCurrentState()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            isFocused = true
+            viewModel.requestCurrentState()
+        }
         .onChange(of: crownAction) { _, _ in isFocused = true }
     }
 }
