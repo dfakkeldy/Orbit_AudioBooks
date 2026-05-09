@@ -184,6 +184,9 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 self.defaults?.removeObject(forKey: "thumbnailData")
                 self.thumbnailImage = nil
             }
+            if state["commandResult"] as? String == "bookmarkJump" {
+                WKInterfaceDevice.current().play(.success)
+            }
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
@@ -204,6 +207,14 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         })
     }
 
+    private static func isDirectionalCommand(_ command: String) -> Bool {
+        command == "next" || command == "previous" || command == "skipForward" || command == "skipBackward"
+    }
+
+    private static func isForwardCommand(_ command: String) -> Bool {
+        command == "next" || command == "skipForward"
+    }
+
     @discardableResult
     func sendCommand(_ command: String, params: [String: Any]? = nil) -> Bool {
         guard !command.isEmpty else { return false }
@@ -222,6 +233,11 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             }
             session.sendMessage(message, replyHandler: { [weak self] reply in
                 self?.applyState(reply)
+                if Self.isDirectionalCommand(command),
+                   self?.loopMode == "bookmark",
+                   reply["commandResult"] as? String != "bookmarkJump" {
+                    WKInterfaceDevice.current().play(Self.isForwardCommand(command) ? .directionUp : .directionDown)
+                }
             }, errorHandler: { [weak self] error in
                 print("Error sending command: \(error)")
                 self?.requestCurrentState()
@@ -232,6 +248,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         guard didSend else {
             requestCurrentState()
             return false
+        }
+
+        if loopMode == "bookmark" && Self.isDirectionalCommand(command) {
+            return true
         }
 
         switch command {

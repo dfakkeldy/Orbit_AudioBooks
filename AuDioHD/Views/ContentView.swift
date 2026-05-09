@@ -183,14 +183,19 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     
     private func handleMessage(_ message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
         DispatchQueue.main.async {
+            var commandResult: String?
             if let command = message["command"] as? String {
                 switch command {
                 case "play": self.play()
                 case "pause": self.pause()
-                case "next": self.nextTrack()
-                case "previous": self.previousTrackOrRestart()
-                case "skipBackward": self.skipBackward30()
-                case "skipForward": self.skipForward30()
+                case "next":
+                    if self.skipForwardNavigation() { commandResult = "bookmarkJump" }
+                case "previous":
+                    if self.skipBackwardNavigation() { commandResult = "bookmarkJump" }
+                case "skipBackward":
+                    if self.skipBackward30() { commandResult = "bookmarkJump" }
+                case "skipForward":
+                    if self.skipForward30() { commandResult = "bookmarkJump" }
                 case "seek":
                     if let fraction = message["fraction"] as? Double {
                         self.seek(toFraction: fraction)
@@ -227,7 +232,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                 default: break
                 }
             }
-            replyHandler?(self.watchStateContext())
+            var reply = self.watchStateContext()
+            if let commandResult {
+                reply["commandResult"] = commandResult
+            }
+            replyHandler?(reply)
         }
     }
     
@@ -789,9 +798,80 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
-    func skipBackward30() {
-        guard let player else { return }
+    private var enabledCurrentTrackBookmarks: [Bookmark] {
+        currentTrackBookmarks.filter { $0.isEnabled && $0.timestamp.isFinite }
+    }
+
+    private func jumpToNextBookmark(from currentTime: Double) -> Bool {
+        let bookmarks = enabledCurrentTrackBookmarks
+        guard let target = bookmarks.first(where: { $0.timestamp > currentTime + 1.0 }) ?? bookmarks.first else {
+            return false
+        }
+        jumpToBookmark(target)
+        return true
+    }
+
+    private func jumpToPreviousBookmark(from currentTime: Double) -> Bool {
+        let bookmarks = enabledCurrentTrackBookmarks
+        guard let target = bookmarks.last(where: { $0.timestamp < currentTime - 2.0 }) ?? bookmarks.last else {
+            return false
+        }
+        jumpToBookmark(target)
+        return true
+    }
+
+    @discardableResult
+    func skipBackwardNavigation() -> Bool {
+        if loopMode == .bookmark,
+           let current = player?.currentTime().seconds,
+           current.isFinite,
+           jumpToPreviousBookmark(from: current) {
+            return true
+        }
+
+        if chapters.count >= 2 {
+            previousChapterOrRestart()
+        } else {
+            previousTrackOrRestart()
+        }
+        return false
+    }
+
+    @discardableResult
+    func skipForwardNavigation() -> Bool {
+        if loopMode == .bookmark,
+           let current = player?.currentTime().seconds,
+           current.isFinite,
+           jumpToNextBookmark(from: current) {
+            return true
+        }
+
+        if chapters.count >= 2 {
+            nextChapter()
+        } else {
+            nextTrack()
+        }
+        return false
+    }
+
+    @discardableResult
+    func skipBackward30() -> Bool {
+        guard let player else { return false }
         let current = player.currentTime().seconds
+        guard current.isFinite else { return false }
+
+        if loopMode == .bookmark {
+            if jumpToPreviousBookmark(from: current) {
+                return true
+            }
+            if chapters.count >= 2 {
+                previousChapterOrRestart()
+            } else {
+                previousTrackOrRestart()
+            }
+            return false
+        }
+
         let target = max(0, current - 30 * Double(speed))
         isManualSeeking = true
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
@@ -801,11 +881,27 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             }
         }
         updateNowPlayingElapsedTime()
+        return false
     }
 
-    func skipForward30() {
-        guard let player else { return }
+    @discardableResult
+    func skipForward30() -> Bool {
+        guard let player else { return false }
         let current = player.currentTime().seconds
+        guard current.isFinite else { return false }
+
+        if loopMode == .bookmark {
+            if jumpToNextBookmark(from: current) {
+                return true
+            }
+            if chapters.count >= 2 {
+                nextChapter()
+            } else {
+                nextTrack()
+            }
+            return false
+        }
+
         let duration = durationSeconds ?? 0
         let target = min(duration, current + 30 * Double(speed))
         isManualSeeking = true
@@ -816,6 +912,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             }
         }
         updateNowPlayingElapsedTime()
+        return false
     }
 
     func seek(toSeconds targetSeconds: Double) {
@@ -1238,7 +1335,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             return .success
         }
         center.nextTrackCommand.addTarget { [weak self] _ in
-            DispatchQueue.main.async { self?.nextTrack() }
+            DispatchQueue.main.async { self?.skipForwardNavigation() }
             return .success
         }
         center.skipBackwardCommand.addTarget { [weak self] _ in
@@ -2329,12 +2426,8 @@ struct ContentView: View {
                 Spacer()
                 
                 Button {
-                    if model.chapters.count >= 2 {
-                        model.previousChapterOrRestart()
-                    } else {
-                        model.previousTrackOrRestart()
-                    }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    let didJumpToBookmark = model.skipBackwardNavigation()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
                 } label: {
                     Image(systemName: "backward.end.fill")
                         .font(.system(size: 24, weight: .semibold))
@@ -2347,8 +2440,8 @@ struct ContentView: View {
                 Spacer()
 
                 Button {
-                    model.skipBackward30()
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    let didJumpToBookmark = model.skipBackward30()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
                 } label: {
                     Image(systemName: "gobackward.30")
                         .font(.system(size: 28, weight: .regular))
@@ -2375,8 +2468,8 @@ struct ContentView: View {
                 Spacer()
 
                 Button {
-                    model.skipForward30()
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    let didJumpToBookmark = model.skipForward30()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
                 } label: {
                     Image(systemName: "goforward.30")
                         .font(.system(size: 28, weight: .regular))
@@ -2389,12 +2482,8 @@ struct ContentView: View {
                 Spacer()
 
                 Button {
-                    if model.chapters.count >= 2 {
-                        model.nextChapter()
-                    } else {
-                        model.nextTrack()
-                    }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    let didJumpToBookmark = model.skipForwardNavigation()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
                 } label: {
                     Image(systemName: "forward.end.fill")
                         .font(.system(size: 24, weight: .semibold))
