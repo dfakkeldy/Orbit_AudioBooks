@@ -274,10 +274,22 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         WKInterfaceDevice.current().play(.success)
     }
 
-    func queueVoiceBookmark(fileURL: URL) throws {
+    func queueVoiceBookmark(fileURL: URL) async throws {
         var metadata = try bookmarkPayload(command: "addWatchVoiceBookmark")
         metadata["voiceMemoFileName"] = fileURL.lastPathComponent
-        WCSession.default.transferFile(fileURL, metadata: metadata)
+        metadata["voiceMemoData"] = try await Task.detached {
+            try Data(contentsOf: fileURL)
+        }.value
+
+        let session = WCSession.default
+        if session.activationState == .activated, session.isReachable {
+            session.sendMessage(metadata, replyHandler: nil) { error in
+                print("Immediate voice bookmark send failed: \(error)")
+                WCSession.default.transferUserInfo(metadata)
+            }
+        } else {
+            session.transferUserInfo(metadata)
+        }
         WKInterfaceDevice.current().play(.success)
     }
 
@@ -349,7 +361,7 @@ final class WatchVoiceMemoRecorder: NSObject, AVAudioRecorderDelegate {
         let fileURL = directory.appendingPathComponent("watch-memo-\(UUID().uuidString).m4a")
 
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .default, options: [])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP])
         try session.setActive(true)
 
         let settings: [String: Any] = [
@@ -762,7 +774,6 @@ private struct NewBookmarkView: View {
     let viewModel: WatchViewModel
 
     @Environment(\.dismiss) private var dismiss
-    @State private var note = ""
     @State private var recorder = WatchVoiceMemoRecorder()
     @State private var alertMessage = ""
     @State private var isShowingAlert = false
@@ -773,54 +784,36 @@ private struct NewBookmarkView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    TextField("Dictated note", text: $note, axis: .vertical)
-                        .lineLimit(2...4)
-                        .textInputAutocapitalization(.sentences)
-
-                    Button {
-                        saveTextBookmark()
-                    } label: {
-                        Label("Save Note", systemImage: "text.bubble.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    VStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .stroke(.secondary.opacity(0.25), lineWidth: 6)
-                            Circle()
-                                .trim(from: 0, to: recordingProgress)
-                                .stroke(.red, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                                .rotationEffect(.degrees(-90))
-                            Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
-                                .font(.title3)
-                                .foregroundStyle(recorder.isRecording ? .red : .primary)
-                        }
-                        .frame(width: 56, height: 56)
-                        .accessibilityHidden(true)
-
-                        Text(recordingDurationText)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-
-                        Button {
-                            recorder.isRecording ? finishVoiceBookmark() : startVoiceBookmark()
-                        } label: {
-                            Label(recorder.isRecording ? "Stop" : "Record", systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(recorder.isRecording ? .red : .accentColor)
-                    }
-                    .padding(.top, 4)
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .stroke(.secondary.opacity(0.25), lineWidth: 6)
+                    Circle()
+                        .trim(from: 0, to: recordingProgress)
+                        .stroke(.red, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
+                        .font(.title3)
+                        .foregroundStyle(recorder.isRecording ? .red : .primary)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
+                .frame(width: 56, height: 56)
+                .accessibilityHidden(true)
+
+                Text(recordingDurationText)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    recorder.isRecording ? saveVoiceMemo() : startVoiceBookmark()
+                } label: {
+                    Label(recorder.isRecording ? "Stop" : "Record", systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(recorder.isRecording ? .red : .accentColor)
             }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
             .navigationTitle("New Bookmark")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -837,7 +830,7 @@ private struct NewBookmarkView: View {
             }
             .onChange(of: recorder.isRecording) { oldValue, newValue in
                 if oldValue, !newValue, recorder.elapsed >= WatchVoiceMemoRecorder.maximumDuration {
-                    finishVoiceBookmark()
+                    saveVoiceMemo()
                 }
             }
             .onDisappear {
@@ -850,18 +843,6 @@ private struct NewBookmarkView: View {
 
     private var recordingDurationText: String {
         "\(Int(recorder.elapsed.rounded(.down)))s / \(Int(WatchVoiceMemoRecorder.maximumDuration))s"
-    }
-
-    private func saveTextBookmark() {
-        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedNote.isEmpty else { return }
-
-        do {
-            try viewModel.queueTextBookmark(note: trimmedNote)
-            dismiss()
-        } catch {
-            showAlert(error.localizedDescription)
-        }
     }
 
     private func startVoiceBookmark() {
@@ -882,6 +863,10 @@ private struct NewBookmarkView: View {
     }
 
     private func beginRecording() {
+        if viewModel.sendCommand("pause") {
+            viewModel.isPlaying = false
+        }
+
         do {
             try recorder.startRecording()
             WKInterfaceDevice.current().play(.start)
@@ -890,18 +875,24 @@ private struct NewBookmarkView: View {
         }
     }
 
-    private func finishVoiceBookmark() {
+    private func saveVoiceMemo() {
         guard let fileURL = recorder.stopRecording() else {
             showAlert("No recording was captured.")
             return
         }
 
-        do {
-            try viewModel.queueVoiceBookmark(fileURL: fileURL)
-            dismiss()
-        } catch {
-            recorder.discardRecording()
-            showAlert(error.localizedDescription)
+        Task {
+            do {
+                try await viewModel.queueVoiceBookmark(fileURL: fileURL)
+                await MainActor.run {
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    recorder.discardRecording()
+                    showAlert(error.localizedDescription)
+                }
+            }
         }
     }
 

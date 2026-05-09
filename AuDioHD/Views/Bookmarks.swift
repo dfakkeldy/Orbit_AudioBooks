@@ -110,6 +110,28 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
+struct BookmarkDraft: Identifiable, Hashable {
+    let id: UUID
+    let title: String
+    let folderKey: String?
+    let trackId: String?
+    let timestamp: TimeInterval
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        folderKey: String?,
+        trackId: String?,
+        timestamp: TimeInterval
+    ) {
+        self.id = id
+        self.title = title
+        self.folderKey = folderKey
+        self.trackId = trackId
+        self.timestamp = timestamp
+    }
+}
+
 // MARK: - Voice Memo Recorder
 
 @Observable
@@ -128,7 +150,7 @@ final class VoiceMemoRecorder: NSObject, AVAudioRecorderDelegate {
     func startRecording(in folderURL: URL?) throws {
         let session = AVAudioSession.sharedInstance()
         // Use playAndRecord so microphone + speaker routing are configured for memo capture.
-        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
         try session.setActive(true)
 
         let fileName = "memo-\(UUID().uuidString).m4a"
@@ -221,7 +243,8 @@ final class VoiceMemoRecorder: NSObject, AVAudioRecorderDelegate {
 struct EditBookmarkView: View {
     @Bindable var model: PlayerModel
     /// The id of the bookmark being edited.
-    let bookmarkID: UUID
+    let bookmarkID: UUID?
+    let draft: BookmarkDraft?
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String = ""
@@ -232,6 +255,8 @@ struct EditBookmarkView: View {
     @State private var recorder = VoiceMemoRecorder()
     @State private var previewPlayer: AVAudioPlayer?
     @State private var isPreviewPlaying: Bool = false
+    @State private var alertMessage: String = ""
+    @State private var isShowingAlert: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -312,21 +337,13 @@ struct EditBookmarkView: View {
                                 Text("Recording… \(String(format: "%.1fs", recorder.elapsed))")
                                 Spacer()
                                 Button("Stop") {
-                                    if let name = recorder.stopRecording() {
-                                        voiceMemoFileName = name
-                                    }
+                                    saveVoiceMemo()
                                 }
                                 .buttonStyle(.borderedProminent)
                             }
                         } else {
                             Button {
-                                // Pause the main audiobook before we hijack the audio session.
-                                model.pause()
-                                do {
-                                    try recorder.startRecording(in: model.folderURL)
-                                } catch {
-                                    print("Recorder start error: \(error)")
-                                }
+                                startVoiceMemoRecording()
                             } label: {
                                 Label("Record Voice Memo", systemImage: "mic.fill")
                             }
@@ -346,23 +363,15 @@ struct EditBookmarkView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
-                        if recorder.isRecording {
-                            if let name = recorder.stopRecording() {
-                                voiceMemoFileName = name
-                            }
-                        }
-                        stopPreview()
-                        model.updateBookmark(
-                            id: bookmarkID,
-                            title: title.isEmpty ? "Bookmark" : title,
-                            timestamp: timestamp,
-                            note: note.isEmpty ? nil : note,
-                            voiceMemoFileName: voiceMemoFileName
-                        )
-                        dismiss()
+                        saveBookmark()
                     }
                     .bold()
                 }
+            }
+            .alert("Bookmark Not Saved", isPresented: $isShowingAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
             }
             .onAppear(perform: loadFromModel)
             .onDisappear {
@@ -373,11 +382,101 @@ struct EditBookmarkView: View {
     }
 
     private func loadFromModel() {
-        guard let bm = model.bookmarks.first(where: { $0.id == bookmarkID }) else { return }
-        title = bm.title
-        note = bm.note ?? ""
-        timestamp = bm.timestamp
-        voiceMemoFileName = bm.voiceMemoFileName
+        if let bookmarkID,
+           let bm = model.bookmarks.first(where: { $0.id == bookmarkID }) {
+            title = bm.title
+            note = bm.note ?? ""
+            timestamp = bm.timestamp
+            voiceMemoFileName = bm.voiceMemoFileName
+            return
+        }
+
+        guard let draft else { return }
+        title = draft.title
+        note = ""
+        timestamp = draft.timestamp
+        voiceMemoFileName = nil
+    }
+
+    private func startVoiceMemoRecording() {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+            beginRecording()
+        case .denied:
+            showAlert("Microphone access is denied. Enable microphone access for AuDioHD in Settings.")
+        case .undetermined:
+            AVAudioApplication.requestRecordPermission { isGranted in
+                Task { @MainActor in
+                    isGranted ? beginRecording() : showAlert("Microphone access is required to record a voice memo.")
+                }
+            }
+        @unknown default:
+            showAlert("Microphone access is unavailable.")
+        }
+    }
+
+    private func beginRecording() {
+        // Pause the main audiobook before we hijack the audio session.
+        model.pause()
+        do {
+            try recorder.startRecording(in: model.folderURL)
+        } catch {
+            showAlert(error.localizedDescription)
+        }
+    }
+
+    private func saveVoiceMemo() {
+        guard let name = recorder.stopRecording() else {
+            showAlert("No recording was captured.")
+            return
+        }
+
+        let probe = Bookmark(timestamp: timestamp, voiceMemoFileName: name)
+        guard probe.voiceMemoURL(in: model.folderURL) != nil else {
+            showAlert("The voice memo could not be saved.")
+            return
+        }
+
+        voiceMemoFileName = name
+        saveBookmark()
+    }
+
+    private func saveBookmark() {
+        if recorder.isRecording {
+            saveVoiceMemo()
+            return
+        }
+
+        stopPreview()
+        let savedTitle = title.isEmpty ? "Bookmark" : title
+        let savedNote = note.isEmpty ? nil : note
+
+        if let bookmarkID {
+            model.updateBookmark(
+                id: bookmarkID,
+                title: savedTitle,
+                timestamp: timestamp,
+                note: savedNote,
+                voiceMemoFileName: voiceMemoFileName
+            )
+        } else if let draft {
+            model.appendBookmark(
+                from: draft,
+                title: savedTitle,
+                timestamp: timestamp,
+                note: savedNote,
+                voiceMemoFileName: voiceMemoFileName
+            )
+        } else {
+            showAlert("The bookmark could not be saved.")
+            return
+        }
+        dismiss()
+    }
+
+    private func showAlert(_ message: String) {
+        alertMessage = message
+        isShowingAlert = true
     }
 
     private func togglePreview(fileName: String) {

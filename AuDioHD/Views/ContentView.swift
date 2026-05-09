@@ -78,6 +78,7 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
     /// Track timestamps of recently triggered bookmarks to avoid retrigger loops.
     @ObservationIgnored private var lastTriggeredBookmarkID: UUID?
     @ObservationIgnored private var lastTriggeredAtPlayerSecond: Double = -1
+    @ObservationIgnored private var lastBookmarkCheckSecond: Double?
 
     // iOS 26: avoid UIScreen.main usage; set from SwiftUI environment.
     private var displayScale: CGFloat = 2.0
@@ -210,6 +211,8 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
                     _ = self.addBookmarkAtCurrentTime()
                 case "addWatchTextBookmark":
                     self.addWatchBookmark(from: message)
+                case "addWatchVoiceBookmark":
+                    self.addWatchVoiceBookmark(from: message)
                 case "requestState":
                     break
                 default: break
@@ -294,6 +297,35 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
 
         DispatchQueue.main.async {
             self.addWatchBookmark(from: metadata)
+        }
+    }
+
+    private func addWatchVoiceBookmark(from payload: [String: Any]) {
+        guard let voiceMemoData = payload["voiceMemoData"] as? Data else {
+            return
+        }
+
+        let fileName = (payload["voiceMemoFileName"] as? String) ?? "watch-memo-\(UUID().uuidString).m4a"
+        let safeFileName = URL(fileURLWithPath: fileName).lastPathComponent
+        let destinationURL = Bookmark.legacyVoiceMemoDirectory().appendingPathComponent(safeFileName)
+        var metadata = payload
+        metadata["voiceMemoFileName"] = safeFileName
+        metadata.removeValue(forKey: "voiceMemoData")
+
+        Task.detached(priority: .utility) {
+            do {
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    try FileManager.default.removeItem(at: destinationURL)
+                }
+                try voiceMemoData.write(to: destinationURL, options: .atomic)
+            } catch {
+                print("Watch voice bookmark write failed: \(error)")
+                return
+            }
+
+            await MainActor.run {
+                self.addWatchBookmark(from: metadata)
+            }
         }
     }
 
@@ -582,6 +614,10 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
         player?.defaultRate = speed
         player?.rate = speed
         isPlaying = true
+        if let currentSecond = player?.currentTime().seconds, currentSecond.isFinite {
+            checkBookmarkVoiceMemoTrigger(at: currentSecond, previousSeconds: nil)
+            lastBookmarkCheckSecond = currentSecond
+        }
 
         updateNowPlayingInfo(isPaused: false)
         syncToWatch()
@@ -877,6 +913,7 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
         currentChapterIndex = nil
         isSeekingForChapterBoundary = false
         isManualSeeking = false
+        lastBookmarkCheckSecond = nil
 
         // Clean old observers
         if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }
@@ -958,8 +995,11 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
                 self?.enforceEnabledState()
                 self?.applyChapterLoopIfNeeded()
                 if UserDefaults.standard.bool(forKey: "playBookmarksInline"),
-                   let t = self?.player?.currentTime().seconds {
-                    self?.checkBookmarkVoiceMemoTrigger(at: t)
+                   let self,
+                   let t = self.player?.currentTime().seconds,
+                   t.isFinite {
+                    self.checkBookmarkVoiceMemoTrigger(at: t, previousSeconds: self.lastBookmarkCheckSecond)
+                    self.lastBookmarkCheckSecond = t
                 }
             }
         }
@@ -1764,6 +1804,44 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
         return bm
     }
 
+    func bookmarkDraftAtCurrentTime() -> BookmarkDraft? {
+        guard let player else { return nil }
+        let t = player.currentTime().seconds
+        guard t.isFinite else { return nil }
+        let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
+        let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
+        return BookmarkDraft(
+            title: "Bookmark \(scopedCount + 1)",
+            folderKey: folderURL?.absoluteString,
+            trackId: trackId,
+            timestamp: t
+        )
+    }
+
+    @discardableResult
+    func appendBookmark(
+        from draft: BookmarkDraft,
+        title: String,
+        timestamp: TimeInterval,
+        note: String?,
+        voiceMemoFileName: String?
+    ) -> Bookmark {
+        let bm = Bookmark(
+            id: draft.id,
+            title: title,
+            folderKey: draft.folderKey,
+            trackId: draft.trackId,
+            timestamp: timestamp,
+            note: note,
+            voiceMemoFileName: voiceMemoFileName
+        )
+        bookmarks.append(bm)
+        bookmarks.sort { $0.timestamp < $1.timestamp }
+        persistBookmarks()
+        installBookmarkBoundaryObserver()
+        return bm
+    }
+
     func updateBookmark(id: UUID, title: String, timestamp: TimeInterval, note: String?, voiceMemoFileName: String?) {
         guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
         bookmarks[idx].title = title
@@ -1860,7 +1938,8 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
             queue: .main
         ) { [weak self] in
             guard let self, let t = self.player?.currentTime().seconds else { return }
-            self.checkBookmarkVoiceMemoTrigger(at: t)
+            self.checkBookmarkVoiceMemoTrigger(at: t, previousSeconds: self.lastBookmarkCheckSecond)
+            self.lastBookmarkCheckSecond = t
         }
     }
 
@@ -1877,7 +1956,7 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
     /// Called from the boundary + periodic time observers. Detects when
     /// playback crosses a bookmark with an attached voice memo and intercepts
     /// playback (when `playBookmarksInline` is enabled).
-    private func checkBookmarkVoiceMemoTrigger(at currentSeconds: Double) {
+    private func checkBookmarkVoiceMemoTrigger(at currentSeconds: Double, previousSeconds: Double?) {
         guard !isPlayingVoiceMemo, isPlaying, !isManualSeeking else { return }
         guard currentSeconds.isFinite else { return }
         // Honor user preference.
@@ -1885,15 +1964,23 @@ final class PlayerModel: NSObject, WCSessionDelegate, AVAudioPlayerDelegate {
 
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
 
-        // Tolerance window — must accommodate the 0.25s periodic observer plus
-        // any rate scaling.
-        let window: Double = 0.75
+        let toleranceBefore: Double = 0.1
+        let toleranceAfter: Double = 0.75
         let candidates = bookmarks.filter { bm in
             guard bm.isEnabled else { return false }
             guard bm.voiceMemoFileName != nil else { return false }
             if let bt = bm.trackId, let ct = trackId, bt != ct { return false }
+
+            if let previousSeconds, previousSeconds.isFinite {
+                let lowerBound = min(previousSeconds, currentSeconds) - toleranceBefore
+                let upperBound = max(previousSeconds, currentSeconds) + toleranceBefore
+                if bm.timestamp >= lowerBound && bm.timestamp <= upperBound {
+                    return true
+                }
+            }
+
             let delta = currentSeconds - bm.timestamp
-            return delta >= -0.1 && delta <= window
+            return delta >= -toleranceBefore && delta <= toleranceAfter
         }
 
         guard let bm = candidates.max(by: { $0.timestamp < $1.timestamp }) else { return }
@@ -2083,6 +2170,7 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var isScrubbing = false
     @State private var scrubFraction: Double = 0.0
+    @State private var newBookmarkDraft: BookmarkDraft? = nil
     @State private var editingBookmarkID: UUID? = nil
     @Environment(\.displayScale) private var displayScale
 
@@ -2336,8 +2424,8 @@ struct ContentView: View {
                     Spacer()
 
                     Button {
-                        if let bm = model.addBookmarkAtCurrentTime() {
-                            editingBookmarkID = bm.id
+                        if let draft = model.bookmarkDraftAtCurrentTime() {
+                            newBookmarkDraft = draft
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         }
                     } label: {
@@ -2405,7 +2493,10 @@ struct ContentView: View {
             get: { editingBookmarkID.map { IdentifiableUUID(id: $0) } },
             set: { editingBookmarkID = $0?.id }
         )) { wrapper in
-            EditBookmarkView(model: model, bookmarkID: wrapper.id)
+            EditBookmarkView(model: model, bookmarkID: wrapper.id, draft: nil)
+        }
+        .sheet(item: $newBookmarkDraft) { draft in
+            EditBookmarkView(model: model, bookmarkID: nil, draft: draft)
         }
         .onAppear {
             // Configure remote commands early so the Watch/Now Playing UI is stable once audio starts.
@@ -2730,7 +2821,7 @@ struct PlaylistView: View {
                 get: { editingBookmarkID.map { IdentifiableUUID(id: $0) } },
                 set: { editingBookmarkID = $0?.id }
             )) { wrapper in
-                EditBookmarkView(model: model, bookmarkID: wrapper.id)
+                EditBookmarkView(model: model, bookmarkID: wrapper.id, draft: nil)
             }
         }
         .environment(\.font, appFont == "Helvetica" ? .body : .custom(appFont, size: 17, relativeTo: .body))
