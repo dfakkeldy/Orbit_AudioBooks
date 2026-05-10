@@ -52,10 +52,49 @@ enum WatchAction: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Watch Bookmark Model
+//
+// A lightweight bookmark representation used by the watch app to track
+// bookmarks the user has queued during the current session. The audio
+// file reference is intentionally `Optional` so that quick, generic
+// bookmarks can be created without invoking the microphone.
+struct WatchBookmark: Identifiable, Equatable, Hashable {
+    let id: UUID
+    var title: String
+    var timestamp: TimeInterval
+    var createdAt: Date
+    /// Optional local audio file URL. When `nil`, this is a "quick" bookmark
+    /// created without a voice memo and the playback controls should not be
+    /// rendered for its row.
+    var audioURL: URL?
+
+    var hasAudio: Bool { audioURL != nil }
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        timestamp: TimeInterval,
+        createdAt: Date = Date(),
+        audioURL: URL? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.timestamp = timestamp
+        self.createdAt = createdAt
+        self.audioURL = audioURL
+    }
+}
+
 // MARK: - View Model
 
 @Observable
 class WatchViewModel: NSObject, WCSessionDelegate {
+    /// Local cache of bookmarks created from the watch this session. Used to
+    /// derive generic titles like `Bookmark #3` and to drive the local list
+    /// view without waiting for a round-trip from the iPhone.
+    var bookmarks: [WatchBookmark] = []
+
+
     var isPlaying: Bool = false
     var title: String = "No track selected"
     var thumbnailImage: UIImage? = nil
@@ -376,7 +415,41 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             session.transferUserInfo(metadata)
         }
         WKInterfaceDevice.current().play(.success)
+        addBookmark(audioURL: fileURL)
     }
+
+    // MARK: Bookmark Creation
+
+    /// Append a new bookmark to the local in-memory store. When `audioURL`
+    /// is `nil`, generates a generic title using the existing array count
+    /// (e.g. `"Bookmark #3"`).
+    @discardableResult
+    func addBookmark(audioURL: URL? = nil, title: String? = nil) -> WatchBookmark {
+        let resolvedTitle = title ?? "Bookmark #\(bookmarks.count + 1)"
+        let bookmark = WatchBookmark(
+            title: resolvedTitle,
+            timestamp: max(0, currentTime),
+            audioURL: audioURL
+        )
+        bookmarks.append(bookmark)
+        return bookmark
+    }
+
+    /// One-tap "Quick Bookmark" creation. Bypasses the recorder entirely and
+    /// dispatches a text-style bookmark with a generic title to the iPhone.
+    func addQuickBookmark() {
+        let bookmark = addBookmark()
+        do {
+            try queueTextBookmark(note: bookmark.title)
+        } catch {
+            // Roll back the local bookmark if the iPhone could not be reached;
+            // surface only via haptic since the watch UI is intentionally tiny.
+            bookmarks.removeAll { $0.id == bookmark.id }
+            print("Quick bookmark failed: \(error.localizedDescription)")
+            WKInterfaceDevice.current().play(.failure)
+        }
+    }
+
 
     private func bookmarkPayload(command: String) throws -> [String: Any] {
         guard WCSession.isSupported() else {
@@ -1088,15 +1161,32 @@ private struct NewBookmarkView: View {
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.secondary)
 
+                // Primary, low-friction "Quick Bookmark" action. Bypasses the
+                // microphone entirely and inserts a generic bookmark with a
+                // title derived from the current bookmarks count.
+                if !recorder.isRecording {
+                    Button {
+                        viewModel.addQuickBookmark()
+                        WKInterfaceDevice.current().play(.success)
+                        dismiss()
+                    } label: {
+                        Label("Quick Bookmark", systemImage: "bookmark.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Adds Bookmark #\(viewModel.bookmarks.count + 1) without recording audio")
+                }
+
                 Button {
                     recorder.isRecording ? saveVoiceMemo() : startVoiceBookmark()
                 } label: {
-                    Label(recorder.isRecording ? "Stop" : "Record", systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                    Label(recorder.isRecording ? "Stop" : "Record Note", systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .tint(recorder.isRecording ? .red : .accentColor)
             }
+
             .padding(.horizontal)
             .padding(.bottom, 8)
             .navigationTitle("New Bookmark")

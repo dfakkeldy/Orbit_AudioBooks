@@ -977,7 +977,7 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks Watch App";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need access to the microphone to record voice memos for bookmarks.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition to dictate text for bookmarks.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -1014,7 +1014,7 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks Watch App";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need access to the microphone to record voice memos for bookmarks.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition to dictate text for bookmarks.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
