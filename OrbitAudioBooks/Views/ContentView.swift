@@ -984,6 +984,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
         updateNowPlayingInfo(isPaused: !isPlaying)
         updateProgressFromPlayer()
+        syncToWatch()
     }
 
     func setLoopMode(_ mode: LoopMode) {

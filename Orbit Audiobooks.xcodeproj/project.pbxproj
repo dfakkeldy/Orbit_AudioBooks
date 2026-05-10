@@ -574,7 +574,7 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Orbit Audiobooks Widget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit Audiobooks Widget";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -609,7 +609,7 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Orbit Audiobooks Widget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit Audiobooks Widget";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -767,7 +767,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OrbitAudioBooks/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit Audiobooks";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -818,7 +818,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OrbitAudioBooks/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit Audiobooks";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -977,7 +977,7 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit Audiobooks Watch App";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks Watch App";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need access to the microphone to record voice memos for bookmarks.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition to dictate text for bookmarks.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -1014,7 +1014,7 @@
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit Audiobooks Watch App";
+				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks Watch App";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need access to the microphone to record voice memos for bookmarks.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition to dictate text for bookmarks.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
