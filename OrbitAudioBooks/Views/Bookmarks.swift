@@ -7,20 +7,29 @@ import Observation
 func peakAmplitude(of url: URL) -> Float? {
     guard let file = try? AVAudioFile(forReading: url) else { return nil }
     let format = file.processingFormat
-    let frameCount = AVAudioFrameCount(file.length)
-    guard frameCount > 0,
-          let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)
-    else { return nil }
-    do { try file.read(into: buffer) } catch { return nil }
-    guard let channelData = buffer.floatChannelData else { return nil }
+    let totalFrames = AVAudioFrameCount(file.length)
+    guard totalFrames > 0 else { return nil }
+
+    let chunkSize: AVAudioFrameCount = 8192
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunkSize) else { return nil }
+
     var peak: Float = 0
-    for ch in 0..<Int(format.channelCount) {
-        for frame in 0..<Int(buffer.frameLength) {
-            let s = abs(channelData[ch][frame])
-            if s > peak { peak = s }
+    var framesRemaining = totalFrames
+    while framesRemaining > 0 {
+        let framesToRead = min(chunkSize, framesRemaining)
+        buffer.frameLength = 0
+        do { try file.read(into: buffer, frameCount: framesToRead) } catch { break }
+        guard let channelData = buffer.floatChannelData else { break }
+        for ch in 0..<Int(format.channelCount) {
+            for frame in 0..<Int(buffer.frameLength) {
+                let s = abs(channelData[ch][frame])
+                if s > peak { peak = s }
+            }
         }
+        framesRemaining -= buffer.frameLength
+        if buffer.frameLength == 0 { break }
     }
-    return peak
+    return peak > 0 ? peak : nil
 }
 
 func voiceMemoGain(for url: URL) -> Float {

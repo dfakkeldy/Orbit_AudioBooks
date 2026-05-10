@@ -4,6 +4,7 @@ import AVFoundation
 import MediaPlayer
 import UniformTypeIdentifiers
 import UIKit
+import ImageIO
 import WatchConnectivity
 
 // MARK: - Beginner notes (Xcode settings you MUST enable)
@@ -91,6 +92,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     @ObservationIgnored private var lastTriggeredBookmarkID: UUID?
     @ObservationIgnored private var lastTriggeredAtPlayerSecond: Double = -1
     @ObservationIgnored private var lastBookmarkCheckSecond: Double?
+    @ObservationIgnored private var voiceMemoGainCache: [String: Float] = [:]
 
     // iOS 26: avoid UIScreen.main usage; set from SwiftUI environment.
     private var displayScale: CGFloat = 2.0
@@ -350,11 +352,16 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     deinit {
-        // `deinit` is not actor-isolated; keep cleanup synchronous.
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         if let timeObserver, let player { player.removeTimeObserver(timeObserver) }
         if let chapterBoundaryObserver, let player { player.removeTimeObserver(chapterBoundaryObserver) }
+        if let bookmarkBoundaryObserver, let player { player.removeTimeObserver(bookmarkBoundaryObserver) }
+        if let bookmarkLoopBoundaryObserver, let player { player.removeTimeObserver(bookmarkLoopBoundaryObserver) }
         if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
+        voiceMemoProgressTimer?.invalidate()
+        voiceMemoPlayerNode?.stop()
+        voiceMemoEngine?.stop()
+        voiceMemoEngine = nil
         endBackgroundTask()
         stopAllSecurityScope()
     }
@@ -1110,12 +1117,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             }
         }
 
-        // Keep Now Playing elapsed time updated (helps Apple Watch UI)
         timeObserver = player?.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.25, preferredTimescale: 600),
+            forInterval: CMTime(seconds: 0.5, preferredTimescale: 600),
             queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.async {
+            autoreleasepool {
                 self?.updateNowPlayingElapsedTime()
                 self?.updateCurrentChapterFromPlayerTime()
                 self?.updateProgressFromPlayer()
@@ -1542,28 +1548,34 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func generateThumbnail(for url: URL) async {
-        let image: UIImage?
+        let sourceImage: UIImage?
         if let embedded = await embeddedArtworkImage(for: url) {
-            image = embedded
+            sourceImage = embedded
         } else if let folderImage = await folderArtworkImage(near: url) {
-            image = folderImage
+            sourceImage = folderImage
         } else {
-            image = loadAppIconImage()
+            sourceImage = loadAppIconImage()
         }
 
-        thumbnailImage = image
-
-        if let image {
-            // Pre-compute watch thumbnail data to avoid re-encoding on every sync.
-            let targetSize = CGSize(width: 60, height: 60)
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1.0
-            let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-            let scaledImage = renderer.image { _ in
-                image.draw(in: CGRect(origin: .zero, size: targetSize))
+        if let sourceImage {
+            let displaySize = CGSize(width: 300, height: 300)
+            let displayFormat = UIGraphicsImageRendererFormat()
+            displayFormat.scale = displayScale
+            let displayRenderer = UIGraphicsImageRenderer(size: displaySize, format: displayFormat)
+            thumbnailImage = displayRenderer.image { _ in
+                sourceImage.draw(in: CGRect(origin: .zero, size: displaySize))
             }
-            watchThumbnailData = scaledImage.jpegData(compressionQuality: 0.6)
+
+            let watchSize = CGSize(width: 60, height: 60)
+            let watchFormat = UIGraphicsImageRendererFormat()
+            watchFormat.scale = 1.0
+            let watchRenderer = UIGraphicsImageRenderer(size: watchSize, format: watchFormat)
+            let watchImage = watchRenderer.image { _ in
+                sourceImage.draw(in: CGRect(origin: .zero, size: watchSize))
+            }
+            watchThumbnailData = watchImage.jpegData(compressionQuality: 0.6)
         } else {
+            thumbnailImage = nil
             watchThumbnailData = nil
         }
 
@@ -1575,10 +1587,18 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let asset = AVURLAsset(url: url)
         let metadata = (try? await asset.load(.commonMetadata)) ?? []
 
+        let maxPixelSize = 600
         for item in metadata where item.commonKey == .commonKeyArtwork {
-            if let data = try? await item.load(.dataValue),
-               let image = UIImage(data: data) {
-                return image
+            guard let data = try? await item.load(.dataValue) else { continue }
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { continue }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+            ]
+            if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+                return UIImage(cgImage: cgImage)
             }
         }
 
@@ -1645,10 +1665,16 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let didStart = imageURL.startAccessingSecurityScopedResource()
         defer { if didStart { imageURL.stopAccessingSecurityScopedResource() } }
 
-        guard let data = try? Data(contentsOf: imageURL), let image = UIImage(data: data) else {
-            return nil
-        }
-        return image
+        let maxPixelSize = 600
+        guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil) else { return nil }
+        let downsampleOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     private func loadChaptersForCurrentItem() async {
@@ -2228,6 +2254,14 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         startVoiceMemoPlayback(url: memoURL)
     }
 
+    private func cachedVoiceMemoGain(for url: URL) -> Float {
+        let key = url.absoluteString
+        if let cached = voiceMemoGainCache[key] { return cached }
+        let gain = voiceMemoGain(for: url)
+        voiceMemoGainCache[key] = gain
+        return gain
+    }
+
     private func startVoiceMemoPlayback(url: URL) {
         switchAudioSource(to: .voiceMemo)
         do {
@@ -2237,7 +2271,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             engine.attach(playerNode)
             engine.connect(playerNode, to: engine.mainMixerNode, format: audioFile.processingFormat)
 
-            engine.mainMixerNode.outputVolume = voiceMemoGain(for: url)
+            engine.mainMixerNode.outputVolume = cachedVoiceMemoGain(for: url)
 
             try engine.start()
 
