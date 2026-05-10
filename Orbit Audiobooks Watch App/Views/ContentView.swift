@@ -66,6 +66,13 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var trackId: String? = nil
     var currentTime: Double = 0
 
+    // Sleep timer mirror state (driven by iPhone via WCSession context).
+    /// "off" | "minutes" | "endOfChapter"
+    var sleepTimerMode: String = "off"
+    var sleepTimerMinutes: Int = 0
+    var sleepTimerRemainingSeconds: Int = 0
+    var isSleepTimerActive: Bool { sleepTimerMode != "off" }
+
     var page1Slots: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
     var page2Slots: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
 
@@ -174,6 +181,15 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             if let loopMode = state["loopMode"] as? String {
                 self.loopMode = loopMode
                 self.defaults?.set(loopMode, forKey: "loopMode")
+            }
+            if let stm = state["sleepTimerMode"] as? String {
+                self.sleepTimerMode = stm
+            }
+            if let mins = state["sleepTimerMinutes"] as? Int {
+                self.sleepTimerMinutes = mins
+            }
+            if let rem = state["sleepTimerRemainingSeconds"] as? Int {
+                self.sleepTimerRemainingSeconds = rem
             }
             if let playbackSpeed = state["playbackSpeed"] as? Double,
                let idx = self.availableSpeeds.firstIndex(where: { abs($0 - playbackSpeed) < 0.001 }) {
@@ -298,6 +314,35 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         default:
             sendCommand(action.command)
         }
+    }
+
+    // MARK: Sleep Timer (watch -> iPhone)
+
+    func setSleepTimerMinutes(_ minutes: Int) {
+        // Optimistic local state update for immediate UI feedback.
+        sleepTimerMode = "minutes"
+        sleepTimerMinutes = minutes
+        sleepTimerRemainingSeconds = minutes * 60
+        sendCommand("setSleepTimer", params: [
+            "sleepTimerMode": "minutes",
+            "sleepTimerMinutes": minutes
+        ])
+    }
+
+    func setSleepTimerEndOfChapter() {
+        sleepTimerMode = "endOfChapter"
+        sleepTimerMinutes = 0
+        sleepTimerRemainingSeconds = 0
+        sendCommand("setSleepTimer", params: [
+            "sleepTimerMode": "endOfChapter"
+        ])
+    }
+
+    func cancelSleepTimer() {
+        sleepTimerMode = "off"
+        sleepTimerMinutes = 0
+        sleepTimerRemainingSeconds = 0
+        sendCommand("cancelSleepTimer")
     }
 
     func cycleSpeed() {
@@ -501,6 +546,7 @@ struct ContentView: View {
     @State private var crownAccumulator: Double = 0.0
     @State private var selectedPage: Int = 0
     @State private var isShowingNewBookmark = false
+    @State private var isShowingSleepTimer = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -518,13 +564,19 @@ struct ContentView: View {
             }
 
             TabView(selection: $selectedPage) {
-                PlayerPage(slots: viewModel.page1Slots, viewModel: viewModel) {
-                    isShowingNewBookmark = true
-                }
+                PlayerPage(
+                    slots: viewModel.page1Slots,
+                    viewModel: viewModel,
+                    onBookmark: { isShowingNewBookmark = true },
+                    onSleepTimer: { isShowingSleepTimer = true }
+                )
                     .tag(0)
-                PlayerPage(slots: viewModel.page2Slots, viewModel: viewModel) {
-                    isShowingNewBookmark = true
-                }
+                PlayerPage(
+                    slots: viewModel.page2Slots,
+                    viewModel: viewModel,
+                    onBookmark: { isShowingNewBookmark = true },
+                    onSleepTimer: { isShowingSleepTimer = true }
+                )
                     .tag(1)
             }
             .tabViewStyle(.page)
@@ -534,6 +586,9 @@ struct ContentView: View {
         .focused($isFocused)
         .sheet(isPresented: $isShowingNewBookmark) {
             NewBookmarkView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isShowingSleepTimer) {
+            SleepTimerView(viewModel: viewModel)
         }
         .onChange(of: crownAccumulator) { oldValue, newValue in
             let delta = newValue - oldValue
@@ -572,6 +627,7 @@ private struct PlayerPage: View {
     let slots: [WatchAction]
     let viewModel: WatchViewModel
     let onBookmark: () -> Void
+    let onSleepTimer: () -> Void
 
     var body: some View {
         ZStack {
@@ -612,7 +668,8 @@ private struct PlayerPage: View {
                     centerSlot: slots[3],
                     rightSlot: slots[4],
                     viewModel: viewModel,
-                    onBookmark: onBookmark
+                    onBookmark: onBookmark,
+                    onSleepTimer: onSleepTimer
                 )
                 .padding(.top, 6)
             }
@@ -620,10 +677,10 @@ private struct PlayerPage: View {
             // Top-row slots (anchored to the top — well above the title).
             VStack {
                 HStack {
-                    TopSlotButton(action: slots[0], viewModel: viewModel, onBookmark: onBookmark)
+                    TopSlotButton(action: slots[0], viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
                         .padding(.leading, 8)
                     Spacer()
-                    TopSlotButton(action: slots[1], viewModel: viewModel, onBookmark: onBookmark)
+                    TopSlotButton(action: slots[1], viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
                         .padding(.trailing, 8)
                 }
                 .padding(.top, 8)
@@ -639,6 +696,7 @@ private struct TopSlotButton: View {
     let action: WatchAction
     let viewModel: WatchViewModel
     let onBookmark: () -> Void
+    let onSleepTimer: () -> Void
 
     var body: some View {
         if action == .empty {
@@ -647,6 +705,8 @@ private struct TopSlotButton: View {
             Button {
                 if action == .bookmark {
                     onBookmark()
+                } else if action == .sleepTimer {
+                    onSleepTimer()
                 } else {
                     viewModel.handle(action)
                 }
@@ -663,6 +723,19 @@ private struct TopSlotButton: View {
                         Text(formatSpeed(viewModel.playbackSpeed))
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .monospacedDigit()
+                    } else if action == .sleepTimer {
+                        ZStack {
+                            Image(systemName: viewModel.isSleepTimerActive ? "moon.zzz.fill" : "moon.zzz")
+                                .font(.system(size: 22))
+                                .foregroundStyle(viewModel.isSleepTimerActive ? Color.accentColor : Color.white)
+                            if viewModel.sleepTimerMode == "minutes" && viewModel.sleepTimerRemainingSeconds > 0 {
+                                Text(sleepCountdownText(viewModel.sleepTimerRemainingSeconds))
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.accentColor)
+                                    .monospacedDigit()
+                                    .offset(y: 16)
+                            }
+                        }
                     } else {
                         Image(systemName: iconName)
                             .font(.system(size: 24))
@@ -713,6 +786,83 @@ private struct TopSlotButton: View {
     }
 }
 
+fileprivate func sleepCountdownText(_ seconds: Int) -> String {
+    let s = max(0, seconds)
+    if s >= 3600 {
+        let h = s / 3600
+        let m = (s % 3600) / 60
+        return String(format: "%d:%02d", h, m)
+    }
+    let m = s / 60
+    let sec = s % 60
+    return String(format: "%d:%02d", m, sec)
+}
+
+// MARK: - Sleep Timer Sheet
+
+private struct SleepTimerView: View {
+    let viewModel: WatchViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    timerButton(label: "15 Minutes", isOn: isMinutes(15)) {
+                        viewModel.setSleepTimerMinutes(15); dismiss()
+                    }
+                    timerButton(label: "30 Minutes", isOn: isMinutes(30)) {
+                        viewModel.setSleepTimerMinutes(30); dismiss()
+                    }
+                    timerButton(label: "45 Minutes", isOn: isMinutes(45)) {
+                        viewModel.setSleepTimerMinutes(45); dismiss()
+                    }
+                    timerButton(label: "60 Minutes", isOn: isMinutes(60)) {
+                        viewModel.setSleepTimerMinutes(60); dismiss()
+                    }
+                }
+                Section {
+                    timerButton(label: "End of Chapter", isOn: viewModel.sleepTimerMode == "endOfChapter") {
+                        viewModel.setSleepTimerEndOfChapter(); dismiss()
+                    }
+                }
+                if viewModel.isSleepTimerActive {
+                    Section {
+                        Button(role: .destructive) {
+                            viewModel.cancelSleepTimer(); dismiss()
+                        } label: {
+                            Label("Off", systemImage: "xmark.circle")
+                        }
+                    } footer: {
+                        if viewModel.sleepTimerMode == "minutes" {
+                            Text("Remaining: \(sleepCountdownText(viewModel.sleepTimerRemainingSeconds))")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Sleep Timer")
+        }
+    }
+
+    private func isMinutes(_ m: Int) -> Bool {
+        viewModel.sleepTimerMode == "minutes" && viewModel.sleepTimerMinutes == m
+    }
+
+    @ViewBuilder
+    private func timerButton(label: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(label)
+                Spacer()
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                }
+            }
+        }
+    }
+}
+
 fileprivate func formatSpeed(_ speed: Double) -> String {
     let formatted: String
     if speed.truncatingRemainder(dividingBy: 1) == 0 {
@@ -731,14 +881,15 @@ private struct TransportRow: View {
     let rightSlot: WatchAction
     let viewModel: WatchViewModel
     let onBookmark: () -> Void
+    let onSleepTimer: () -> Void
 
     var body: some View {
         HStack(spacing: 20) {
-            SideTransportButton(action: leftSlot, viewModel: viewModel, onBookmark: onBookmark)
+            SideTransportButton(action: leftSlot, viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
 
-            CenterTransportButton(action: centerSlot, viewModel: viewModel, onBookmark: onBookmark)
+            CenterTransportButton(action: centerSlot, viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
 
-            SideTransportButton(action: rightSlot, viewModel: viewModel, onBookmark: onBookmark)
+            SideTransportButton(action: rightSlot, viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
         }
     }
 }
@@ -747,11 +898,14 @@ private struct SideTransportButton: View {
     let action: WatchAction
     let viewModel: WatchViewModel
     let onBookmark: () -> Void
+    let onSleepTimer: () -> Void
 
     var body: some View {
         Button {
             if action == .bookmark {
                 onBookmark()
+            } else if action == .sleepTimer {
+                onSleepTimer()
             } else {
                 viewModel.handle(action)
             }
@@ -768,6 +922,19 @@ private struct SideTransportButton: View {
                     Text(formatSpeed(viewModel.playbackSpeed))
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .monospacedDigit()
+                } else if action == .sleepTimer {
+                    ZStack {
+                        Image(systemName: viewModel.isSleepTimerActive ? "moon.zzz.fill" : "moon.zzz")
+                            .font(.system(size: 20))
+                            .foregroundStyle(viewModel.isSleepTimerActive ? Color.accentColor : Color.white)
+                        if viewModel.sleepTimerMode == "minutes" && viewModel.sleepTimerRemainingSeconds > 0 {
+                            Text(sleepCountdownText(viewModel.sleepTimerRemainingSeconds))
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.accentColor)
+                                .monospacedDigit()
+                                .offset(y: 14)
+                        }
+                    }
                 } else {
                     Image(systemName: sideIconName)
                         .font(.system(size: 20))
@@ -823,6 +990,7 @@ private struct CenterTransportButton: View {
     let action: WatchAction
     let viewModel: WatchViewModel
     let onBookmark: () -> Void
+    let onSleepTimer: () -> Void
 
     var body: some View {
         ZStack {
@@ -839,6 +1007,8 @@ private struct CenterTransportButton: View {
             Button {
                 if resolvedAction == .bookmark {
                     onBookmark()
+                } else if resolvedAction == .sleepTimer {
+                    onSleepTimer()
                 } else {
                     viewModel.handle(resolvedAction)
                 }
@@ -856,6 +1026,8 @@ private struct CenterTransportButton: View {
             Button("") {
                 if resolvedAction == .bookmark {
                     onBookmark()
+                } else if resolvedAction == .sleepTimer {
+                    onSleepTimer()
                 } else {
                     viewModel.handle(resolvedAction)
                 }

@@ -26,6 +26,19 @@ enum LoopMode: String, Codable {
     case bookmark
 }
 
+// MARK: - Sleep Timer Mode
+
+enum SleepTimerMode: Equatable {
+    case off
+    case minutes(Int)
+    case endOfChapter
+
+    var isActive: Bool {
+        if case .off = self { return false }
+        return true
+    }
+}
+
 // MARK: - Model
 
 @Observable
@@ -49,6 +62,13 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     // UI state
     var loopMode: LoopMode = .off
     var speed: Float
+
+    // Sleep timer state (observable)
+    private(set) var sleepTimerMode: SleepTimerMode = .off
+    /// Remaining seconds for time-based sleep timer modes. 0 when inactive.
+    private(set) var sleepTimerRemainingSeconds: Int = 0
+    @ObservationIgnored private var sleepTimer: Timer?
+    @ObservationIgnored private var sleepTimerEndDate: Date?
 
     private(set) var folderURL: URL?
     var tracks: [Track] = []
@@ -234,6 +254,21 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                         let next = speeds[(idx + 1) % speeds.count]
                         self.setSpeed(next)
                     }
+                case "setSleepTimer":
+                    if let modeStr = message["sleepTimerMode"] as? String {
+                        switch modeStr {
+                        case "off":
+                            self.setSleepTimer(.off)
+                        case "endOfChapter":
+                            self.setSleepTimer(.endOfChapter)
+                        case "minutes":
+                            let mins = (message["sleepTimerMinutes"] as? Int) ?? 15
+                            self.setSleepTimer(.minutes(mins))
+                        default: break
+                        }
+                    }
+                case "cancelSleepTimer":
+                    self.cancelSleepTimer()
                 case "addBookmark":
                     _ = self.addBookmarkAtCurrentTime()
                 case "addWatchTextBookmark":
@@ -297,6 +332,20 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         context["watchPage1"] = UserDefaults.standard.string(forKey: "watchPage1") ?? "empty,empty,skipBackward,playPause,skipForward"
         context["watchPage2"] = UserDefaults.standard.string(forKey: "watchPage2") ?? "loopMode,empty,speed,sleepTimer,bookmark"
         context["hasThumbnail"] = watchThumbnailData != nil
+
+        // Sleep timer state for watch UI.
+        switch sleepTimerMode {
+        case .off:
+            context["sleepTimerMode"] = "off"
+            context["sleepTimerRemainingSeconds"] = 0
+        case .minutes(let mins):
+            context["sleepTimerMode"] = "minutes"
+            context["sleepTimerMinutes"] = mins
+            context["sleepTimerRemainingSeconds"] = sleepTimerRemainingSeconds
+        case .endOfChapter:
+            context["sleepTimerMode"] = "endOfChapter"
+            context["sleepTimerRemainingSeconds"] = 0
+        }
 
         if let data = watchThumbnailData {
             context["thumbnailData"] = data
@@ -1008,6 +1057,73 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    // MARK: - Sleep Timer
+
+    /// Configure the sleep timer.
+    /// - `.minutes(n)` schedules a one-shot pause after n minutes.
+    /// - `.endOfChapter` arms a flag; pause is triggered when the current
+    ///   chapter concludes (handled inside `applyChapterLoopIfNeeded`).
+    /// - `.off` cancels any active timer.
+    func setSleepTimer(_ mode: SleepTimerMode) {
+        cancelSleepTimerInternal()
+        sleepTimerMode = mode
+
+        switch mode {
+        case .off:
+            sleepTimerRemainingSeconds = 0
+            sleepTimerEndDate = nil
+        case .minutes(let minutes):
+            let total = max(1, minutes) * 60
+            sleepTimerRemainingSeconds = total
+            sleepTimerEndDate = Date().addingTimeInterval(TimeInterval(total))
+            // 1-second tick to update countdown UI; on fire we pause.
+            sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                guard let self else { return }
+                guard let end = self.sleepTimerEndDate else { return }
+                let remaining = max(0, Int(end.timeIntervalSinceNow.rounded(.up)))
+                self.sleepTimerRemainingSeconds = remaining
+                if remaining <= 0 {
+                    self.sleepTimerDidFire()
+                } else {
+                    self.syncToWatch()
+                }
+            }
+            if let timer = sleepTimer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
+        case .endOfChapter:
+            // No wall-clock countdown; trigger handled at chapter boundary.
+            sleepTimerRemainingSeconds = 0
+            sleepTimerEndDate = nil
+        }
+
+        syncToWatch()
+    }
+
+    func cancelSleepTimer() {
+        setSleepTimer(.off)
+    }
+
+    private func cancelSleepTimerInternal() {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+    }
+
+    private func sleepTimerDidFire() {
+        cancelSleepTimerInternal()
+        sleepTimerMode = .off
+        sleepTimerRemainingSeconds = 0
+        sleepTimerEndDate = nil
+        if isPlaying { pause() }
+        syncToWatch()
+    }
+
+    /// Called from chapter-end logic to honor `.endOfChapter` sleep mode.
+    fileprivate func evaluateSleepTimerAtChapterEnd() {
+        guard case .endOfChapter = sleepTimerMode else { return }
+        sleepTimerDidFire()
+    }
+
     private func stop() {
         player?.pause()
         isPlaying = false
@@ -1171,6 +1287,13 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private func handleTrackEnded() {
         guard let player else { return }
+
+        // If the user armed an end-of-chapter sleep timer, the natural file
+        // end also counts as the end of the current (last) chapter.
+        if case .endOfChapter = sleepTimerMode {
+            evaluateSleepTimerAtChapterEnd()
+            return
+        }
 
         if chapters.count >= 2 {
             if loopMode == .chapter {
@@ -1817,6 +1940,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         let c = chapters[idx]
         if t >= (c.endSeconds - 0.5) {
+            // Honor an armed end-of-chapter sleep timer first.
+            if case .endOfChapter = sleepTimerMode {
+                evaluateSleepTimerAtChapterEnd()
+                return
+            }
             if loopMode == .chapter {
                 // Loop the CURRENT chapter.
                 isSeekingForChapterBoundary = true
@@ -2432,6 +2560,20 @@ extension View {
 
 }
 
+/// Format a remaining-seconds count for the Sleep Timer chip.
+/// Uses `m:ss` while ≤ 60 minutes; falls back to `h:mm` for longer.
+private func sleepTimerCountdownText(_ seconds: Int) -> String {
+    let s = max(0, seconds)
+    if s >= 3600 {
+        let h = s / 3600
+        let m = (s % 3600) / 60
+        return String(format: "%d:%02d", h, m)
+    }
+    let m = s / 60
+    let sec = s % 60
+    return String(format: "%d:%02d", m, sec)
+}
+
 struct ContentView: View {
     @State private var model = PlayerModel()
     @AppStorage("isDarkMode") private var isDarkMode = true
@@ -2703,6 +2845,72 @@ struct ContentView: View {
                             .frame(minWidth: 44, minHeight: 44)
                     }
                     .accessibilityLabel("Playback speed, \(String(format: "%g", model.speed)) times")
+
+                    Spacer()
+
+                    // MARK: Sleep Timer (secondary utility row)
+                    // HIG-compliant placement: separated from primary transport
+                    // controls. Native SwiftUI Menu so users get the system
+                    // sheet treatment expected on iOS 18/26.
+                    Menu {
+                        Button {
+                            model.setSleepTimer(.minutes(15))
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: { Label("15 Minutes", systemImage: "15.circle") }
+                        Button {
+                            model.setSleepTimer(.minutes(30))
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: { Label("30 Minutes", systemImage: "30.circle") }
+                        Button {
+                            model.setSleepTimer(.minutes(45))
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: { Label("45 Minutes", systemImage: "45.circle") }
+                        Button {
+                            model.setSleepTimer(.minutes(60))
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: { Label("60 Minutes", systemImage: "60.circle") }
+                        Divider()
+                        Button {
+                            model.setSleepTimer(.endOfChapter)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: { Label("End of Chapter", systemImage: "book.closed") }
+                        if model.sleepTimerMode.isActive {
+                            Divider()
+                            Button(role: .destructive) {
+                                model.cancelSleepTimer()
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: { Label("Off", systemImage: "xmark.circle") }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: model.sleepTimerMode.isActive ? "moon.zzz.fill" : "moon.zzz")
+                                .font(.title2)
+                                .foregroundStyle(model.sleepTimerMode.isActive ? Color.accentColor : Color.primary)
+                            // Minimalist countdown when a time-based sleep timer
+                            // is active. Format mm:ss for compactness.
+                            if case .minutes = model.sleepTimerMode,
+                               model.sleepTimerRemainingSeconds > 0 {
+                                Text(sleepTimerCountdownText(model.sleepTimerRemainingSeconds))
+                                    .customFont(.caption2, weight: .semibold)
+                                    .foregroundStyle(Color.accentColor)
+                                    .monospacedDigit()
+                            } else if case .endOfChapter = model.sleepTimerMode {
+                                Text("EOC")
+                                    .customFont(.caption2, weight: .semibold)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Sleep Timer")
+                    .accessibilityValue({
+                        switch model.sleepTimerMode {
+                        case .off: return "Off"
+                        case .minutes(let m): return "\(m) minutes, \(model.sleepTimerRemainingSeconds) seconds remaining"
+                        case .endOfChapter: return "End of chapter"
+                        }
+                    }())
 
                     Spacer()
 
