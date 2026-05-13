@@ -145,6 +145,25 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
         }
         return dir
     }
+
+    /// Resolves the on-disk URL for the `[BookName].json` bookmark sidecar
+    /// associated with an audiobook.
+    ///
+    /// - If `folderURL` is a directory (multi-track audiobook), the sidecar
+    ///   lives **inside** that folder using the folder's name.
+    /// - If `folderURL` is a single audio file (`.m4b`, etc.), the sidecar
+    ///   lives **next to** the file using the file's basename.
+    static func sidecarURL(for folderURL: URL) -> URL {
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDir)
+        if isDir.boolValue {
+            let name = folderURL.lastPathComponent
+            return folderURL.appendingPathComponent("\(name).json")
+        } else {
+            let baseName = folderURL.deletingPathExtension().lastPathComponent
+            return folderURL.deletingLastPathComponent().appendingPathComponent("\(baseName).json")
+        }
+    }
 }
 
 struct BookmarkDraft: Identifiable, Hashable {

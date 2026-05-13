@@ -2169,13 +2169,13 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             installBookmarkBoundaryObserver()
             return
         }
-        bookmarks = persistence.loadBookmarks(for: key).sorted { $0.timestamp < $1.timestamp }
+        bookmarks = persistence.loadBookmarks(for: key, folderURL: folderURL).sorted { $0.timestamp < $1.timestamp }
         installBookmarkBoundaryObserver()
     }
 
     private func persistBookmarks() {
         guard let key = bookmarksStorageKey else { return }
-        persistence.saveBookmarks(bookmarks, for: key)
+        persistence.saveBookmarks(bookmarks, for: key, folderURL: folderURL)
     }
 
     /// Bookmarks scoped to the currently playing track (if any), sorted.
@@ -2267,7 +2267,12 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let timestamp = max(0, incomingTimestamp?.isFinite == true ? incomingTimestamp ?? 0 : 0)
 
         let isCurrentBook = storageKey == bookmarksStorageKey
-        var targetBookmarks = isCurrentBook ? bookmarks : persistence.loadBookmarks(for: storageKey)
+        // Only the currently-loaded book has live security scope, so sidecar
+        // I/O is restricted to that case; other books fall back to UserDefaults.
+        let targetFolderURL: URL? = isCurrentBook ? folderURL : nil
+        var targetBookmarks = isCurrentBook
+            ? bookmarks
+            : persistence.loadBookmarks(for: storageKey, folderURL: targetFolderURL)
         let scopedCount = targetBookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
 
         let bookmark = Bookmark(
@@ -2281,7 +2286,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         targetBookmarks.append(bookmark)
         targetBookmarks.sort { $0.timestamp < $1.timestamp }
-        persistence.saveBookmarks(targetBookmarks, for: storageKey)
+        persistence.saveBookmarks(targetBookmarks, for: storageKey, folderURL: targetFolderURL)
 
         if isCurrentBook {
             bookmarks = targetBookmarks
@@ -3546,18 +3551,81 @@ private struct Persistence {
 
     private func bookmarksKey(for key: String) -> String { "bookmarks_\(key)" }
 
-    func saveBookmarks(_ bookmarks: [Bookmark], for key: String) {
+    /// Writes the bookmark list for a book. When `folderURL` is provided, the
+    /// list is written to a `[BookName].json` sidecar alongside the audiobook
+    /// (the primary store) and *also* mirrored to UserDefaults as a backup
+    /// for cases where the audiobook's volume becomes unavailable.
+    func saveBookmarks(_ bookmarks: [Bookmark], for key: String, folderURL: URL? = nil) {
+        let data: Data
         do {
-            let data = try JSONEncoder().encode(bookmarks)
-            defaults.set(data, forKey: bookmarksKey(for: key))
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            data = try encoder.encode(bookmarks)
         } catch {
             print("Bookmark encode failed: \(error)")
+            return
+        }
+
+        if let folderURL {
+            writeSidecar(data: data, folderURL: folderURL)
+        }
+
+        defaults.set(data, forKey: bookmarksKey(for: key))
+    }
+
+    /// Loads the bookmark list for a book. Prefers the `[BookName].json`
+    /// sidecar (if `folderURL` is provided and the file exists); falls back
+    /// to UserDefaults. If the sidecar is missing but UserDefaults has data,
+    /// the sidecar is created (one-shot migration).
+    func loadBookmarks(for key: String, folderURL: URL? = nil) -> [Bookmark] {
+        if let folderURL,
+           let bookmarks = readSidecar(folderURL: folderURL) {
+            return bookmarks
+        }
+
+        let defaultsBookmarks: [Bookmark]
+        if let data = defaults.data(forKey: bookmarksKey(for: key)),
+           let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) {
+            defaultsBookmarks = decoded
+        } else {
+            defaultsBookmarks = []
+        }
+
+        if let folderURL, !defaultsBookmarks.isEmpty {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let data = try? encoder.encode(defaultsBookmarks) {
+                writeSidecar(data: data, folderURL: folderURL)
+            }
+        }
+
+        return defaultsBookmarks
+    }
+
+    /// Acquires security-scoped access to the audiobook location and writes
+    /// the sidecar atomically. Failure is logged but non-fatal: callers
+    /// always have the UserDefaults backup to fall back to.
+    private func writeSidecar(data: Data, folderURL: URL) {
+        let sidecar = Bookmark.sidecarURL(for: folderURL)
+        let didStart = folderURL.startAccessingSecurityScopedResource()
+        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
+        do {
+            try data.write(to: sidecar, options: .atomic)
+        } catch {
+            print("Bookmark sidecar write failed at \(sidecar.path): \(error)")
         }
     }
 
-    func loadBookmarks(for key: String) -> [Bookmark] {
-        guard let data = defaults.data(forKey: bookmarksKey(for: key)) else { return [] }
-        return (try? JSONDecoder().decode([Bookmark].self, from: data)) ?? []
+    /// Reads and decodes the sidecar JSON for the audiobook. Returns nil if
+    /// no sidecar exists or the file cannot be decoded; callers should fall
+    /// back to UserDefaults in that case.
+    private func readSidecar(folderURL: URL) -> [Bookmark]? {
+        let sidecar = Bookmark.sidecarURL(for: folderURL)
+        let didStart = folderURL.startAccessingSecurityScopedResource()
+        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
+        guard FileManager.default.fileExists(atPath: sidecar.path),
+              let data = try? Data(contentsOf: sidecar) else { return nil }
+        return try? JSONDecoder().decode([Bookmark].self, from: data)
     }
 
     func restoreBookmark() -> URL? {

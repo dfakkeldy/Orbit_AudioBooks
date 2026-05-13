@@ -21,6 +21,13 @@ struct MacBookmark: Identifiable, Codable, Equatable, Hashable {
     var timestamp: TimeInterval
     var note: String?
     var createdAt: Date = Date()
+
+    /// Resolves the on-disk URL for the `[BookName].json` bookmark sidecar
+    /// that lives alongside the audiobook file.
+    static func sidecarURL(for fileURL: URL) -> URL {
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        return fileURL.deletingLastPathComponent().appendingPathComponent("\(baseName).json")
+    }
 }
 
 @MainActor
@@ -58,7 +65,8 @@ final class MacPlayerModel: ObservableObject {
     private let lastFileKey = "mac.lastFileBookmark.v1"
 
     init() {
-        loadBookmarks()
+        // Bookmarks are now per-book; they are loaded once a file is opened.
+        // `restoreLastFile()` will trigger `open(url:)` which loads the sidecar.
         restoreLastFile()
     }
 
@@ -123,6 +131,8 @@ final class MacPlayerModel: ObservableObject {
         ) {
             defaults.set(bookmark, forKey: lastFileKey)
         }
+
+        loadBookmarks(for: url)
     }
 
     private func restoreLastFile() {
@@ -269,16 +279,73 @@ final class MacPlayerModel: ObservableObject {
         }
     }
 
+    /// Writes the current `bookmarks` array to the `[BookName].json` sidecar
+    /// alongside the audiobook file (primary store), and mirrors them into
+    /// `mac.bookmarks.v1` UserDefaults as a backup (merged with bookmarks
+    /// belonging to other audiobooks so we don't clobber them).
     private func saveBookmarks() {
-        if let data = try? JSONEncoder().encode(bookmarks) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        if let url = currentURL {
+            let sidecar = MacBookmark.sidecarURL(for: url)
+            let didStart = url.startAccessingSecurityScopedResource()
+            defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try encoder.encode(bookmarks)
+                try data.write(to: sidecar, options: .atomic)
+            } catch {
+                print("Bookmark sidecar write failed at \(sidecar.path): \(error)")
+            }
+        }
+
+        // Backup: rewrite the global UserDefaults list by replacing all
+        // entries that belong to the current file with the in-memory list.
+        let currentName = currentURL?.lastPathComponent
+        var allBookmarks: [MacBookmark] = []
+        if let data = defaults.data(forKey: bookmarksKey),
+           let decoded = try? JSONDecoder().decode([MacBookmark].self, from: data) {
+            allBookmarks = decoded.filter { $0.fileDisplayName != currentName }
+        }
+        allBookmarks.append(contentsOf: bookmarks)
+        if let data = try? encoder.encode(allBookmarks) {
             defaults.set(data, forKey: bookmarksKey)
         }
     }
 
-    private func loadBookmarks() {
-        guard let data = defaults.data(forKey: bookmarksKey) else { return }
-        if let decoded = try? JSONDecoder().decode([MacBookmark].self, from: data) {
+    /// Loads bookmarks for the given audiobook URL. Prefers the
+    /// `[BookName].json` sidecar; falls back to filtering the legacy
+    /// `mac.bookmarks.v1` UserDefaults entry by display name. If a sidecar
+    /// is missing but legacy data exists for the file, the sidecar is
+    /// created so future loads are sidecar-driven.
+    private func loadBookmarks(for url: URL) {
+        let sidecar = MacBookmark.sidecarURL(for: url)
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+
+        if FileManager.default.fileExists(atPath: sidecar.path),
+           let data = try? Data(contentsOf: sidecar),
+           let decoded = try? JSONDecoder().decode([MacBookmark].self, from: data) {
             bookmarks = decoded
+            return
+        }
+
+        // Migrate from legacy global UserDefaults bucket.
+        let displayName = url.lastPathComponent
+        guard let data = defaults.data(forKey: bookmarksKey),
+              let all = try? JSONDecoder().decode([MacBookmark].self, from: data) else {
+            bookmarks = []
+            return
+        }
+        let migrated = all.filter { $0.fileDisplayName == displayName }
+        bookmarks = migrated
+
+        if !migrated.isEmpty {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let migratedData = try? encoder.encode(migrated) {
+                try? migratedData.write(to: sidecar, options: .atomic)
+            }
         }
     }
 }
