@@ -43,6 +43,13 @@ enum SleepTimerMode: Equatable {
 
 @Observable
 final class PlayerModel: NSObject, WCSessionDelegate {
+    struct TranscriptionSegment: Codable, Identifiable {
+        var id: String { "\(startTime)-\(endTime)" }
+        let text: String
+        let startTime: TimeInterval
+        let endTime: TimeInterval
+    }
+    
     struct Track: Identifiable, Equatable {
         var id: String { url.absoluteString }
         let url: URL
@@ -88,11 +95,33 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     // Chapters (for .m4b with chapter markers)
     var chapters: [Chapter] = []
+    
+    // Transcript
+    var transcription: [TranscriptionSegment] = []
+    
     private(set) var currentChapterIndex: Int? = nil
     private var isSeekingForChapterBoundary: Bool = false
     private var isManualSeeking: Bool = false
     
     private var pauseTimestamp: Date? = nil
+
+    private func loadTranscript(for url: URL) {
+        let fileName = url.deletingPathExtension().lastPathComponent + ".transcript.json"
+        let transcriptURL = url.deletingLastPathComponent().appendingPathComponent(fileName)
+        
+        guard FileManager.default.fileExists(atPath: transcriptURL.path) else {
+            self.transcription = []
+            return
+        }
+        
+        do {
+            let data = try Data(contentsOf: transcriptURL)
+            self.transcription = try JSONDecoder().decode([TranscriptionSegment].self, from: data)
+        } catch {
+            print("Failed to load transcript: \(error)")
+            self.transcription = []
+        }
+    }
 
     // MARK: Bookmarks
     var bookmarks: [Bookmark] = []
@@ -126,7 +155,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     // Playback
-    private var player: AVPlayer?
+    internal var player: AVPlayer?
     private var endObserver: NSObjectProtocol?
     private var timeObserver: Any?
     private var chapterBoundaryObserver: Any?
@@ -1182,6 +1211,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         currentSubtitle = ""
         thumbnailImage = nil
         watchThumbnailData = nil
+        
+        loadTranscript(for: tracks[index].url)
         
         if let folderURL = folderURL {
             persistence.saveLastTrack(for: folderURL.absoluteString, trackId: tracks[index].id)

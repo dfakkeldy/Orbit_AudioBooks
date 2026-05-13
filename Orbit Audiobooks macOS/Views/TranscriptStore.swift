@@ -21,7 +21,7 @@ class TranscriptStore: ObservableObject {
         loadIndex()
 
         NotificationCenter.default.addObserver(forName: NSNotification.Name("TranscriptDidUpdate"), object: nil, queue: .main) { [weak self] _ in
-            self?.reload()
+            Task { @MainActor in self?.reload() }
         }
     }
 

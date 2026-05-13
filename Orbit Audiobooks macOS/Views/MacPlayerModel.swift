@@ -195,10 +195,10 @@ final class MacPlayerModel: ObservableObject {
     }
 
     func seek(to seconds: Double) {
-        guard let player else { return }
+        guard let player = self.player else { return }
         let target = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.currentTime = seconds
             }
         }
