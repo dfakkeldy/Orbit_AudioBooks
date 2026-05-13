@@ -385,6 +385,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let title = chapters.count >= 2 ? (currentSubtitle.isEmpty ? "Chapter \((currentChapterIndex ?? 0) + 1)" : currentSubtitle) : currentTitle
         context["title"] = title
         
+        // Dual-progress: total book progress
+        let totalCount = Double(tracks.count)
+        context["totalProgressFraction"] = totalCount > 0 ? (Double(currentIndex) + progressFraction) / totalCount : 0.0
+        
         let crownAction = UserDefaults.standard.string(forKey: "crownAction") ?? "volume"
         context["crownAction"] = crownAction
         context["isHapticFeedbackEnabled"] = AppGroupDefaults.isHapticFeedbackEnabled

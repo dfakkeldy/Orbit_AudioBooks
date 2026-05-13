@@ -153,6 +153,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var title: String = "No track selected"
     var thumbnailImage: UIImage? = nil
     var progressFraction: Double = 0.0
+    var totalProgressFraction: Double = 0.0
     var loopMode: String = "off"
     var bookmarkStorageKey: String? = nil
     var folderKey: String? = nil
@@ -290,6 +291,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             if let progressFraction = state["progressFraction"] as? Double {
                 self.progressFraction = progressFraction
                 self.defaults.set(progressFraction, forKey: "progressFraction")
+            }
+            if let totalProgressFraction = state["totalProgressFraction"] as? Double {
+                self.totalProgressFraction = totalProgressFraction
+                self.defaults.set(totalProgressFraction, forKey: "totalProgressFraction")
             }
             if let currentTime = state["currentTime"] as? Double {
                 self.currentTime = currentTime
@@ -797,8 +802,8 @@ private struct PlayerPage: View {
 
     var body: some View {
         ZStack {
-            // Main vertical content (artwork + title + transport row)
-            VStack(spacing: 12) {
+            // Main vertical content (artwork + title + progress bar + transport row)
+            VStack(spacing: 8) {
                 if let image = viewModel.thumbnailImage {
                     Image(uiImage: image)
                         .resizable()
@@ -821,13 +826,20 @@ private struct PlayerPage: View {
                         )
                 }
 
-                Text(viewModel.title)
+                Text("\(viewModel.title) • \(Int(viewModel.totalProgressFraction * 100))% complete")
                     .font(.system(.caption, design: .rounded))
                     .fontWeight(.medium)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .padding(.horizontal)
+                
+                // Linear total progress bar
+                ProgressView(value: viewModel.totalProgressFraction, total: 1.0)
+                    .progressViewStyle(.linear)
+                    .tint(.green)
+                    .padding(.horizontal, 16)
+                    .scaleEffect(y: 0.5) // Thin bar
 
                 TransportRow(
                     leftSlot: slots[2],
@@ -839,8 +851,8 @@ private struct PlayerPage: View {
                 )
                 .padding(.top, 6)
             }
-
-            // Top-row slots (anchored to the top — well above the title).
+            
+            // Top-row slots
             VStack {
                 HStack {
                     TopSlotButton(action: slots[0], viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
