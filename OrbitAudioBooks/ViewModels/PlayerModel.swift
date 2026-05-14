@@ -6,19 +6,28 @@ import WatchConnectivity
 import UIKit
 import ImageIO
 
+/// Playback loop behavior for the current audiobook.
 enum LoopMode: String, Codable {
+    /// No looping; playback advances normally.
     case off
+    /// Loop the current chapter repeatedly.
     case chapter
+    /// Loop between consecutive bookmarks.
     case bookmark
 }
 
 // MARK: - Sleep Timer Mode
 
+/// Controls when playback should automatically pause.
 enum SleepTimerMode: Equatable {
+    /// No sleep timer is active.
     case off
+    /// Pause after the given number of minutes elapses.
     case minutes(Int)
+    /// Pause when the current chapter ends.
     case endOfChapter
 
+    /// Whether a sleep timer is currently armed.
     var isActive: Bool {
         if case .off = self { return false }
         return true
@@ -27,70 +36,120 @@ enum SleepTimerMode: Equatable {
 
 // MARK: - Model
 
+/// The central observable model managing audiobook playback, bookmarks,
+/// chapter navigation, sleep timer, Watch connectivity, and Now Playing
+/// metadata. Serves as the single source of truth for the player UI.
 @Observable
 final class PlayerModel: NSObject, WCSessionDelegate {
+    /// A single segment of transcribed text with its time range in the audio.
     struct TranscriptionSegment: Codable, Identifiable {
         var id: String { "\(startTime)-\(endTime)" }
+        /// The transcribed text content.
         let text: String
+        /// Start time of the segment, in seconds.
         let startTime: TimeInterval
+        /// End time of the segment, in seconds.
         let endTime: TimeInterval
     }
-    
+
+    /// An audio track (file) in the playback queue.
     struct Track: Identifiable, Equatable {
         var id: String { url.absoluteString }
+        /// The file URL of the audio track.
         let url: URL
+        /// The display title derived from the file name.
         let title: String
+        /// Whether the track is included during sequential playback.
         var isEnabled: Bool = true
     }
 
+    /// A chapter within an audiobook track, typically parsed from M4B chapter markers.
     struct Chapter: Identifiable, Equatable {
         var id: String { "\(index)-\(title ?? "unknown")" }
+        /// Zero-based chapter index.
         let index: Int
+        /// The chapter title, if available from metadata.
         let title: String?
+        /// Start time in seconds within the parent track.
         let startSeconds: Double
+        /// End time in seconds within the parent track.
         let endSeconds: Double
+        /// Whether the chapter is included during sequential playback.
         var isEnabled: Bool = true
     }
 
-    // UI state
+    // MARK: - UI state
+
+    /// The current playback loop mode (off, chapter, or bookmark).
     var loopMode: LoopMode = .off
+    /// Playback speed multiplier. Persisted per-book.
     var speed: Float
 
-    // Sleep timer state (observable)
+    // MARK: - Sleep timer state
+
+    /// The currently armed sleep-timer mode. Observers can read this to
+    /// drive UI; call `setSleepTimer(_:)` to mutate.
     private(set) var sleepTimerMode: SleepTimerMode = .off
     /// Remaining seconds for time-based sleep timer modes. 0 when inactive.
     private(set) var sleepTimerRemainingSeconds: Int = 0
     @ObservationIgnored private var sleepTimer: Timer?
     @ObservationIgnored private var sleepTimerEndDate: Date?
 
+    // MARK: - Playlist state
+
+    /// The folder or single file currently loaded as the active playlist.
     private(set) var folderURL: URL?
+    /// The ordered list of audio tracks in the current playlist.
     var tracks: [Track] = []
+    /// The index into `tracks` of the currently loaded item.
     private(set) var currentIndex: Int = 0
 
-    private(set) var isPlaying: Bool = false
-    private(set) var currentTitle: String = "No track selected"
-    private(set) var currentSubtitle: String = "" // e.g. "Chapter 3: Something"
+    // MARK: - Playback state
 
-    // Progress (for UI)
+    /// Whether the player is currently playing.
+    private(set) var isPlaying: Bool = false
+    /// The title of the currently playing track.
+    private(set) var currentTitle: String = "No track selected"
+    /// The subtitle of the currently playing track, typically the chapter name.
+    private(set) var currentSubtitle: String = ""
+
+    // MARK: - Progress
+
+    /// Playback progress as a fraction from 0.0 to 1.0, scoped to the current
+    /// chapter when chapters are available, or the full track otherwise.
     private(set) var progressFraction: Double = 0.0
+    /// Remaining time formatted as a string (e.g. "-12:34").
     private(set) var progressText: String = "--:--"
+    /// Elapsed time formatted as a string (e.g. "1:23").
     private(set) var elapsedText: String = "--:--"
+    /// The total duration of the current item, in seconds, or `nil` if unknown.
     private(set) var durationSeconds: Double? = nil
+    /// The artwork image displayed in Now Playing and the player UI.
     private(set) var thumbnailImage: UIImage? = nil
+    /// A downscaled JPEG representation of the artwork for Watch transfer.
     private(set) var watchThumbnailData: Data? = nil
 
-    // Chapters (for .m4b with chapter markers)
+    // MARK: - Chapters
+
+    /// Chapters parsed from the current track's M4B/M4A metadata.
+    /// Empty when the track has no chapter markers.
     var chapters: [Chapter] = []
-    
-    // Transcript
+    /// Transcription segments for the current track, loaded from a sidecar JSON.
     var transcription: [TranscriptionSegment] = []
-    
+    /// The index of the currently active chapter, or `nil` when chapters are unavailable.
     private(set) var currentChapterIndex: Int? = nil
-    private var isSeekingForChapterBoundary: Bool = false
-    private var isManualSeeking: Bool = false
-    
+    /// Timestamp recorded when playback was last paused, used to calculate
+    /// rewind amounts on resume. `nil` while playing.
     private var pauseTimestamp: Date? = nil
 
+    /// Whether the current seek operation was initiated by a chapter boundary jump.
+    private var isSeekingForChapterBoundary: Bool = false
+    /// Whether the current seek operation was initiated by the user.
+    private var isManualSeeking: Bool = false
+
+    /// Loads the transcript sidecar JSON for the given audio file.
+    /// The transcript is expected at `<audio>.transcript.json` in the same directory.
+    /// - Parameter url: The audio file URL whose sidecar transcript will be loaded.
     private func loadTranscript(for url: URL) {
         let fileName = url.deletingPathExtension().lastPathComponent + ".transcript.json"
         let transcriptURL = url.deletingLastPathComponent().appendingPathComponent(fileName)
@@ -109,58 +168,83 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
-    // MARK: Bookmarks
+    // MARK: - Bookmarks
+
+    /// All bookmarks for the currently loaded book, sorted by timestamp.
     var bookmarks: [Bookmark] = []
+    /// Whether a voice memo attached to a bookmark is currently playing in overlay mode.
     private(set) var isPlayingVoiceMemo: Bool = false
     /// 0...1 progress of the currently playing voice memo, for the overlay UI.
     private(set) var voiceMemoProgress: Double = 0.0
+    /// The AVAudioEngine used for voice-memo overlay playback.
     @ObservationIgnored private var voiceMemoEngine: AVAudioEngine?
+    /// The player node scheduled with the voice-memo audio file.
     @ObservationIgnored private var voiceMemoPlayerNode: AVAudioPlayerNode?
+    /// Duration of the currently playing voice memo, in seconds.
     @ObservationIgnored private var voiceMemoDuration: Double = 0
+    /// Progress timer fired at 0.1 s intervals during voice-memo playback.
     @ObservationIgnored private var voiceMemoProgressTimer: Timer?
 
-    /// Boundary observer that fires when playback hits a bookmark with a memo.
+    /// Boundary observer that fires when playback hits a bookmark with a voice memo.
     @ObservationIgnored private var bookmarkBoundaryObserver: Any?
-    /// Boundary observer for bookmark-loop endpoints (precise loop-back trigger).
+    /// Boundary observer for bookmark-loop endpoints used for precise loop-back triggering.
     @ObservationIgnored private var bookmarkLoopBoundaryObserver: Any?
-    /// Track timestamps of recently triggered bookmarks to avoid retrigger loops.
+    /// UUID of the most recently triggered bookmark, used to prevent retrigger loops.
     @ObservationIgnored private var lastTriggeredBookmarkID: UUID?
+    /// Player time at which the most recent bookmark was triggered, used to suppress duplicate firings.
     @ObservationIgnored private var lastTriggeredAtPlayerSecond: Double = -1
+    /// The player time used during the last bookmark voice-memo trigger check.
     @ObservationIgnored private var lastBookmarkCheckSecond: Double?
+    /// Per-URL cache of computed voice-memo gain values to avoid recomputation.
     @ObservationIgnored private var voiceMemoGainCache: [String: Float] = [:]
 
-    /// Tracks the last track ID for which we sent a thumbnail payload to the watch.
-    /// Used to avoid re-sending heavy image data on every 0.5-second sync.
+    /// Tracks the last track ID for which a thumbnail was sent to the watch,
+    /// avoiding redundant heavy image transfers on every periodic sync.
     @ObservationIgnored private var lastSyncedThumbnailTrackId: String?
 
-    // iOS 26: avoid UIScreen.main usage; set from SwiftUI environment.
+    /// The display scale used for thumbnail rendering. Set from the SwiftUI
+    /// environment to avoid `UIScreen.main` deprecation on iOS 26+.
     private var displayScale: CGFloat = 2.0
 
+    /// Sets the display scale used for thumbnail rendering.
+    /// Called from the SwiftUI environment to avoid `UIScreen.main` on iOS 26+.
+    /// - Parameter scale: The display scale factor (e.g. 2.0 or 3.0).
     func setDisplayScale(_ scale: CGFloat) {
         displayScale = scale
     }
 
-    // Playback
+    // MARK: - Playback infrastructure
+
+    /// The underlying AVPlayer instance driving audio playback.
     internal var player: AVPlayer?
+    /// Observer for `AVPlayerItemDidPlayToEndTime` on the current item.
     private var endObserver: NSObjectProtocol?
+    /// Periodic time observer firing at 0.5 s intervals for progress updates.
     private var timeObserver: Any?
+    /// Boundary observer for chapter end triggers.
     private var chapterBoundaryObserver: Any?
+    /// Observer for `AVAudioSession.interruptionNotification`.
     private var interruptionObserver: NSObjectProtocol?
 
-    // Background task used while paused to reduce the chance of the app being
-    // evicted from the system "Now Playing" slot during short pauses.
+    /// Background task claim held during pause to reduce the chance of eviction
+    /// from the system Now Playing slot.
     private var pauseBackgroundTask: UIBackgroundTaskIdentifier = .invalid
 
-    // Security-scoped access:
-    // - Keep the selected folder/file open while the app runs.
-    // - Also keep the currently playing file open (some providers require per-file access).
+    // MARK: - Security-scoped access
+
+    /// Whether the current selection (folder or file) holds a security-scoped resource access grant.
     private var hasSelectionSecurityScopeAccess: Bool = false
+    /// The URL for which `hasSelectionSecurityScopeAccess` was obtained.
     private var selectionSecurityScopeURL: URL?
+    /// Whether the currently playing file holds a per-file security-scoped resource access grant.
     private var hasCurrentFileSecurityScopeAccess: Bool = false
+    /// The URL for which `hasCurrentFileSecurityScopeAccess` was obtained.
     private var currentFileSecurityScopeURL: URL?
 
+    /// UserDefaults-backed persistence helper for book progress, bookmarks, speed, and ordering.
     private let persistence = Persistence()
 
+    /// A hidden `MPVolumeView` used to programmatically set system volume.
     @ObservationIgnored private var _volumeView: MPVolumeView?
 
     private func setSystemVolume(_ level: Float) {
@@ -329,6 +413,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
     
+    /// Pushes the current playback state to the paired Apple Watch via
+    /// `WCSession`. Sends lightweight state on every call and heavy thumbnail
+    /// data only when the track changes.
     func syncToWatch() {
         let session = WCSession.default
         guard session.activationState == .activated else { return }
@@ -491,6 +578,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     // MARK: Folder + track loading
 
+    /// Reorders tracks within the playlist and persists the new order.
+    /// - Parameters:
+    ///   - source: The indices of tracks to move.
+    ///   - destination: The index to insert the tracks at.
     func moveTracks(from source: IndexSet, to destination: Int) {
         let currentURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil
         tracks.move(fromOffsets: source, toOffset: destination)
@@ -502,6 +593,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Reorders chapters within the current track and persists the new order.
+    /// - Parameters:
+    ///   - source: The indices of chapters to move.
+    ///   - destination: The index to insert the chapters at.
     func moveChapters(from source: IndexSet, to destination: Int) {
         let currentID = (currentChapterIndex != nil && chapters.indices.contains(currentChapterIndex!)) ? chapters[currentChapterIndex!].id : nil
         chapters.move(fromOffsets: source, toOffset: destination)
@@ -514,6 +609,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         installChapterBoundaryObservers()
     }
 
+    /// Toggles the enabled state of a track, which determines whether it is
+    /// included during sequential playback. Persists the change.
+    /// - Parameter index: The index of the track in the `tracks` array.
     func toggleTrackEnabled(at index: Int) {
         tracks[index].isEnabled.toggle()
         if let folderURL = folderURL {
@@ -523,6 +621,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
     
+    /// Toggles the enabled state of a chapter, which determines whether it is
+    /// included during sequential chapter navigation. Persists the change.
+    /// - Parameter index: The index of the chapter in the `chapters` array.
     func toggleChapterEnabled(at index: Int) {
         chapters[index].isEnabled.toggle()
         if let currentTrackURL = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url : nil {
@@ -533,6 +634,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         installChapterBoundaryObservers()
     }
 
+    /// Resets the playlist to its default order, re-enabling all tracks or
+    /// chapters (depending on the content) and persisting the changes.
     func resetPlaylist() {
         if chapters.count >= 2 {
             chapters.sort { $0.startSeconds < $1.startSeconds }
@@ -565,8 +668,14 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Loads a folder or single audio file as the active playlist. If the URL is a
+    /// directory, all supported audio files are enumerated and sorted; if a single
+    /// file, it becomes the sole track. Stops any current playback first.
+    /// - Parameters:
+    ///   - url: The folder or file URL to load.
+    ///   - autoplay: Whether to automatically begin playback after loading. Defaults to `true`.
     func loadFolder(_ url: URL, autoplay: Bool = true) {
-        stop() // stop current playback when selecting a new folder/file
+        stop()
 
         folderURL = url
         
@@ -601,6 +710,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         persistSelection(url: url)
     }
 
+    /// Restores the last selected folder or file from a security-scoped bookmark,
+    /// loading it without autoplay. Falls back to sample content in DEBUG simulator
+    /// builds when no persisted selection exists.
     func restoreLastSelectionIfPossible() {
         guard let url = persistence.restoreBookmark() else {
             #if DEBUG && targetEnvironment(simulator)
@@ -704,12 +816,15 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return hoursToChapterStart && pausedDuration >= Double(hoursThreshold * 3600)
     }
 
+    /// Toggles between play and pause states.
     func togglePlayPause() {
         if isPlaying { pause() } else { play() }
     }
 
+    /// Starts or resumes playback. Applies rewind-on-resume if the feature is
+    /// enabled and the player was paused long enough. Re-acquires security-scoped
+    /// access and configures the audio session before playing.
     func play() {
-        // Check for rewind before playing
         if let pausedAt = pauseTimestamp {
             let pausedDuration = Date().timeIntervalSince(pausedAt)
             if UserDefaults.standard.bool(forKey: "isRewindEnabled") {
@@ -773,8 +888,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         syncToWatch()
     }
 
+    /// Pauses playback while keeping the audio session active, so Now Playing
+    /// metadata and controls remain visible. Records the pause timestamp for
+    /// rewind-on-resume and saves progress to persistent storage.
     func pause() {
-        // CRUCIAL: do NOT deactivate AVAudioSession when paused.
         player?.pause()
         isPlaying = false
         
@@ -834,6 +951,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return nil
     }
 
+    /// Advances to the next enabled track, or loops to the first if at the end.
+    /// When chapters are present, delegates to `nextChapter()`.
     func nextTrack() {
         if chapters.count >= 2 {
             nextChapter()
@@ -849,6 +968,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Goes to the previous track, or restarts the current one if more than
+    /// 5 seconds have elapsed. When chapters are present, delegates to
+    /// `previousChapterOrRestart()`.
     func previousTrackOrRestart() {
         if chapters.count >= 2 {
             previousChapterOrRestart()
@@ -883,6 +1005,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Advances to the next enabled chapter. Falls back to `nextTrack()` when
+    /// chapters are unavailable or the last chapter is reached.
     func nextChapter() {
         guard chapters.count >= 2 else {
             nextTrack()
@@ -903,6 +1027,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Goes to the previous chapter, or restarts the current one if more than
+    /// 5 seconds have elapsed. Falls back to `previousTrackOrRestart()` when
+    /// chapters are unavailable.
     func previousChapterOrRestart() {
         guard chapters.count >= 2 else {
             previousTrackOrRestart()
@@ -930,6 +1057,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Enabled bookmarks scoped to the current track, excluding those with
+    /// non-finite timestamps. Used by bookmark-loop and skip-navigation logic.
     private var enabledCurrentTrackBookmarks: [Bookmark] {
         currentTrackBookmarks.filter { $0.isEnabled && $0.timestamp.isFinite }
     }
@@ -952,6 +1081,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return true
     }
 
+    /// Skips to the previous chapter or track. In bookmark loop mode, jumps to the
+    /// previous bookmark instead.
+    /// - Returns: `true` if the navigation resulted in a bookmark jump.
     @discardableResult
     func skipBackwardNavigation() -> Bool {
         if loopMode == .bookmark,
@@ -969,6 +1101,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return false
     }
 
+    /// Skips to the next chapter or track. In bookmark loop mode, jumps to the
+    /// next bookmark instead.
+    /// - Returns: `true` if the navigation resulted in a bookmark jump.
     @discardableResult
     func skipForwardNavigation() -> Bool {
         if loopMode == .bookmark,
@@ -986,6 +1121,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return false
     }
 
+    /// Skips backward by 30 seconds (scaled by playback speed). In bookmark loop
+    /// mode, jumps to the previous bookmark instead.
+    /// - Returns: `true` if the skip resulted in a bookmark jump.
     @discardableResult
     func skipBackward30() -> Bool {
         guard let player else { return false }
@@ -1016,6 +1154,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return false
     }
 
+    /// Skips forward by 30 seconds (scaled by playback speed). In bookmark loop
+    /// mode, jumps to the next bookmark instead.
+    /// - Returns: `true` if the skip resulted in a bookmark jump.
     @discardableResult
     func skipForward30() -> Bool {
         guard let player else { return false }
@@ -1047,6 +1188,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return false
     }
 
+    /// Seeks to an absolute time position in seconds. Updates Now Playing
+    /// metadata, chapter state, and progress after the seek completes.
+    /// - Parameter targetSeconds: The target time in seconds.
     func seek(toSeconds targetSeconds: Double) {
         guard let player else { return }
         isManualSeeking = true
@@ -1065,6 +1209,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Seeks to a fractional position (0...1) within the current chapter or
+    /// track, depending on what is available.
+    /// - Parameter fraction: A value from 0.0 to 1.0 representing the target position.
     func seek(toFraction fraction: Double) {
         let safeFraction = min(1, max(0, fraction))
         
@@ -1084,6 +1231,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Sets the playback speed and persists the preference for the current book.
+    /// - Parameter newSpeed: The desired rate (e.g. 1.0, 1.25, 1.5, 2.0).
     func setSpeed(_ newSpeed: Float) {
         speed = newSpeed
         if let key = folderURL?.absoluteString {
@@ -1100,6 +1249,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         syncToWatch()
     }
 
+    /// Sets the loop mode and persists the preference for the current book.
+    /// - Parameter mode: The desired loop mode (off, chapter, or bookmark).
     func setLoopMode(_ mode: LoopMode) {
         loopMode = mode
         if let key = folderURL?.absoluteString {
@@ -1109,6 +1260,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         syncToWatch()
     }
 
+    /// Cycles through the available loop modes: off → chapter → bookmark → off.
+    /// The bookmark mode is skipped when no bookmarks exist.
     func cycleLoopMode() {
         let hasBookmarks = !bookmarks.isEmpty
         switch loopMode {
@@ -1164,6 +1317,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         syncToWatch()
     }
 
+    /// Cancels any active sleep timer, restoring normal playback behavior.
     func cancelSleepTimer() {
         setSleepTimer(.off)
     }
@@ -1511,8 +1665,12 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     // MARK: Now Playing + Remote controls (Apple Watch / Control Center)
 
+    /// Tracks whether `MPRemoteCommandCenter` targets have been registered,
+    /// ensuring configuration happens exactly once per session.
     private var didConfigureRemoteCommands = false
 
+    /// Registers handlers for Now Playing remote commands (play, pause, skip, etc.)
+    /// on `MPRemoteCommandCenter`. Called once; subsequent calls are no-ops.
     private func configureRemoteCommandsIfNeeded() {
         guard !didConfigureRemoteCommands else { return }
         didConfigureRemoteCommands = true
@@ -2194,13 +2352,16 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     // MARK: - Bookmarks API
 
-    /// Key used to store bookmarks for the currently loaded book.
+    /// The persistence key for the currently loaded book, derived from the folder
+    /// URL or the current track ID. Used to scope bookmark and progress storage.
     private var bookmarksStorageKey: String? {
         if let f = folderURL?.absoluteString { return f }
         if tracks.indices.contains(currentIndex) { return tracks[currentIndex].id }
         return nil
     }
 
+    /// Loads bookmarks from persistent storage for the currently loaded book.
+    /// Falls back to an empty list if no storage key is available.
     func loadBookmarksForCurrentBook() {
         guard let key = bookmarksStorageKey else {
             bookmarks = []
@@ -2216,7 +2377,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         persistence.saveBookmarks(bookmarks, for: key, folderURL: folderURL)
     }
 
-    /// Bookmarks scoped to the currently playing track (if any), sorted.
+    /// Bookmarks scoped to the currently playing track, sorted by timestamp.
     var currentTrackBookmarks: [Bookmark] {
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
         return bookmarks
@@ -2224,6 +2385,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             .sorted { $0.timestamp < $1.timestamp }
     }
 
+    /// Creates a new bookmark at the current playback position with an
+    /// auto-numbered title. Persists the bookmark list immediately.
+    /// - Returns: The newly created bookmark, or `nil` if playback is unavailable.
     @discardableResult
     func addBookmarkAtCurrentTime() -> Bookmark? {
         guard let player else { return nil }
@@ -2245,6 +2409,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return bm
     }
 
+    /// Creates a draft bookmark at the current playback position without
+    /// persisting it. Useful for presenting a pre-filled editor before saving.
+    /// - Returns: A draft bookmark, or `nil` if playback is unavailable.
     func bookmarkDraftAtCurrentTime() -> BookmarkDraft? {
         guard let player else { return nil }
         let t = player.currentTime().seconds
@@ -2259,6 +2426,14 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         )
     }
 
+    /// Appends a bookmark created from a draft, persisting the updated list.
+    /// - Parameters:
+    ///   - draft: The draft bookmark providing the base metadata.
+    ///   - title: The final bookmark title.
+    ///   - timestamp: The bookmark timestamp in seconds.
+    ///   - note: An optional text note attached to the bookmark.
+    ///   - voiceMemoFileName: An optional filename for an attached voice memo.
+    /// - Returns: The newly created bookmark.
     @discardableResult
     func appendBookmark(
         from draft: BookmarkDraft,
@@ -2283,6 +2458,13 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         return bm
     }
 
+    /// Updates an existing bookmark's metadata and re-persists the list.
+    /// - Parameters:
+    ///   - id: The UUID of the bookmark to update.
+    ///   - title: The new title.
+    ///   - timestamp: The new timestamp in seconds.
+    ///   - note: An optional text note.
+    ///   - voiceMemoFileName: An optional voice memo filename.
     func updateBookmark(id: UUID, title: String, timestamp: TimeInterval, note: String?, voiceMemoFileName: String?) {
         guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
         bookmarks[idx].title = title
@@ -2332,6 +2514,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Toggles the enabled state of a bookmark. Disabled bookmarks are skipped
+    /// during bookmark-loop navigation and voice-memo triggering.
+    /// - Parameter id: The UUID of the bookmark to toggle.
     func toggleBookmarkEnabled(id: UUID) {
         guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
         bookmarks[idx].isEnabled.toggle()
@@ -2339,15 +2524,19 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         installBookmarkBoundaryObserver()
     }
 
-    /// Reorder bookmarks. Only meaningful for bookmarks that share the same
-    /// scope (e.g. the current track), since their natural ordering is by
-    /// timestamp. Persists the new ordering and refreshes the boundary observer.
+    /// Reorders bookmarks within the list and persists the new ordering.
+    /// - Parameters:
+    ///   - source: The indices of bookmarks to move.
+    ///   - destination: The index to insert the bookmarks at.
     func moveBookmarks(from source: IndexSet, to destination: Int) {
         bookmarks.move(fromOffsets: source, toOffset: destination)
         persistBookmarks()
         installBookmarkBoundaryObserver()
     }
 
+    /// Deletes a bookmark and its associated voice memo file (if any).
+    /// Automatically disables bookmark loop mode if no bookmarks remain.
+    /// - Parameter id: The UUID of the bookmark to delete.
     func deleteBookmark(id: UUID) {
 
         if let idx = bookmarks.firstIndex(where: { $0.id == id }) {
@@ -2397,7 +2586,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         installBookmarkLoopBoundaryObserver()
     }
 
-    /// Jump playback to a bookmark's timestamp (without firing the voice memo overlay).
+    /// Jumps playback to a bookmark's timestamp, suppressing the voice-memo
+    /// overlay trigger to avoid unwanted playback interruption.
+    /// - Parameter bm: The bookmark to jump to.
     func jumpToBookmark(_ bm: Bookmark) {
         // Suppress retrigger when the user manually navigates to a bookmark.
         lastTriggeredBookmarkID = bm.id
@@ -2542,6 +2733,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
 
+    /// Stops the currently playing voice memo overlay and resumes main playback.
     func stopVoiceMemo() {
         switchAudioSource(to: .mainPlayer)
 
@@ -2574,6 +2766,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 }
 
+/// UserDefaults-backed persistence layer for bookmarks, playback progress,
+/// track/chapter ordering, enabled states, playback speed, and loop mode.
+/// Also manages security-scoped bookmark restoration and JSON sidecar I/O
+/// for bookmark data.
 private struct Persistence {
     private let defaults = UserDefaults.standard
     private let bookmarkKey = "OrbitAudiobooks.selection.bookmark"
@@ -2631,12 +2827,14 @@ private struct Persistence {
         defaults.dictionary(forKey: "enabled_\(key)") as? [String: Bool]
     }
 
+    /// Saves the current playback position (track ID and time) for a given book.
     func saveBookProgress(for folderKey: String, trackId: String, time: Double) {
         var dict = defaults.dictionary(forKey: progressKey) as? [String: [String: Any]] ?? [:]
         dict[folderKey] = ["trackId": trackId, "time": time]
         defaults.set(dict, forKey: progressKey)
     }
 
+    /// Returns the saved playback position for a book, or `nil` if none exists.
     func getBookProgress(for folderKey: String) -> (trackId: String, time: Double)? {
         let dict = defaults.dictionary(forKey: progressKey) as? [String: [String: Any]] ?? [:]
         if let item = dict[folderKey], let trackId = item["trackId"] as? String, let time = item["time"] as? Double {
@@ -2645,6 +2843,8 @@ private struct Persistence {
         return nil
     }
 
+    /// Creates a security-scoped bookmark data blob for the given URL and
+    /// stores it in UserDefaults, enabling restoration across app launches.
     func saveBookmark(url: URL) {
         do {
             let data = try url.bookmarkData(
@@ -2664,10 +2864,12 @@ private struct Persistence {
 
     private func bookmarksKey(for key: String) -> String { "bookmarks_\(key)" }
 
-    /// Writes the bookmark list for a book. When `folderURL` is provided, the
-    /// list is written to a `[BookName].json` sidecar alongside the audiobook
-    /// (the primary store) and *also* mirrored to UserDefaults as a backup
-    /// for cases where the audiobook's volume becomes unavailable.
+    /// Persists the bookmark list for a book to both a JSON sidecar file
+    /// (primary store) and UserDefaults (backup).
+    /// - Parameters:
+    ///   - bookmarks: The list of bookmarks to persist.
+    ///   - key: The storage key identifying the book.
+    ///   - folderURL: If provided, writes a sidecar JSON alongside the audiobook.
     func saveBookmarks(_ bookmarks: [Bookmark], for key: String, folderURL: URL? = nil) {
         let data: Data
         do {
@@ -2690,6 +2892,13 @@ private struct Persistence {
     /// sidecar (if `folderURL` is provided and the file exists); falls back
     /// to UserDefaults. If the sidecar is missing but UserDefaults has data,
     /// the sidecar is created (one-shot migration).
+    /// Loads bookmarks for a book. Prefers the JSON sidecar when available;
+    /// falls back to UserDefaults. Migrates UserDefaults data to the sidecar
+    /// on first access when the sidecar is missing.
+    /// - Parameters:
+    ///   - key: The storage key identifying the book.
+    ///   - folderURL: If provided, attempts to read the sidecar JSON first.
+    /// - Returns: The decoded bookmark list, or an empty array.
     func loadBookmarks(for key: String, folderURL: URL? = nil) -> [Bookmark] {
         if let folderURL,
            let bookmarks = readSidecar(folderURL: folderURL) {
@@ -2741,6 +2950,9 @@ private struct Persistence {
         return try? JSONDecoder().decode([Bookmark].self, from: data)
     }
 
+    /// Resolves the stored security-scoped bookmark data back to a URL.
+    /// Re-saves the bookmark if the data is stale.
+    /// - Returns: The resolved URL, or `nil` if no bookmark is stored or resolution fails.
     func restoreBookmark() -> URL? {
         guard let data = defaults.data(forKey: bookmarkKey) else { return nil }
 
