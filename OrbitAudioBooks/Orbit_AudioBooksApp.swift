@@ -9,7 +9,8 @@ import SwiftUI
 
 @main
 struct Orbit_AudioBooksApp: App {
-    @StateObject private var settings = SettingsManager()
+    @State private var settings = SettingsManager()
+    @State private var storeManager = StoreManager()
 
     init() {
         #if DEBUG && targetEnvironment(simulator)
@@ -20,7 +21,8 @@ struct Orbit_AudioBooksApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(settings)
+                .environment(settings)
+                .environment(storeManager)
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }

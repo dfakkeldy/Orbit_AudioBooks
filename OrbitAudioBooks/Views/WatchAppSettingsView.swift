@@ -36,10 +36,8 @@ enum DesignerWatchAction: String, Codable, CaseIterable, Identifiable {
 
 struct WatchAppSettingsView: View {
     @Bindable var model: PlayerModel
-    @EnvironmentObject private var settings: SettingsManager
+    @Environment(SettingsManager.self) private var settings
     @Environment(\.dismiss) private var dismiss
-
-    @AppStorage("watchQuickBookmarkTimeoutSeconds", store: AppGroupDefaults.shared) private var quickBookmarkTimeoutSeconds: Int = 5
 
     @State private var page1Slots: [DesignerWatchAction] = Array(repeating: .empty, count: 5)
     @State private var page2Slots: [DesignerWatchAction] = Array(repeating: .empty, count: 5)
@@ -51,6 +49,8 @@ struct WatchAppSettingsView: View {
     ]
 
     var body: some View {
+        @Bindable var settings = settings
+
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
 
@@ -116,9 +116,9 @@ struct WatchAppSettingsView: View {
                         .foregroundStyle(.secondary)
 
                     Toggle("Button Haptics", isOn: Binding(
-                        get: { AppGroupDefaults.isHapticFeedbackEnabled },
+                        get: { settings.isHapticFeedbackEnabled },
                         set: {
-                            AppGroupDefaults.isHapticFeedbackEnabled = $0
+                            settings.isHapticFeedbackEnabled = $0
                             model.syncToWatch()
                         }
                     ))
@@ -135,17 +135,16 @@ struct WatchAppSettingsView: View {
                         .font(.title3)
                         .foregroundStyle(.secondary)
 
-                    Stepper(value: $quickBookmarkTimeoutSeconds, in: 1...15) {
+                    Stepper(value: $settings.watchQuickBookmarkTimeoutSeconds, in: 1...15) {
                         HStack {
                             Label("Quick Bookmark", systemImage: "timer")
                             Spacer()
-                            Text("\(quickBookmarkTimeoutSeconds)s")
+                            Text("\(settings.watchQuickBookmarkTimeoutSeconds)s")
                                 .font(.body.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .onChange(of: quickBookmarkTimeoutSeconds) { _, newValue in
-                        AppGroupDefaults.watchQuickBookmarkTimeoutSeconds = newValue
+                    .onChange(of: settings.watchQuickBookmarkTimeoutSeconds) { _, _ in
                         model.syncToWatch()
                     }
                     .padding()

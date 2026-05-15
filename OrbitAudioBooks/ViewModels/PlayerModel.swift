@@ -40,43 +40,12 @@ enum SleepTimerMode: Equatable {
 /// chapter navigation, sleep timer, Watch connectivity, and Now Playing
 /// metadata. Serves as the single source of truth for the player UI.
 @Observable
-final class PlayerModel: NSObject, WCSessionDelegate {
-    /// A single segment of transcribed text with its time range in the audio.
-    struct TranscriptionSegment: Codable, Identifiable {
-        var id: String { "\(startTime)-\(endTime)" }
-        /// The transcribed text content.
-        let text: String
-        /// Start time of the segment, in seconds.
-        let startTime: TimeInterval
-        /// End time of the segment, in seconds.
-        let endTime: TimeInterval
-    }
+final class PlayerModel {
+    // MARK: - Services
 
-    /// An audio track (file) in the playback queue.
-    struct Track: Identifiable, Equatable {
-        var id: String { url.absoluteString }
-        /// The file URL of the audio track.
-        let url: URL
-        /// The display title derived from the file name.
-        let title: String
-        /// Whether the track is included during sequential playback.
-        var isEnabled: Bool = true
-    }
-
-    /// A chapter within an audiobook track, typically parsed from M4B chapter markers.
-    struct Chapter: Identifiable, Equatable {
-        var id: String { "\(index)-\(title ?? "unknown")" }
-        /// Zero-based chapter index.
-        let index: Int
-        /// The chapter title, if available from metadata.
-        let title: String?
-        /// Start time in seconds within the parent track.
-        let startSeconds: Double
-        /// End time in seconds within the parent track.
-        let endSeconds: Double
-        /// Whether the chapter is included during sequential playback.
-        var isEnabled: Bool = true
-    }
+    let audioEngine = AudioEngine()
+    let watchSyncManager = WatchSyncManager()
+    @ObservationIgnored private weak var settingsManager: SettingsManager?
 
     // MARK: - UI state
 
@@ -124,6 +93,15 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     private(set) var elapsedText: String = "--:--"
     /// The total duration of the current item, in seconds, or `nil` if unknown.
     private(set) var durationSeconds: Double? = nil
+    /// Current playback position in seconds. Views should use this instead of
+    /// reaching into the underlying AVPlayer.
+    var currentPlaybackTime: TimeInterval {
+        let playerTime = audioEngine.player?.currentTime().seconds
+        if let playerTime, playerTime.isFinite {
+            return playerTime
+        }
+        return audioEngine.currentTime
+    }
     /// The artwork image displayed in Now Playing and the player UI.
     private(set) var thumbnailImage: UIImage? = nil
     /// A downscaled JPEG representation of the artwork for Watch transfer.
@@ -200,7 +178,6 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     /// Tracks the last track ID for which a thumbnail was sent to the watch,
     /// avoiding redundant heavy image transfers on every periodic sync.
-    @ObservationIgnored private var lastSyncedThumbnailTrackId: String?
 
     /// The display scale used for thumbnail rendering. Set from the SwiftUI
     /// environment to avoid `UIScreen.main` deprecation on iOS 26+.
@@ -213,18 +190,15 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         displayScale = scale
     }
 
+    func setSettingsManager(_ settingsManager: SettingsManager) {
+        self.settingsManager = settingsManager
+    }
+
     // MARK: - Playback infrastructure
 
     /// The underlying AVPlayer instance driving audio playback.
-    internal var player: AVPlayer?
-    /// Observer for `AVPlayerItemDidPlayToEndTime` on the current item.
-    private var endObserver: NSObjectProtocol?
-    /// Periodic time observer firing at 0.5 s intervals for progress updates.
-    private var timeObserver: Any?
     /// Boundary observer for chapter end triggers.
     private var chapterBoundaryObserver: Any?
-    /// Observer for `AVAudioSession.interruptionNotification`.
-    private var interruptionObserver: NSObjectProtocol?
 
     /// Background task claim held during pause to reduce the chance of eviction
     /// from the system Now Playing slot.
@@ -261,64 +235,32 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         slider.sendActions(for: .valueChanged)
     }
 
-    override init() {
+    init() {
         speed = 1.25
-        super.init()
-        UserDefaults.standard.register(defaults: [
-            "playBookmarksInline": true,
-            "isRewindEnabled": false,
-            "rewindPauseSecondsThreshold": 30,
-            "rewindAmountAfterSeconds": 10,
-            "rewindPauseMinutesThreshold": 5,
-            "rewindAmountAfterMinutes": 30,
-            "rewindPauseHoursThreshold": 1,
-            "rewindAmountAfterHours": 90,
-            "rewindHoursToChapterStart": false,
-            "watchQuickBookmarkTimeoutSeconds": 5
-        ])
-        setupWatchConnectivity()
-    }
+        SettingsManager.registerDefaults()
 
-    private func setupWatchConnectivity() {
-        if WCSession.isSupported() {
-            let session = WCSession.default
-            session.delegate = self
-            session.activate()
+        audioEngine.delegate = self
+
+        watchSyncManager.onMessage = { [weak self] message, reply in
+            self?.handleMessage(message, replyHandler: reply)
         }
-    }
-    
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        guard activationState == .activated else {
-            if let error {
-                print("WatchConnectivity activation failed: \(error)")
+        watchSyncManager.onReceiveApplicationContext = { [weak self] context in
+            self?.handleMessage(context)
+        }
+        watchSyncManager.onReceiveFile = { [weak self] file in
+            self?.handleWatchBookmarkFile(file)
+        }
+        watchSyncManager.stateProvider = { [weak self] in
+            self?.watchStateContext() ?? [:]
+        }
+        watchSyncManager.thumbnailProvider = { [weak self] in
+            guard let self, self.tracks.indices.contains(self.currentIndex) else {
+                return (nil, nil)
             }
-            return
+            return (self.tracks[self.currentIndex].id, self.watchThumbnailData)
         }
-        DispatchQueue.main.async { [weak self] in
-            self?.syncToWatch()
-        }
-    }
-    func sessionDidBecomeInactive(_ session: WCSession) {}
-    func sessionDidDeactivate(_ session: WCSession) {
-        session.activate()
-    }
-    
-    func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
-        handleMessage(message)
-    }
-    
-    func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
-        handleMessage(message, replyHandler: replyHandler)
-    }
-    
-    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
-        handleMessage(userInfo)
     }
 
-    func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        handleWatchBookmarkFile(file)
-    }
-    
     private func handleMessage(_ message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
         DispatchQueue.main.async {
             var commandResult: String?
@@ -340,17 +282,17 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                     }
                 case "scrubDelta":
                     if let d = message["delta"] as? Double {
-                        let sens = UserDefaults.standard.double(forKey: "crownScrubSensitivity")
-                        let mult = sens > 0 ? sens : 0.5
-                        let current = self.player?.currentTime().seconds ?? 0
+                        let sens = self.settingsManager?.crownScrubSensitivity ?? SettingsManager.Defaults.crownScrubSensitivity
+                        let mult = sens > 0 ? sens : SettingsManager.Defaults.crownScrubSensitivity
+                        let current = self.audioEngine.currentTime
                         let duration = self.durationSeconds ?? 0
                         let target = max(0, min(duration, current + (d * 30.0 * mult)))
                         self.seek(toSeconds: target)
                     }
                 case "volumeDelta":
                     if let d = message["delta"] as? Double {
-                        let sens = UserDefaults.standard.double(forKey: "crownVolumeSensitivity")
-                        let mult = sens > 0 ? sens : 0.05
+                        let sens = self.settingsManager?.crownVolumeSensitivity ?? SettingsManager.Defaults.crownVolumeSensitivity
+                        let mult = sens > 0 ? sens : SettingsManager.Defaults.crownVolumeSensitivity
                         let session = AVAudioSession.sharedInstance()
                         let currentVol = session.outputVolume
                         let newVol = max(0, min(1, currentVol + Float(d * 0.4 * mult)))
@@ -402,53 +344,16 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         }
     }
     
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
-        guard session.activationState == .activated else { return }
-        DispatchQueue.main.async {
-            if let command = applicationContext["command"] as? String {
-                if command == "toggle" {
-                    self.togglePlayPause()
-                }
-            }
-        }
-    }
-    
-    /// Pushes the current playback state to the paired Apple Watch via
-    /// `WCSession`. Sends lightweight state on every call and heavy thumbnail
-    /// data only when the track changes.
+    /// Delegates to `WatchSyncManager.syncToWatch()`.
     func syncToWatch() {
-        let session = WCSession.default
-        guard session.activationState == .activated else { return }
-
-        let context = watchStateContext()
-
-        if session.isReachable {
-            session.sendMessage(context, replyHandler: nil) { error in
-                print("Immediate watch sync failed: \(error)")
-                WCSession.default.transferUserInfo(context)
-            }
-        } else {
-            session.transferUserInfo(context)
-        }
-
-        // Send heavy thumbnail data via transferUserInfo ONLY when the track changes.
-        let currentTrackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
-        if let trackId = currentTrackId, trackId != lastSyncedThumbnailTrackId,
-           let thumbnailData = watchThumbnailData {
-            lastSyncedThumbnailTrackId = trackId
-            let thumbnailPayload: [String: Any] = [
-                "trackId": trackId,
-                "thumbnailData": thumbnailData
-            ]
-            session.transferUserInfo(thumbnailPayload)
-        }
+        watchSyncManager.syncToWatch()
     }
 
     private func watchStateContext() -> [String: Any] {
         var context: [String: Any] = [:]
         context["isPlaying"] = isPlaying
         context["progressFraction"] = progressFraction
-        context["currentTime"] = player?.currentTime().seconds ?? 0
+        context["currentTime"] = currentPlaybackTime
         context["bookmarkStorageKey"] = bookmarksStorageKey
         context["folderKey"] = folderURL?.absoluteString
         if tracks.indices.contains(currentIndex) {
@@ -463,7 +368,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         // durationSeconds is the full file duration — dividing yields true
         // time-based book progress instead of a chapter-count approximation.
         if let duration = durationSeconds, duration.isFinite, duration > 0 {
-            let totalElapsed = player?.currentTime().seconds ?? 0
+            let totalElapsed = currentPlaybackTime
             context["totalProgressFraction"] = min(1, max(0, totalElapsed / duration))
             context["totalBookDuration"] = duration
         } else {
@@ -473,19 +378,20 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             context["totalProgressFraction"] = totalCount > 0 ? (Double(currentIndex) + progressFraction) / totalCount : 0.0
         }
         
-        let crownAction = UserDefaults.standard.string(forKey: "crownAction") ?? "volume"
+        let settings = settingsManager
+        let crownAction = settings?.crownAction ?? SettingsManager.Defaults.crownAction
         context["crownAction"] = crownAction
-        context["isHapticFeedbackEnabled"] = AppGroupDefaults.isHapticFeedbackEnabled
-        context["watchQuickBookmarkTimeoutSeconds"] = AppGroupDefaults.watchQuickBookmarkTimeoutSeconds
+        context["isHapticFeedbackEnabled"] = settings?.isHapticFeedbackEnabled ?? SettingsManager.Defaults.isHapticFeedbackEnabled
+        context["watchQuickBookmarkTimeoutSeconds"] = settings?.watchQuickBookmarkTimeoutSeconds ?? SettingsManager.Defaults.watchQuickBookmarkTimeoutSeconds
         context["loopMode"] = loopMode.rawValue
         context["playbackSpeed"] = Double(speed)
         
-        context["watchPage1"] = UserDefaults.standard.string(forKey: "watchPage1") ?? "empty,empty,skipBackward,playPause,skipForward"
-        context["watchPage2"] = UserDefaults.standard.string(forKey: "watchPage2") ?? "loopMode,empty,speed,sleepTimer,bookmark"
-        context["linearBarMode"] = UserDefaults.standard.string(forKey: "linearBarMode") ?? "total"
-        context["linearBarHidden"] = UserDefaults.standard.bool(forKey: "linearBarHidden")
-        context["circularRingMode"] = UserDefaults.standard.string(forKey: "circularRingMode") ?? "chapter"
-        context["circularRingHidden"] = UserDefaults.standard.bool(forKey: "circularRingHidden")
+        context["watchPage1"] = settings?.watchPage1 ?? SettingsManager.Defaults.watchPage1
+        context["watchPage2"] = settings?.watchPage2 ?? SettingsManager.Defaults.watchPage2
+        context["linearBarMode"] = settings?.linearBarMode ?? SettingsManager.Defaults.linearBarMode
+        context["linearBarHidden"] = settings?.linearBarHidden ?? SettingsManager.Defaults.linearBarHidden
+        context["circularRingMode"] = settings?.circularRingMode ?? SettingsManager.Defaults.circularRingMode
+        context["circularRingHidden"] = settings?.circularRingHidden ?? SettingsManager.Defaults.circularRingHidden
         context["hasThumbnail"] = watchThumbnailData != nil
 
         // Sleep timer state for watch UI.
@@ -562,12 +468,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     deinit {
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        if let timeObserver, let player { player.removeTimeObserver(timeObserver) }
-        if let chapterBoundaryObserver, let player { player.removeTimeObserver(chapterBoundaryObserver) }
-        if let bookmarkBoundaryObserver, let player { player.removeTimeObserver(bookmarkBoundaryObserver) }
-        if let bookmarkLoopBoundaryObserver, let player { player.removeTimeObserver(bookmarkLoopBoundaryObserver) }
-        if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
+        removeChapterBoundaryObserver()
+        removeBookmarkLoopBoundaryObserver()
+        audioEngine.cleanup()
         voiceMemoProgressTimer?.invalidate()
         voiceMemoPlayerNode?.stop()
         voiceMemoEngine?.stop()
@@ -775,16 +678,16 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     // MARK: Playback controls
 
     private func smartRewindAmount(for pausedDuration: TimeInterval) -> Double {
-        let defaults = UserDefaults.standard
+        let settings = settingsManager
 
-        let secondsThreshold = defaults.integer(forKey: "rewindPauseSecondsThreshold")
-        let secondsAmount = defaults.integer(forKey: "rewindAmountAfterSeconds")
+        let secondsThreshold = settings?.rewindPauseSecondsThreshold ?? SettingsManager.Defaults.rewindPauseSecondsThreshold
+        let secondsAmount = settings?.rewindAmountAfterSeconds ?? SettingsManager.Defaults.rewindAmountAfterSeconds
 
-        let minutesThreshold = defaults.integer(forKey: "rewindPauseMinutesThreshold")
-        let minutesAmount = defaults.integer(forKey: "rewindAmountAfterMinutes")
+        let minutesThreshold = settings?.rewindPauseMinutesThreshold ?? SettingsManager.Defaults.rewindPauseMinutesThreshold
+        let minutesAmount = settings?.rewindAmountAfterMinutes ?? SettingsManager.Defaults.rewindAmountAfterMinutes
 
-        let hoursThreshold = defaults.integer(forKey: "rewindPauseHoursThreshold")
-        let hoursAmount = defaults.integer(forKey: "rewindAmountAfterHours")
+        let hoursThreshold = settings?.rewindPauseHoursThreshold ?? SettingsManager.Defaults.rewindPauseHoursThreshold
+        let hoursAmount = settings?.rewindAmountAfterHours ?? SettingsManager.Defaults.rewindAmountAfterHours
 
         var rewindAmount = 0
         if pausedDuration >= Double(secondsThreshold) {
@@ -799,6 +702,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         // Backward compatibility with previous single-level rewind settings.
         if rewindAmount == 0 {
+            let defaults = UserDefaults.standard
             let legacyThreshold = defaults.integer(forKey: "rewindPauseDuration")
             let legacyAmount = defaults.integer(forKey: "rewindAmount")
             if legacyThreshold > 0, pausedDuration >= Double(legacyThreshold) {
@@ -810,9 +714,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func shouldJumpToChapterStartForHoursLevel(pausedDuration: TimeInterval) -> Bool {
-        let defaults = UserDefaults.standard
-        let hoursThreshold = defaults.integer(forKey: "rewindPauseHoursThreshold")
-        let hoursToChapterStart = defaults.bool(forKey: "rewindHoursToChapterStart")
+        let settings = settingsManager
+        let hoursThreshold = settings?.rewindPauseHoursThreshold ?? SettingsManager.Defaults.rewindPauseHoursThreshold
+        let hoursToChapterStart = settings?.rewindHoursToChapterStart ?? SettingsManager.Defaults.rewindHoursToChapterStart
         return hoursToChapterStart && pausedDuration >= Double(hoursThreshold * 3600)
     }
 
@@ -827,9 +731,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     func play() {
         if let pausedAt = pauseTimestamp {
             let pausedDuration = Date().timeIntervalSince(pausedAt)
-            if UserDefaults.standard.bool(forKey: "isRewindEnabled") {
-                if let player = player {
-                    let current = player.currentTime().seconds
+            if settingsManager?.isRewindEnabled ?? SettingsManager.Defaults.isRewindEnabled {
+                if audioEngine.player != nil {
+                    let current = audioEngine.currentTime
                     let rewindAmount = smartRewindAmount(for: pausedDuration)
                     var target = current
 
@@ -851,7 +755,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
                     if target != current {
                         isManualSeeking = true
-                        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                        audioEngine.seek(to: target) { [weak self] _ in
                             DispatchQueue.main.async {
                                 self?.isManualSeeking = false
                                 self?.updateCurrentChapterFromPlayerTime()
@@ -867,7 +771,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         endBackgroundTask()
 
         guard !tracks.isEmpty else { return }
-        if player == nil { prepareToPlay(index: currentIndex, autoplay: false) }
+        if audioEngine.player == nil { prepareToPlay(index: currentIndex, autoplay: false) }
 
         configureAudioSessionIfNeeded()
         startSelectionSecurityScopeIfNeeded()
@@ -876,10 +780,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         // Ensure the current item is configured for speech-quality playback before starting.
         applySpeedToCurrentItem()
 
-        player?.defaultRate = speed
-        player?.rate = speed
+        audioEngine.playImmediately(atRate: speed)
         isPlaying = true
-        if let currentSecond = player?.currentTime().seconds, currentSecond.isFinite {
+        let currentSecond = currentPlaybackTime
+        if currentSecond.isFinite {
             checkBookmarkVoiceMemoTrigger(at: currentSecond, previousSeconds: nil)
             lastBookmarkCheckSecond = currentSecond
         }
@@ -892,7 +796,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// metadata and controls remain visible. Records the pause timestamp for
     /// rewind-on-resume and saves progress to persistent storage.
     func pause() {
-        player?.pause()
+        audioEngine.pause()
         isPlaying = false
         
         if pauseTimestamp == nil {
@@ -908,8 +812,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         syncToWatch()
         
         // Save progress when paused
-        if let player = player, let folder = folderURL?.absoluteString, tracks.indices.contains(currentIndex) {
-            persistence.saveBookProgress(for: folder, trackId: tracks[currentIndex].id, time: player.currentTime().seconds)
+        if audioEngine.player != nil, let folder = folderURL?.absoluteString, tracks.indices.contains(currentIndex) {
+            persistence.saveBookProgress(for: folder, trackId: tracks[currentIndex].id, time: audioEngine.currentTime)
         }
     }
 
@@ -977,10 +881,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             return
         }
         guard !tracks.isEmpty else { return }
-        let elapsed = player?.currentTime().seconds ?? 0
+        let elapsed = audioEngine.player?.currentTime().seconds ?? 0
         if elapsed.isFinite, elapsed > 5 {
             isManualSeeking = true
-            player?.seek(to: .zero) { [weak self] _ in
+            audioEngine.player?.seek(to: .zero) { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.isManualSeeking = false
                     self?.updateCurrentChapterFromPlayerTime()
@@ -996,7 +900,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         } else {
             // If it's the first track and elapsed < 5, just restart it.
             isManualSeeking = true
-            player?.seek(to: .zero) { [weak self] _ in
+            audioEngine.player?.seek(to: .zero) { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.isManualSeeking = false
                     self?.updateCurrentChapterFromPlayerTime()
@@ -1035,9 +939,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             previousTrackOrRestart()
             return
         }
-        guard let player else { return }
+        guard audioEngine.player != nil else { return }
 
-        let t = player.currentTime().seconds
+        let t = audioEngine.currentTime
         guard t.isFinite else { return }
 
         if let _ = currentChapterIndex, let current = currentChapterForTime(t), (t - current.startSeconds) > 5 {
@@ -1087,7 +991,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     @discardableResult
     func skipBackwardNavigation() -> Bool {
         if loopMode == .bookmark,
-           let current = player?.currentTime().seconds,
+           let current = audioEngine.player?.currentTime().seconds,
            current.isFinite,
            jumpToPreviousBookmark(from: current) {
             return true
@@ -1107,7 +1011,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     @discardableResult
     func skipForwardNavigation() -> Bool {
         if loopMode == .bookmark,
-           let current = player?.currentTime().seconds,
+           let current = audioEngine.player?.currentTime().seconds,
            current.isFinite,
            jumpToNextBookmark(from: current) {
             return true
@@ -1126,8 +1030,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// - Returns: `true` if the skip resulted in a bookmark jump.
     @discardableResult
     func skipBackward30() -> Bool {
-        guard let player else { return false }
-        let current = player.currentTime().seconds
+        guard audioEngine.player != nil else { return false }
+        let current = audioEngine.currentTime
         guard current.isFinite else { return false }
 
         if loopMode == .bookmark {
@@ -1144,7 +1048,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         let target = max(0, current - 30 * Double(speed))
         isManualSeeking = true
-        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+        audioEngine.player?.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.isManualSeeking = false
                 self?.updateCurrentChapterFromPlayerTime()
@@ -1159,8 +1063,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// - Returns: `true` if the skip resulted in a bookmark jump.
     @discardableResult
     func skipForward30() -> Bool {
-        guard let player else { return false }
-        let current = player.currentTime().seconds
+        guard audioEngine.player != nil else { return false }
+        let current = audioEngine.currentTime
         guard current.isFinite else { return false }
 
         if loopMode == .bookmark {
@@ -1178,7 +1082,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let duration = durationSeconds ?? 0
         let target = min(duration, current + 30 * Double(speed))
         isManualSeeking = true
-        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+        audioEngine.player?.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.isManualSeeking = false
                 self?.updateCurrentChapterFromPlayerTime()
@@ -1192,18 +1096,18 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// metadata, chapter state, and progress after the seek completes.
     /// - Parameter targetSeconds: The target time in seconds.
     func seek(toSeconds targetSeconds: Double) {
-        guard let player else { return }
+        guard audioEngine.player != nil else { return }
         isManualSeeking = true
-        player.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+        audioEngine.seek(to: targetSeconds) { [weak self] _ in
             DispatchQueue.main.async {
-                self?.isManualSeeking = false
-                self?.updateCurrentChapterFromPlayerTime()
-                self?.updateNowPlayingElapsedTime()
-                self?.updateProgressFromPlayer()
-                if self?.isPlaying == true {
-                    self?.player?.defaultRate = self?.speed ?? 1.0
-                    self?.player?.playImmediately(atRate: self?.speed ?? 1.0)
-                    self?.applySpeedToCurrentItem()
+                guard let self else { return }
+                self.isManualSeeking = false
+                self.updateCurrentChapterFromPlayerTime()
+                self.updateNowPlayingElapsedTime()
+                self.updateProgressFromPlayer()
+                if self.isPlaying {
+                    self.audioEngine.playImmediately(atRate: self.speed)
+                    self.applySpeedToCurrentItem()
                 }
             }
         }
@@ -1238,12 +1142,9 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         if let key = folderURL?.absoluteString {
             persistence.saveSpeed(for: key, speed: speed)
         }
+        audioEngine.setSpeed(speed)
         // Ensure speed persists after loops/track changes:
         applySpeedToCurrentItem()
-
-        if isPlaying {
-            player?.rate = speed
-        }
         updateNowPlayingInfo(isPaused: !isPlaying)
         updateProgressFromPlayer()
         syncToWatch()
@@ -1343,18 +1244,15 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func stop() {
-        player?.pause()
         isPlaying = false
         currentTitle = "No track selected"
         progressFraction = 0
         progressText = "--:--"
         elapsedText = "--:--"
 
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }
-        if let timeObserver, let player { player.removeTimeObserver(timeObserver); self.timeObserver = nil }
         removeChapterBoundaryObserver()
         removeBookmarkLoopBoundaryObserver()
-        player = nil
+        audioEngine.stop()
 
         stopCurrentFileSecurityScopeIfNeeded()
     }
@@ -1363,8 +1261,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         guard tracks.indices.contains(index) else { return }
 
         // Save progress before changing track
-        if let player = player, let folder = folderURL?.absoluteString, tracks.indices.contains(currentIndex) {
-            persistence.saveBookProgress(for: folder, trackId: tracks[currentIndex].id, time: player.currentTime().seconds)
+        if let folder = folderURL?.absoluteString, tracks.indices.contains(currentIndex) {
+            persistence.saveBookProgress(for: folder, trackId: tracks[currentIndex].id, time: audioEngine.currentTime)
         }
 
         currentIndex = index
@@ -1372,13 +1270,13 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         currentSubtitle = ""
         thumbnailImage = nil
         watchThumbnailData = nil
-        
+
         loadTranscript(for: tracks[index].url)
-        
+
         if let folderURL = folderURL {
             persistence.saveLastTrack(for: folderURL.absoluteString, trackId: tracks[index].id)
         }
-        
+
         // Load the specific speed for this book
         if let key = folderURL?.absoluteString {
             speed = persistence.getSpeed(for: key) ?? 1.25
@@ -1391,21 +1289,17 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             speed = 1.25
             loopMode = .off
         }
+        audioEngine.setSpeed(speed)
         chapters = []
         currentChapterIndex = nil
         isSeekingForChapterBoundary = false
         isManualSeeking = false
         lastBookmarkCheckSecond = nil
 
-        // Clean old observers
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }
-        if let timeObserver, let player { player.removeTimeObserver(timeObserver); self.timeObserver = nil }
         removeChapterBoundaryObserver()
         removeBookmarkLoopBoundaryObserver()
 
         // For Files/iCloud-provider URLs:
-        // - keep the security scope open BEFORE touching the file (creating items, loading duration, etc.)
-        // - ensure the file is downloaded (best-effort)
         startSelectionSecurityScopeIfNeeded()
         stopCurrentFileSecurityScopeIfNeeded()
         startCurrentFileSecurityScopeForURL(tracks[index].url)
@@ -1416,24 +1310,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             await self.ensureItemIsAvailable(url: trackURL)
         }
 
-        let item = AVPlayerItem(url: trackURL)
-        // Pitch-preserving time stretch (better for audiobooks at 1.25x).
-        // `.timeDomain` generally sounds more natural than `.varispeed` (which changes pitch).
-        item.audioTimePitchAlgorithm = .timeDomain
-        item.preferredForwardBufferDuration = 10
-
-        if player == nil {
-            player = AVPlayer(playerItem: item)
-            player?.automaticallyWaitsToMinimizeStalling = true
-        } else {
-            player?.replaceCurrentItem(with: item)
-        }
-
-        player?.defaultRate = speed
+        // AudioEngine handles AVPlayerItem creation, observers, and duration loading.
+        audioEngine.replaceCurrentItem(with: trackURL)
 
         applySpeedToCurrentItem()
         configureRemoteCommandsIfNeeded()
-        attachObserversForCurrentItem()
 
         // Prime Now Playing metadata even before play (helps show stable controls)
         updateNowPlayingInfo(isPaused: true)
@@ -1445,45 +1326,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             await self.loadChaptersForCurrentItem()
             await self.loadDurationForNowPlaying()
             await self.generateThumbnail(for: trackURL)
-            
+
             await MainActor.run {
                 if autoplay {
                     self.play()
-                }
-            }
-        }
-    }
-
-    private func attachObserversForCurrentItem() {
-        guard let item = player?.currentItem else { return }
-
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: item,
-            queue: .main
-        ) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.handleTrackEnded()
-            }
-        }
-
-        timeObserver = player?.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.5, preferredTimescale: 600),
-            queue: .main
-        ) { [weak self] _ in
-            autoreleasepool {
-                self?.updateNowPlayingElapsedTime()
-                self?.updateCurrentChapterFromPlayerTime()
-                self?.updateProgressFromPlayer()
-                self?.enforceEnabledState()
-                self?.applyChapterLoopIfNeeded()
-                self?.applyBookmarkLoopIfNeeded()
-                if UserDefaults.standard.bool(forKey: "playBookmarksInline"),
-                   let self,
-                   let t = self.player?.currentTime().seconds,
-                   t.isFinite {
-                    self.checkBookmarkVoiceMemoTrigger(at: t, previousSeconds: self.lastBookmarkCheckSecond)
-                    self.lastBookmarkCheckSecond = t
                 }
             }
         }
@@ -1509,7 +1355,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func handleTrackEnded() {
-        guard let player else { return }
+        guard audioEngine.player != nil else { return }
 
         // If the user armed an end-of-chapter sleep timer, the natural file
         // end also counts as the end of the current (last) chapter.
@@ -1525,12 +1371,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                     let c = chapters[idx]
                     let targetSeconds = c.startSeconds + 0.05
                     progressFraction = 0
-                    player.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                    audioEngine.seek(to: targetSeconds) { [weak self] _ in
                         DispatchQueue.main.async {
                             guard let self else { return }
                             if self.isPlaying {
-                                self.player?.defaultRate = self.speed
-                                self.player?.playImmediately(atRate: self.speed)
+                                self.audioEngine.playImmediately(atRate: self.speed)
                                 self.applySpeedToCurrentItem()
                             } else {
                                 self.updateNowPlayingInfo(isPaused: true)
@@ -1547,12 +1392,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         if loopMode == .chapter {
             progressFraction = 0
-            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            audioEngine.seek(to: 0) { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     if self.isPlaying {
-                        self.player?.defaultRate = self.speed
-                        self.player?.playImmediately(atRate: self.speed)
+                        self.audioEngine.playImmediately(atRate: self.speed)
                         self.applySpeedToCurrentItem()
                     } else {
                         self.updateNowPlayingInfo(isPaused: true)
@@ -1567,58 +1411,17 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private func applySpeedToCurrentItem() {
         // Keep the pitch-preserving algorithm even after loops/track changes.
-        player?.currentItem?.audioTimePitchAlgorithm = .timeDomain
+        audioEngine.player?.currentItem?.audioTimePitchAlgorithm = .timeDomain
+        audioEngine.setSpeed(speed)
         if isPlaying {
-            player?.defaultRate = speed
-            player?.rate = speed
+            audioEngine.playImmediately(atRate: speed)
         }
     }
 
     // MARK: AVAudioSession (background audio)
 
     private func configureAudioSessionIfNeeded() {
-        // Configure for background playback.
-        // Note: do NOT deactivate on pause (your requirement).
-        let session = AVAudioSession.sharedInstance()
-        do {
-            // `.spokenAudio` is a good fit for audiobooks.
-            try session.setCategory(.playback, mode: .spokenAudio, options: [])
-            try session.setActive(true)
-            setupInterruptionObserver()
-        } catch {
-            // For a skeleton app, we keep this simple.
-            // If you want, you can surface this error in the UI later.
-            print("AudioSession error: \(error)")
-        }
-    }
-
-    private func setupInterruptionObserver() {
-        guard interruptionObserver == nil else { return }
-        interruptionObserver = NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak self] notification in
-            guard let self else { return }
-            guard
-                let userInfo = notification.userInfo,
-                let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-                let type = AVAudioSession.InterruptionType(rawValue: typeValue)
-            else { return }
-
-            switch type {
-            case .began:
-                self.pause()
-            case .ended:
-                let optionsValue = (userInfo[AVAudioSessionInterruptionOptionKey] as? UInt) ?? 0
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
-                    self.play()
-                }
-            @unknown default:
-                break
-            }
-        }
+        audioEngine.configureAudioSession()
     }
 
     // MARK: Security-scoped resource handling
@@ -1717,8 +1520,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func updateNowPlayingElapsedTime() {
-        guard let player else { return }
-        let current = player.currentTime().seconds
+        guard audioEngine.player != nil else { return }
+        let current = audioEngine.currentTime
         guard current.isFinite else { return }
 
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
@@ -1739,7 +1542,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
         var info = center.nowPlayingInfo ?? [:]
         
-        let elapsed = player?.currentTime().seconds
+        let elapsed = audioEngine.player?.currentTime().seconds
         
         if chapters.count >= 2, let idx = currentChapterIndex {
             let c = chapters[idx]
@@ -1777,14 +1580,14 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func updateProgressFromPlayer() {
-        guard let player else {
+        guard audioEngine.player != nil else {
             progressFraction = 0
             progressText = "--:--"
             elapsedText = "--:--"
             return
         }
 
-        let elapsed = player.currentTime().seconds
+        let elapsed = audioEngine.currentTime
 
         if chapters.count >= 2 {
             if let idx = currentChapterIndex {
@@ -1869,7 +1672,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func loadDurationForNowPlaying() async {
-        guard let asset = player?.currentItem?.asset else { return }
+        guard let asset = audioEngine.player?.currentItem?.asset else { return }
         do {
             let d = try await asset.load(.duration)
             let seconds = d.seconds
@@ -1887,16 +1690,15 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                     let savedTime = progress.time
                     await MainActor.run {
                         self.isManualSeeking = true
-                        self.player?.seek(to: CMTime(seconds: savedTime, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                        audioEngine.player?.seek(to: CMTime(seconds: savedTime, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
                             DispatchQueue.main.async {
                                 self?.isManualSeeking = false
                                 self?.updateCurrentChapterFromPlayerTime()
                                 self?.updateNowPlayingElapsedTime()
                                 self?.updateProgressFromPlayer()
-                                if self?.isPlaying == true {
-                                    self?.player?.defaultRate = self?.speed ?? 1.0
-                                    self?.player?.playImmediately(atRate: self?.speed ?? 1.0)
-                                    self?.applySpeedToCurrentItem()
+                                if let self, self.isPlaying {
+                                    self.audioEngine.playImmediately(atRate: self.speed)
+                                    self.applySpeedToCurrentItem()
                                 }
                             }
                         }
@@ -2055,7 +1857,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func loadChaptersForCurrentItem() async {
-        guard let asset = player?.currentItem?.asset else { return }
+        guard let asset = audioEngine.player?.currentItem?.asset else { return }
 
         // Only bother for common audiobook container types.
         let ext = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url.pathExtension.lowercased() : ""
@@ -2142,8 +1944,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func updateCurrentChapterFromPlayerTime() {
-        guard chapters.count >= 2, let player else { return }
-        let t = player.currentTime().seconds
+        guard chapters.count >= 2, audioEngine.player != nil else { return }
+        let t = audioEngine.currentTime
         guard t.isFinite else { return }
 
         // Find all chapters that contain the current time
@@ -2175,10 +1977,10 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private func applyChapterLoopIfNeeded() {
         guard !isManualSeeking else { return }
-        guard chapters.count >= 2, let idx = currentChapterIndex, let player else { return }
+        guard chapters.count >= 2, let idx = currentChapterIndex, audioEngine.player != nil else { return }
         guard !isSeekingForChapterBoundary else { return }
 
-        let t = player.currentTime().seconds
+        let t = audioEngine.currentTime
         guard t.isFinite else { return }
 
         let c = chapters[idx]
@@ -2193,7 +1995,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                 isSeekingForChapterBoundary = true
                 progressFraction = 0
                 let targetSeconds = c.startSeconds + 0.05
-                player.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                audioEngine.player?.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
                     self?.resumeAfterSeek()
                 }
             } else {
@@ -2205,7 +2007,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
                         // Skip disabled chapters or gaps.
                         isSeekingForChapterBoundary = true
                         progressFraction = 0
-                        player.seek(to: CMTime(seconds: nextC.startSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                        audioEngine.player?.seek(to: CMTime(seconds: nextC.startSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
                             self?.resumeAfterSeek()
                         }
                     }
@@ -2222,8 +2024,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private func applyBookmarkLoopIfNeeded() {
         guard loopMode == .bookmark, !isManualSeeking, !isSeekingForChapterBoundary else { return }
-        guard let player else { return }
-        let t = player.currentTime().seconds
+        guard audioEngine.player != nil else { return }
+        let t = audioEngine.currentTime
         guard t.isFinite else { return }
 
         let sorted = currentTrackBookmarks.filter { $0.isEnabled }
@@ -2238,7 +2040,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             if sorted.count >= 2, t - sorted[sorted.count - 1].timestamp < 1.0 {
                 let lastSegmentStart = sorted.count - 2
                 isSeekingForChapterBoundary = true
-                player.seek(to: CMTime(seconds: sorted[lastSegmentStart].timestamp + 0.05, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+                audioEngine.player?.seek(to: CMTime(seconds: sorted[lastSegmentStart].timestamp + 0.05, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
                     self?.resumeAfterSeek()
                 }
             }
@@ -2249,14 +2051,14 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let lookAhead = max(0.5, 0.3 * Double(speed))
         if t >= sorted[endIdx].timestamp - lookAhead {
             isSeekingForChapterBoundary = true
-            player.seek(to: CMTime(seconds: sorted[startIdx].timestamp + 0.05, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            audioEngine.player?.seek(to: CMTime(seconds: sorted[startIdx].timestamp + 0.05, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
                 self?.resumeAfterSeek()
             }
         }
     }
 
     private func removeBookmarkLoopBoundaryObserver() {
-        if let bookmarkLoopBoundaryObserver, let player {
+        if let bookmarkLoopBoundaryObserver, let player = audioEngine.player {
             player.removeTimeObserver(bookmarkLoopBoundaryObserver)
         }
         bookmarkLoopBoundaryObserver = nil
@@ -2264,7 +2066,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private func installBookmarkLoopBoundaryObserver() {
         removeBookmarkLoopBoundaryObserver()
-        guard let player, loopMode == .bookmark else { return }
+        guard let player = audioEngine.player, loopMode == .bookmark else { return }
         let sorted = currentTrackBookmarks.filter { $0.isEnabled }
         guard sorted.count >= 2 else { return }
 
@@ -2284,7 +2086,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func removeChapterBoundaryObserver() {
-        if let chapterBoundaryObserver, let player {
+        if let chapterBoundaryObserver, let player = audioEngine.player {
             player.removeTimeObserver(chapterBoundaryObserver)
         }
         chapterBoundaryObserver = nil
@@ -2292,7 +2094,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
 
     private func installChapterBoundaryObservers() {
         removeChapterBoundaryObserver()
-        guard let player, chapters.count >= 2 else { return }
+        guard let player = audioEngine.player, chapters.count >= 2 else { return }
 
         let times: [NSValue] = chapters.compactMap { c in
             guard c.isEnabled else { return nil }
@@ -2315,8 +2117,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             guard let self else { return }
             self.isSeekingForChapterBoundary = false
             if self.isPlaying {
-                self.player?.defaultRate = self.speed
-                self.player?.playImmediately(atRate: self.speed)
+                self.audioEngine.playImmediately(atRate: self.speed)
                 self.applySpeedToCurrentItem()
             } else {
                 self.updateNowPlayingInfo(isPaused: true)
@@ -2328,23 +2129,22 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     }
 
     private func seekToChapter(at index: Int) {
-        guard chapters.indices.contains(index), let player else { return }
+        guard chapters.indices.contains(index), audioEngine.player != nil else { return }
         let c = chapters[index]
         
         // Seek slightly past the boundary to avoid rounding errors matching the previous chapter
         let targetSeconds = c.startSeconds + 0.05
         
         isManualSeeking = true
-        player.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+        audioEngine.player?.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.isManualSeeking = false
                 self?.updateCurrentChapterFromPlayerTime()
                 self?.updateNowPlayingElapsedTime()
                 self?.updateProgressFromPlayer()
-                if self?.isPlaying == true {
-                    self?.player?.defaultRate = self?.speed ?? 1.0
-                    self?.player?.playImmediately(atRate: self?.speed ?? 1.0)
-                    self?.applySpeedToCurrentItem()
+                if let self, self.isPlaying {
+                    self.audioEngine.playImmediately(atRate: self.speed)
+                    self.applySpeedToCurrentItem()
                 }
             }
         }
@@ -2390,8 +2190,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// - Returns: The newly created bookmark, or `nil` if playback is unavailable.
     @discardableResult
     func addBookmarkAtCurrentTime() -> Bookmark? {
-        guard let player else { return nil }
-        let t = player.currentTime().seconds
+        guard audioEngine.player != nil else { return nil }
+        let t = audioEngine.currentTime
         guard t.isFinite else { return nil }
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
         // Auto-numbered default title scoped to the current track.
@@ -2413,8 +2213,8 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// persisting it. Useful for presenting a pre-filled editor before saving.
     /// - Returns: A draft bookmark, or `nil` if playback is unavailable.
     func bookmarkDraftAtCurrentTime() -> BookmarkDraft? {
-        guard let player else { return nil }
-        let t = player.currentTime().seconds
+        guard audioEngine.player != nil else { return nil }
+        let t = audioEngine.currentTime
         guard t.isFinite else { return nil }
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
         let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
@@ -2559,11 +2359,11 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     /// periodic-observer-based safety net. Boundary observers are far more
     /// precise than 0.25s polling.
     private func installBookmarkBoundaryObserver() {
-        if let bookmarkBoundaryObserver, let player {
+        if let bookmarkBoundaryObserver, let player = audioEngine.player {
             player.removeTimeObserver(bookmarkBoundaryObserver)
         }
         bookmarkBoundaryObserver = nil
-        guard let player else { return }
+        guard let player = audioEngine.player else { return }
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
         let times: [NSValue] = bookmarks.compactMap { bm in
             guard bm.isEnabled, bm.voiceMemoFileName != nil else { return nil }
@@ -2579,7 +2379,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             forTimes: times,
             queue: .main
         ) { [weak self] in
-            guard let self, let t = self.player?.currentTime().seconds else { return }
+            guard let self, let t = self.audioEngine.player?.currentTime().seconds else { return }
             self.checkBookmarkVoiceMemoTrigger(at: t, previousSeconds: self.lastBookmarkCheckSecond)
             self.lastBookmarkCheckSecond = t
         }
@@ -2608,7 +2408,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         let session = AVAudioSession.sharedInstance()
         switch source {
         case .voiceMemo:
-            player?.pause()
+            audioEngine.player?.pause()
             try? session.setCategory(.playback, mode: .spokenAudio,
                                      options: [.interruptSpokenAudioAndMixWithOthers, .duckOthers])
             try? session.setActive(true)
@@ -2640,7 +2440,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         guard loopMode != .bookmark else { return }
         guard currentSeconds.isFinite else { return }
         // Honor user preference.
-        guard UserDefaults.standard.bool(forKey: "playBookmarksInline") else { return }
+        guard settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline else { return }
 
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
 
@@ -2728,7 +2528,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
             print("Voice memo playback error: \(error)")
             switchAudioSource(to: .mainPlayer)
             if isPlaying {
-                player?.playImmediately(atRate: speed)
+                audioEngine.playImmediately(atRate: speed)
             }
         }
     }
@@ -2737,7 +2537,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
     func stopVoiceMemo() {
         switchAudioSource(to: .mainPlayer)
 
-        player?.play()
+        audioEngine.playImmediately(atRate: speed)
         applySpeedToCurrentItem()
         updateNowPlayingInfo(isPaused: false)
     }
@@ -2746,7 +2546,7 @@ final class PlayerModel: NSObject, WCSessionDelegate {
         switchAudioSource(to: .mainPlayer)
 
         if isPlaying {
-            player?.playImmediately(atRate: speed)
+            audioEngine.playImmediately(atRate: speed)
             applySpeedToCurrentItem()
             updateNowPlayingInfo(isPaused: false)
         }
@@ -2974,6 +2774,40 @@ private struct Persistence {
         } catch {
             print("Bookmark restore failed: \(error)")
             return nil
+        }
+    }
+}
+
+// MARK: - AudioEngineDelegate
+
+extension PlayerModel: AudioEngineDelegate {
+    func audioEngineDidUpdateTime(_ engine: AudioEngine, currentTime: TimeInterval) {
+        autoreleasepool {
+            updateNowPlayingElapsedTime()
+            updateCurrentChapterFromPlayerTime()
+            updateProgressFromPlayer()
+            enforceEnabledState()
+            applyChapterLoopIfNeeded()
+            applyBookmarkLoopIfNeeded()
+            if settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline,
+               currentTime.isFinite {
+                checkBookmarkVoiceMemoTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
+                lastBookmarkCheckSecond = currentTime
+            }
+        }
+    }
+
+    func audioEngineDidPlayToEnd(_ engine: AudioEngine) {
+        handleTrackEnded()
+    }
+
+    func audioEngineInterruptionBegan(_ engine: AudioEngine) {
+        pause()
+    }
+
+    func audioEngineInterruptionEnded(_ engine: AudioEngine, shouldResume: Bool) {
+        if shouldResume {
+            play()
         }
     }
 }

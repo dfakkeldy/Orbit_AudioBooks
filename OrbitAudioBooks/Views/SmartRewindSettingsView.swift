@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct SmartRewindSettingsView: View {
-    @EnvironmentObject private var settings: SettingsManager
+    @Environment(SettingsManager.self) private var settings
 
     var body: some View {
+        @Bindable var settings = settings
+
         Form {
             Section(
                 footer: Text("Automatically rewinds on resume. Longer pause rules override shorter pause rules.")

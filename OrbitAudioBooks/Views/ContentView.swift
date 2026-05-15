@@ -5,7 +5,8 @@ import Observation
 
 struct ContentView: View {
     @State private var model = PlayerModel()
-    @EnvironmentObject private var settings: SettingsManager
+    @Environment(SettingsManager.self) private var settings
+    @Environment(StoreManager.self) private var storeManager
     @State private var showingFolderPicker = false
     @State private var showingPlaylist = false
     @State private var showingSettings = false
@@ -22,29 +23,7 @@ struct ContentView: View {
             // MARK: Primary player UI (single block — gets the gray-out treatment)
             VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .center, spacing: 12) {
-                if let image = model.thumbnailImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(.quaternary, lineWidth: 1)
-                        )
-                        .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
-                        .padding(.horizontal, 16)
-                } else {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.quaternary)
-                        .aspectRatio(1, contentMode: .fit)
-                        .overlay(
-                            Image(systemName: "music.note")
-                                .font(.system(size: 80, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        )
-                        .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
-                        .padding(.horizontal, 16)
-                }
+                ArtworkTranscriptOverlayView(model: model)
 
                 VStack(alignment: .center, spacing: 6) {
                     Text(model.chapters.count >= 2 ? "Current Chapter" : "Current Title")
@@ -142,11 +121,14 @@ struct ContentView: View {
         .onAppear {
             // Configure remote commands early so the Watch/Now Playing UI is stable once audio starts.
             // (The model also guards to configure only once.)
+            model.setSettingsManager(settings)
             model.setDisplayScale(displayScale)
             model.restoreLastSelectionIfPossible()
+        }
+        .task {
+            await storeManager.requestProducts()
         }
         .preferredColorScheme(settings.isDarkMode ? .dark : .light)
         }
     }
 }
-

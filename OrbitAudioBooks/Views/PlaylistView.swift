@@ -8,8 +8,8 @@ struct IdentifiableUUID: Identifiable, Hashable {
 /// A unified row in the playlist that mixes chapters, tracks, and bookmarks
 /// in chronological order.
 enum PlaylistRow: Identifiable {
-    case chapter(index: Int, chapter: PlayerModel.Chapter)
-    case track(index: Int, track: PlayerModel.Track)
+    case chapter(index: Int, chapter: Chapter)
+    case track(index: Int, track: Track)
     case bookmark(Bookmark)
 
     var id: String {
@@ -31,7 +31,7 @@ enum PlaylistRow: Identifiable {
 
 struct PlaylistView: View {
     @Bindable var model: PlayerModel
-    @EnvironmentObject private var settings: SettingsManager
+    @Environment(SettingsManager.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var editingBookmarkID: UUID? = nil
 
@@ -180,7 +180,7 @@ struct PlaylistView: View {
     }
 
     @ViewBuilder
-    private func chapterRow(index: Int, chapter: PlayerModel.Chapter) -> some View {
+    private func chapterRow(index: Int, chapter: Chapter) -> some View {
         Button {
             model.toggleChapterEnabled(at: index)
         } label: {
@@ -199,7 +199,7 @@ struct PlaylistView: View {
     }
 
     @ViewBuilder
-    private func trackRow(index: Int, track: PlayerModel.Track) -> some View {
+    private func trackRow(index: Int, track: Track) -> some View {
         Button {
             model.toggleTrackEnabled(at: index)
         } label: {

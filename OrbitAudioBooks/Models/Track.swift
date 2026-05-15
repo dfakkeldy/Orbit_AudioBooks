@@ -1,0 +1,12 @@
+import Foundation
+
+/// An audio track (file) in the playback queue.
+struct Track: Identifiable, Equatable {
+    var id: String { url.absoluteString }
+    /// The file URL of the audio track.
+    let url: URL
+    /// The display title derived from the file name.
+    let title: String
+    /// Whether the track is included during sequential playback.
+    var isEnabled: Bool = true
+}

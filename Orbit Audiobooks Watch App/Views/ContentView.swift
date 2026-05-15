@@ -190,6 +190,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var folderKey: String? = nil
     var trackId: String? = nil
     var currentTime: Double = 0
+    var crownAction: String = AppGroupDefaults.shared.string(forKey: "crownAction") ?? "volume"
 
     // Sleep timer mirror state (driven by iPhone via WCSession context).
     /// "off" | "minutes" | "endOfChapter"
@@ -239,6 +240,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         bookmarkStorageKey = defaults.string(forKey: "bookmarkStorageKey")
         folderKey = defaults.string(forKey: "folderKey")
         trackId = defaults.string(forKey: "trackId")
+        crownAction = defaults.string(forKey: "crownAction") ?? "volume"
 
         if let thumbnailData = defaults.data(forKey: "thumbnailData"),
            let image = UIImage(data: thumbnailData) {
@@ -313,6 +315,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             let previousTrackId = self.trackId
 
             if let crownAction = state["crownAction"] as? String {
+                self.crownAction = crownAction
                 self.defaults.set(crownAction, forKey: "crownAction")
             }
             if let isHapticEnabled = state["isHapticFeedbackEnabled"] as? Bool {
@@ -796,7 +799,6 @@ private struct ToggleTraitModifier: ViewModifier {
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = WatchViewModel()
-    @AppStorage("crownAction", store: AppGroupDefaults.shared) private var crownAction = "volume"
     @State private var crownAccumulator: Double = 0.0
     @State private var previousCrownOffset: Double = 0.0
     @State private var selectedPage: Int = 0
@@ -862,7 +864,7 @@ struct ContentView: View {
         previousCrownOffset = offset
         guard delta != 0 else { return }
 
-        if crownAction == "scrub" {
+        if viewModel.crownAction == "scrub" {
             viewModel.sendCommand("scrubDelta", params: ["delta": delta])
         } else {
             viewModel.sendCommand("volumeDelta", params: ["delta": delta])

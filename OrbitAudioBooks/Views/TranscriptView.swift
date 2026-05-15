@@ -34,12 +34,12 @@ struct TranscriptView: View {
         }
     }
     
-    private var activeSegment: PlayerModel.TranscriptionSegment? {
-        let currentTime = player.player?.currentTime().seconds ?? 0
+    private var activeSegment: TranscriptionSegment? {
+        let currentTime = player.currentPlaybackTime
         return player.transcription.first { currentTime >= $0.startTime && currentTime <= $0.endTime }
     }
     
-    private func isActive(_ segment: PlayerModel.TranscriptionSegment) -> Bool {
+    private func isActive(_ segment: TranscriptionSegment) -> Bool {
         activeSegment?.id == segment.id
     }
 }
