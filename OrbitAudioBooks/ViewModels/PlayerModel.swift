@@ -104,8 +104,15 @@ final class PlayerModel {
     }
     /// The artwork image displayed in Now Playing and the player UI.
     private(set) var thumbnailImage: UIImage? = nil
-    /// A downscaled JPEG representation of the artwork for Watch transfer.
+    /// The artwork currently displayed by the player. Picture bookmarks can
+    /// temporarily replace the base audiobook cover.
+    private(set) var currentDisplayArtwork: UIImage? = nil
+    private(set) var currentDisplayArtworkVersion: Int = 0
+    /// A downscaled JPEG representation of the current display artwork for Watch transfer.
     private(set) var watchThumbnailData: Data? = nil
+    @ObservationIgnored private var baseWatchThumbnailData: Data? = nil
+    @ObservationIgnored private var currentDisplayArtworkKey: String?
+    @ObservationIgnored private var bookmarkArtworkCache: [String: (image: UIImage, watchData: Data?)] = [:]
 
     // MARK: - Chapters
 
@@ -258,7 +265,7 @@ final class PlayerModel {
             guard let self, self.tracks.indices.contains(self.currentIndex) else {
                 return (nil, nil)
             }
-            return (self.tracks[self.currentIndex].id, self.watchThumbnailData)
+            return (self.currentArtworkSyncKey, self.watchThumbnailData)
         }
     }
 
@@ -348,6 +355,12 @@ final class PlayerModel {
     /// Delegates to `WatchSyncManager.syncToWatch()`.
     func syncToWatch() {
         watchSyncManager.syncToWatch()
+    }
+
+    private var currentArtworkSyncKey: String? {
+        guard tracks.indices.contains(currentIndex) else { return nil }
+        let trackId = tracks[currentIndex].id
+        return "\(trackId)#\(currentDisplayArtworkKey ?? "base")"
     }
 
     private func watchStateContext() -> [String: Any] {
@@ -1123,6 +1136,7 @@ final class PlayerModel {
                 self.updateCurrentChapterFromPlayerTime()
                 self.updateNowPlayingElapsedTime()
                 self.updateProgressFromPlayer()
+                self.updateCurrentDisplayArtwork(at: targetSeconds, force: true)
                 if self.isPlaying {
                     self.audioEngine.playImmediately(atRate: self.speed)
                     self.applySpeedToCurrentItem()
@@ -1293,7 +1307,11 @@ final class PlayerModel {
         currentTitle = tracks[index].title
         currentSubtitle = ""
         thumbnailImage = nil
+        currentDisplayArtwork = nil
         watchThumbnailData = nil
+        baseWatchThumbnailData = nil
+        currentDisplayArtworkKey = nil
+        bookmarkArtworkCache.removeAll()
 
         loadTranscript(for: tracks[index].url)
 
@@ -1592,7 +1610,7 @@ final class PlayerModel {
             }
         }
 
-        if let image = thumbnailImage {
+        if let image = currentDisplayArtwork ?? thumbnailImage {
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
             info[MPMediaItemPropertyArtwork] = artwork
         }
@@ -1751,7 +1769,10 @@ final class PlayerModel {
         guard let sourceImage else {
             await MainActor.run {
                 thumbnailImage = nil
+                currentDisplayArtwork = nil
                 watchThumbnailData = nil
+                baseWatchThumbnailData = nil
+                currentDisplayArtworkKey = nil
                 updateNowPlayingInfo(isPaused: !isPlaying)
                 syncToWatch()
             }
@@ -1784,9 +1805,8 @@ final class PlayerModel {
         // Update @Observable properties back on MainActor
         await MainActor.run {
             thumbnailImage = result.0
-            watchThumbnailData = result.1
-            updateNowPlayingInfo(isPaused: !isPlaying)
-            syncToWatch()
+            baseWatchThumbnailData = result.1
+            updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
         }
     }
 
@@ -2194,10 +2214,12 @@ final class PlayerModel {
         guard let key = bookmarksStorageKey else {
             bookmarks = []
             installBookmarkBoundaryObserver()
+            updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
             return
         }
         bookmarks = persistence.loadBookmarks(for: key, folderURL: folderURL).sorted { $0.timestamp < $1.timestamp }
         installBookmarkBoundaryObserver()
+        updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
     }
 
     private func persistBookmarks() {
@@ -2211,6 +2233,72 @@ final class PlayerModel {
         return bookmarks
             .filter { $0.trackId == nil || $0.trackId == trackId }
             .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    static func activeArtworkBookmark(from bookmarks: [Bookmark], at currentTime: TimeInterval, trackId: String?) -> Bookmark? {
+        bookmarks
+            .filter { bookmark in
+                guard bookmark.isEnabled,
+                      bookmark.bookmarkImageFileName?.isEmpty == false,
+                      bookmark.timestamp.isFinite,
+                      bookmark.timestamp <= currentTime
+                else { return false }
+
+                if let bookmarkTrackId = bookmark.trackId, let trackId {
+                    return bookmarkTrackId == trackId
+                }
+                return bookmark.trackId == nil || trackId == nil
+            }
+            .max { $0.timestamp < $1.timestamp }
+    }
+
+    private func updateCurrentDisplayArtwork(at currentTime: TimeInterval, force: Bool = false) {
+        let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
+        let activeBookmark = Self.activeArtworkBookmark(from: bookmarks, at: currentTime, trackId: trackId)
+        let nextKey = activeBookmark.flatMap { bookmark -> String? in
+            guard let fileName = bookmark.bookmarkImageFileName else { return nil }
+            return "bookmark:\(bookmark.id.uuidString):\(fileName)"
+        } ?? "base"
+
+        guard force || nextKey != currentDisplayArtworkKey else { return }
+        currentDisplayArtworkKey = nextKey
+
+        if let activeBookmark,
+           let fileName = activeBookmark.bookmarkImageFileName,
+           let imageURL = activeBookmark.bookmarkImageURL(in: folderURL) {
+            let cacheKey = imageURL.path
+            if let cached = bookmarkArtworkCache[cacheKey] {
+                currentDisplayArtwork = cached.image
+                watchThumbnailData = cached.watchData
+            } else if let image = UIImage(contentsOfFile: imageURL.path) {
+                let watchData = makeWatchThumbnailData(from: image)
+                bookmarkArtworkCache[cacheKey] = (image, watchData)
+                currentDisplayArtwork = image
+                watchThumbnailData = watchData
+            } else {
+                print("Failed to load bookmark artwork: \(fileName)")
+                currentDisplayArtwork = thumbnailImage
+                watchThumbnailData = baseWatchThumbnailData
+            }
+        } else {
+            currentDisplayArtwork = thumbnailImage
+            watchThumbnailData = baseWatchThumbnailData
+        }
+
+        updateNowPlayingInfo(isPaused: !isPlaying)
+        syncToWatch()
+        currentDisplayArtworkVersion += 1
+    }
+
+    private func makeWatchThumbnailData(from image: UIImage) -> Data? {
+        let watchSize = CGSize(width: 60, height: 60)
+        let watchFormat = UIGraphicsImageRendererFormat()
+        watchFormat.scale = 1.0
+        let watchRenderer = UIGraphicsImageRenderer(size: watchSize, format: watchFormat)
+        let watchImage = watchRenderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: watchSize))
+        }
+        return watchImage.jpegData(compressionQuality: 0.6)
     }
 
     /// Creates a new bookmark at the current playback position with an
@@ -2268,7 +2356,8 @@ final class PlayerModel {
         title: String,
         timestamp: TimeInterval,
         note: String?,
-        voiceMemoFileName: String?
+        voiceMemoFileName: String?,
+        bookmarkImageFileName: String? = nil
     ) -> Bookmark {
         let bm = Bookmark(
             id: draft.id,
@@ -2277,12 +2366,14 @@ final class PlayerModel {
             trackId: draft.trackId,
             timestamp: timestamp,
             note: note,
-            voiceMemoFileName: voiceMemoFileName
+            voiceMemoFileName: voiceMemoFileName,
+            bookmarkImageFileName: bookmarkImageFileName
         )
         bookmarks.append(bm)
         bookmarks.sort { $0.timestamp < $1.timestamp }
         persistBookmarks()
         installBookmarkBoundaryObserver()
+        updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
         return bm
     }
 
@@ -2293,15 +2384,25 @@ final class PlayerModel {
     ///   - timestamp: The new timestamp in seconds.
     ///   - note: An optional text note.
     ///   - voiceMemoFileName: An optional voice memo filename.
-    func updateBookmark(id: UUID, title: String, timestamp: TimeInterval, note: String?, voiceMemoFileName: String?) {
+    func updateBookmark(
+        id: UUID,
+        title: String,
+        timestamp: TimeInterval,
+        note: String?,
+        voiceMemoFileName: String?,
+        bookmarkImageFileName: String? = nil
+    ) {
         guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
         bookmarks[idx].title = title
         bookmarks[idx].timestamp = timestamp
         bookmarks[idx].note = note
         bookmarks[idx].voiceMemoFileName = voiceMemoFileName
+        bookmarks[idx].bookmarkImageFileName = bookmarkImageFileName
         bookmarks.sort { $0.timestamp < $1.timestamp }
+        bookmarkArtworkCache.removeAll()
         persistBookmarks()
         installBookmarkBoundaryObserver()
+        updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
     }
 
     private func addWatchBookmark(from payload: [String: Any]) {
@@ -2350,6 +2451,7 @@ final class PlayerModel {
         bookmarks[idx].isEnabled.toggle()
         persistBookmarks()
         installBookmarkBoundaryObserver()
+        updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
     }
 
     /// Reorders bookmarks within the list and persists the new ordering.
@@ -2360,6 +2462,7 @@ final class PlayerModel {
         bookmarks.move(fromOffsets: source, toOffset: destination)
         persistBookmarks()
         installBookmarkBoundaryObserver()
+        updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
     }
 
     /// Deletes a bookmark and its associated voice memo file (if any).
@@ -2372,9 +2475,14 @@ final class PlayerModel {
             if let url = bookmarks[idx].voiceMemoURL(in: folderURL) {
                 try? FileManager.default.removeItem(at: url)
             }
+            if let url = bookmarks[idx].bookmarkImageURL(in: folderURL) {
+                try? FileManager.default.removeItem(at: url)
+            }
             bookmarks.remove(at: idx)
+            bookmarkArtworkCache.removeAll()
             persistBookmarks()
             installBookmarkBoundaryObserver()
+            updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
 
             if loopMode == .bookmark && bookmarks.isEmpty {
                 setLoopMode(.off)
@@ -2814,6 +2922,7 @@ extension PlayerModel: AudioEngineDelegate {
             updateNowPlayingElapsedTime()
             updateCurrentChapterFromPlayerTime()
             updateProgressFromPlayer()
+            updateCurrentDisplayArtwork(at: currentTime)
             enforceEnabledState()
             applyChapterLoopIfNeeded()
             applyBookmarkLoopIfNeeded()

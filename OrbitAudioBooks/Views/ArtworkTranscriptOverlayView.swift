@@ -21,14 +21,17 @@ struct ArtworkTranscriptOverlayView: View {
             }
         }
         .padding(.horizontal, 16)
+        .animation(.easeInOut(duration: 0.25), value: model.currentDisplayArtworkVersion)
     }
 
     @ViewBuilder
     private var artwork: some View {
-        if let image = model.thumbnailImage {
+        if let image = model.currentDisplayArtwork ?? model.thumbnailImage {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
+                .id(model.currentDisplayArtworkVersion)
+                .transition(.opacity)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)

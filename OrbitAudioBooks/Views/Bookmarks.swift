@@ -1,6 +1,12 @@
 import SwiftUI
 import AVFoundation
 import Observation
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Voice Memo Gain Normalization
 
@@ -67,6 +73,8 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
     /// Filename (not full URL). Resolved relative to the audiobook folder when
     /// available; falls back to the legacy Documents/VoiceMemos directory.
     var voiceMemoFileName: String?
+    /// Filename (not full URL) for a picture bookmark image stored on disk.
+    var bookmarkImageFileName: String?
     /// Whether this bookmark is active. Disabled bookmarks are ignored by the
     /// voice-memo trigger, but remain visible (grayed out) in the playlist.
     var isEnabled: Bool = true
@@ -79,6 +87,7 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
         timestamp: TimeInterval,
         note: String? = nil,
         voiceMemoFileName: String? = nil,
+        bookmarkImageFileName: String? = nil,
         isEnabled: Bool = true
     ) {
         self.id = id
@@ -88,12 +97,13 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
         self.timestamp = timestamp
         self.note = note
         self.voiceMemoFileName = voiceMemoFileName
+        self.bookmarkImageFileName = bookmarkImageFileName
         self.isEnabled = isEnabled
     }
 
     /// Backward-compat decoder so older Bookmarks (without `title`) still load.
     enum CodingKeys: String, CodingKey {
-        case id, title, folderKey, trackId, timestamp, note, voiceMemoFileName, isEnabled
+        case id, title, folderKey, trackId, timestamp, note, voiceMemoFileName, bookmarkImageFileName, isEnabled
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -104,6 +114,7 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
         timestamp = try c.decode(TimeInterval.self, forKey: .timestamp)
         note = try? c.decode(String.self, forKey: .note)
         voiceMemoFileName = try? c.decode(String.self, forKey: .voiceMemoFileName)
+        bookmarkImageFileName = try? c.decode(String.self, forKey: .bookmarkImageFileName)
         isEnabled = (try? c.decode(Bool.self, forKey: .isEnabled)) ?? true
     }
 
@@ -140,6 +151,41 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
     static func legacyVoiceMemoDirectory() -> URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         let dir = docs.appendingPathComponent("VoiceMemos", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
+    /// Resolves the on-disk URL for the attached picture bookmark image,
+    /// preferring the audiobook folder and falling back to Documents/BookmarkImages.
+    func bookmarkImageURL(in folderURL: URL?) -> URL? {
+        guard let name = bookmarkImageFileName, !name.isEmpty else { return nil }
+        if let folderURL {
+            var isDir: ObjCBool = false
+            FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDir)
+            let baseDir = isDir.boolValue ? folderURL : folderURL.deletingLastPathComponent()
+            let candidate = baseDir.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        let legacy = Bookmark.legacyBookmarkImageDirectory().appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: legacy.path) {
+            return legacy
+        }
+        if let folderURL {
+            var isDir: ObjCBool = false
+            FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDir)
+            let baseDir = isDir.boolValue ? folderURL : folderURL.deletingLastPathComponent()
+            return baseDir.appendingPathComponent(name)
+        }
+        return legacy
+    }
+
+    static func legacyBookmarkImageDirectory() -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let dir = docs.appendingPathComponent("BookmarkImages", isDirectory: true)
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
@@ -332,6 +378,10 @@ struct EditBookmarkView: View {
     @State private var note: String = ""
     @State private var timestamp: TimeInterval = 0
     @State private var voiceMemoFileName: String?
+    @State private var bookmarkImageFileName: String?
+    #if canImport(PhotosUI)
+    @State private var selectedImageItem: PhotosPickerItem?
+    #endif
 
     @State private var recorder = VoiceMemoRecorder()
     @State private var previewEngine: AVAudioEngine?
@@ -383,6 +433,36 @@ struct EditBookmarkView: View {
                 Section("Note") {
                     TextField("Add a note…", text: $note, axis: .vertical)
                         .lineLimit(3...8)
+                }
+
+                Section("Picture Bookmark") {
+                    if let name = bookmarkImageFileName {
+                        HStack {
+                            Image(systemName: "photo")
+                            Text(name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(role: .destructive) {
+                                removeBookmarkImage(named: name)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove picture bookmark image")
+                        }
+                    }
+
+                    #if canImport(PhotosUI)
+                    PhotosPicker(selection: $selectedImageItem, matching: .images) {
+                        Label(bookmarkImageFileName == nil ? "Attach Image" : "Replace Image", systemImage: "photo.badge.plus")
+                    }
+                    #else
+                    Text("Image selection is unavailable on this platform.")
+                        .foregroundStyle(.secondary)
+                    #endif
                 }
 
                 Section("Voice Memo") {
@@ -459,6 +539,12 @@ struct EditBookmarkView: View {
                 Text(alertMessage)
             }
             .onAppear(perform: loadFromModel)
+            #if canImport(PhotosUI)
+            .onChange(of: selectedImageItem) { _, newItem in
+                guard let newItem else { return }
+                Task { await importBookmarkImage(from: newItem) }
+            }
+            #endif
             .onDisappear {
                 if recorder.isRecording { _ = recorder.stopRecording() }
                 stopPreview()
@@ -473,6 +559,7 @@ struct EditBookmarkView: View {
             note = bm.note ?? ""
             timestamp = bm.timestamp
             voiceMemoFileName = bm.voiceMemoFileName
+            bookmarkImageFileName = bm.bookmarkImageFileName
             return
         }
 
@@ -481,6 +568,7 @@ struct EditBookmarkView: View {
         note = ""
         timestamp = draft.timestamp
         voiceMemoFileName = nil
+        bookmarkImageFileName = nil
     }
 
     private func startVoiceMemoRecording() {
@@ -542,7 +630,8 @@ struct EditBookmarkView: View {
                 title: savedTitle,
                 timestamp: timestamp,
                 note: savedNote,
-                voiceMemoFileName: voiceMemoFileName
+                voiceMemoFileName: voiceMemoFileName,
+                bookmarkImageFileName: bookmarkImageFileName
             )
         } else if let draft {
             model.appendBookmark(
@@ -550,7 +639,8 @@ struct EditBookmarkView: View {
                 title: savedTitle,
                 timestamp: timestamp,
                 note: savedNote,
-                voiceMemoFileName: voiceMemoFileName
+                voiceMemoFileName: voiceMemoFileName,
+                bookmarkImageFileName: bookmarkImageFileName
             )
         } else {
             showAlert("The bookmark could not be saved.")
@@ -562,6 +652,70 @@ struct EditBookmarkView: View {
     private func showAlert(_ message: String) {
         alertMessage = message
         isShowingAlert = true
+    }
+
+    #if canImport(PhotosUI) && canImport(UIKit)
+    private func importBookmarkImage(from item: PhotosPickerItem) async {
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data)
+            else {
+                await MainActor.run { showAlert("The selected image could not be loaded.") }
+                return
+            }
+
+            let fileName = "bookmark-\(imageBookmarkID.uuidString).jpg"
+            let probe = Bookmark(timestamp: timestamp, bookmarkImageFileName: fileName)
+            guard let url = probe.bookmarkImageURL(in: model.folderURL) else {
+                await MainActor.run { showAlert("The image could not be saved.") }
+                return
+            }
+
+            let didStart = url.deletingLastPathComponent().startAccessingSecurityScopedResource()
+            defer {
+                if didStart {
+                    url.deletingLastPathComponent().stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let jpegData = resizedJPEGData(from: image, maxDimension: 1600, compressionQuality: 0.84)
+            try jpegData.write(to: url, options: .atomic)
+            await MainActor.run {
+                bookmarkImageFileName = fileName
+            }
+        } catch {
+            await MainActor.run {
+                showAlert(error.localizedDescription)
+            }
+        }
+    }
+
+    private var imageBookmarkID: UUID {
+        bookmarkID ?? draft?.id ?? UUID()
+    }
+
+    private func resizedJPEGData(from image: UIImage, maxDimension: CGFloat, compressionQuality: CGFloat) -> Data {
+        let longestSide = max(image.size.width, image.size.height)
+        guard longestSide > maxDimension else {
+            return image.jpegData(compressionQuality: compressionQuality) ?? Data()
+        }
+
+        let scale = maxDimension / longestSide
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return resized.jpegData(compressionQuality: compressionQuality) ?? Data()
+    }
+    #endif
+
+    private func removeBookmarkImage(named name: String) {
+        let probe = Bookmark(timestamp: timestamp, bookmarkImageFileName: name)
+        if let url = probe.bookmarkImageURL(in: model.folderURL) {
+            try? FileManager.default.removeItem(at: url)
+        }
+        bookmarkImageFileName = nil
     }
 
     private func togglePreview(fileName: String) {

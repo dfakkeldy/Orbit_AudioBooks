@@ -23,14 +23,14 @@ final class WatchSyncManager: NSObject, WCSessionDelegate {
     /// Returns the current state dictionary to send to the Watch.
     var stateProvider: (() -> [String: Any])?
 
-    /// Returns (trackId, thumbnailData) for thumbnail transfer. Thumbnails are
-    /// sent only when the track changes (optimization: avoid sending heavy image
-    /// data on every sync).
-    var thumbnailProvider: (() -> (trackId: String?, data: Data?))?
+    /// Returns (artworkKey, thumbnailData) for thumbnail transfer. Thumbnails are
+    /// sent only when the active artwork changes (optimization: avoid sending
+    /// heavy image data on every sync).
+    var thumbnailProvider: (() -> (artworkKey: String?, data: Data?))?
 
     // MARK: - Private State
 
-    private var lastSyncedThumbnailTrackId: String?
+    private var lastSyncedArtworkKey: String?
 
     // MARK: - Init
 
@@ -69,14 +69,14 @@ final class WatchSyncManager: NSObject, WCSessionDelegate {
     private func sendThumbnailIfNeeded() {
         let session = WCSession.default
         guard session.activationState == .activated,
-              let (trackId, data) = thumbnailProvider?(),
-              let trackId, let data,
-              trackId != lastSyncedThumbnailTrackId
+              let (artworkKey, data) = thumbnailProvider?(),
+              let artworkKey, let data,
+              artworkKey != lastSyncedArtworkKey
         else { return }
 
-        lastSyncedThumbnailTrackId = trackId
+        lastSyncedArtworkKey = artworkKey
         let payload: [String: Any] = [
-            "trackId": trackId,
+            "artworkKey": artworkKey,
             "thumbnailData": data
         ]
         session.transferUserInfo(payload)
