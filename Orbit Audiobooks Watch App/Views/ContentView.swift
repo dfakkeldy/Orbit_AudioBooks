@@ -49,6 +49,11 @@ enum AppGroupDefaults {
         set { shared.set(newValue, forKey: "circularRingHidden") }
     }
 
+    static var watchArtworkLayout: String {
+        get { shared.string(forKey: "watchArtworkLayout") ?? "immersive" }
+        set { shared.set(newValue, forKey: "watchArtworkLayout") }
+    }
+
     static func migrateStandardDefaultsIfNeeded() {
         guard let groupedDefaults = UserDefaults(suiteName: suiteName),
               !groupedDefaults.bool(forKey: migrationKey) else {
@@ -75,7 +80,8 @@ enum AppGroupDefaults {
             "linearBarMode",
             "linearBarHidden",
             "circularRingMode",
-            "circularRingHidden"
+            "circularRingHidden",
+            "watchArtworkLayout"
         ]
 
         for key in keys {
@@ -228,6 +234,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var linearBarHidden: Bool = false
     var circularRingMode: String = "chapter"
     var circularRingHidden: Bool = false
+    var watchArtworkLayout: String = "immersive"
 
     let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0]
     var currentSpeedIndex: Int = 0
@@ -278,6 +285,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         linearBarHidden = AppGroupDefaults.linearBarHidden
         circularRingMode = AppGroupDefaults.circularRingMode
         circularRingHidden = AppGroupDefaults.circularRingHidden
+        watchArtworkLayout = AppGroupDefaults.watchArtworkLayout
     }
 
     private func parseSlots(_ raw: String) -> [WatchAction] {
@@ -446,6 +454,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             if let circularRingHidden = state["circularRingHidden"] as? Bool {
                 self.circularRingHidden = circularRingHidden
                 AppGroupDefaults.circularRingHidden = circularRingHidden
+            }
+            if let watchArtworkLayout = state["watchArtworkLayout"] as? String {
+                self.watchArtworkLayout = watchArtworkLayout
+                AppGroupDefaults.watchArtworkLayout = watchArtworkLayout
             }
             if let thumbnailData = state["thumbnailData"] as? Data {
                 self.defaults.set(thumbnailData, forKey: "thumbnailData")
@@ -826,31 +838,13 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            if let image = viewModel.thumbnailImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-                    .overlay(Color.black.opacity(0.32))
-                    .overlay(
-                        LinearGradient(
-                            colors: [
-                                Color.black.opacity(0.66),
-                                Color.black.opacity(0.18),
-                                Color.black.opacity(0.78)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            } else {
-                Color.black.ignoresSafeArea()
-            }
+            artworkBackground
 
             TabView(selection: $selectedPage) {
                 PlayerPage(
                     slots: viewModel.page1Slots,
                     viewModel: viewModel,
+                    layout: artworkLayout,
                     onBookmark: { isShowingNewBookmark = true },
                     onSleepTimer: { isShowingSleepTimer = true }
                 )
@@ -858,6 +852,7 @@ struct ContentView: View {
                 PlayerPage(
                     slots: viewModel.page2Slots,
                     viewModel: viewModel,
+                    layout: artworkLayout,
                     onBookmark: { isShowingNewBookmark = true },
                     onSleepTimer: { isShowingSleepTimer = true }
                 )
@@ -897,6 +892,58 @@ struct ContentView: View {
             viewModel.sendCommand("volumeDelta", params: ["delta": delta])
         }
     }
+
+    private var artworkLayout: WatchArtworkLayout {
+        WatchArtworkLayout(rawValue: viewModel.watchArtworkLayout) ?? .immersive
+    }
+
+    @ViewBuilder
+    private var artworkBackground: some View {
+        if let image = viewModel.thumbnailImage {
+            switch artworkLayout {
+            case .immersive:
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .blur(radius: 14)
+                        .opacity(0.72)
+                        .ignoresSafeArea()
+
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 8)
+                        .opacity(0.82)
+                }
+                .overlay(Color.black.opacity(0.34))
+                .overlay(artworkScrim)
+                .ignoresSafeArea()
+            case .classic:
+                Color.black.ignoresSafeArea()
+            }
+        } else {
+            Color.black.ignoresSafeArea()
+        }
+    }
+
+    private var artworkScrim: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.black.opacity(0.70),
+                Color.black.opacity(0.16),
+                Color.black.opacity(0.80)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}
+
+private enum WatchArtworkLayout: String {
+    case immersive
+    case classic
 }
 
 // MARK: - Player Page (per-page layout matching the blueprint)
@@ -911,26 +958,21 @@ struct ContentView: View {
 private struct PlayerPage: View {
     let slots: [WatchAction]
     let viewModel: WatchViewModel
+    let layout: WatchArtworkLayout
     let onBookmark: () -> Void
     let onSleepTimer: () -> Void
 
     var body: some View {
         ZStack {
-            VStack(spacing: 8) {
-                Spacer(minLength: 42)
+            VStack(spacing: layout == .classic ? 9 : 8) {
+                if layout == .classic {
+                    Spacer(minLength: 30)
+                    classicArtwork
+                } else {
+                    Spacer(minLength: 42)
+                }
 
-                Text(viewModel.title)
-                    .font(.system(.caption, design: .rounded))
-                    .fontWeight(.semibold)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.horizontal, 18)
+                titleView
                 
                 // Linear progress bar (configurable mode + visibility)
                 if !viewModel.linearBarHidden {
@@ -945,7 +987,7 @@ private struct PlayerPage: View {
                         .animation(viewModel.progressAnimationSuppressed ? nil : .linear(duration: 0.5), value: linearProgress)
                 }
 
-                Spacer(minLength: 12)
+                Spacer(minLength: layout == .classic ? 8 : 12)
 
                 TransportRow(
                     leftSlot: slots[2],
@@ -970,6 +1012,46 @@ private struct PlayerPage: View {
                 .padding(.top, 8)
                 Spacer()
             }
+        }
+    }
+
+    private var titleView: some View {
+        Text(viewModel.title)
+            .font(.system(.caption, design: .rounded))
+            .fontWeight(.semibold)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, layout == .classic ? 4 : 6)
+            .frame(maxWidth: .infinity)
+            .background(layout == .classic ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+            .padding(.horizontal, 18)
+    }
+
+    @ViewBuilder
+    private var classicArtwork: some View {
+        if let image = viewModel.thumbnailImage {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
+                )
+                .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
+        } else {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .frame(width: 80, height: 80)
+                .overlay(
+                    Image(systemName: "music.note")
+                        .font(.title)
+                        .foregroundStyle(.white)
+                )
         }
     }
 }

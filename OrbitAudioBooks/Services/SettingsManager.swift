@@ -28,6 +28,7 @@ final class SettingsManager {
         static let linearBarHidden = false
         static let circularRingMode = "chapter"
         static let circularRingHidden = false
+        static let watchArtworkLayout = "immersive"
         static let isHapticFeedbackEnabled = true
         static let watchQuickBookmarkTimeoutSeconds = 5
     }
@@ -53,6 +54,7 @@ final class SettingsManager {
         static let linearBarHidden = "linearBarHidden"
         static let circularRingMode = "circularRingMode"
         static let circularRingHidden = "circularRingHidden"
+        static let watchArtworkLayout = "watchArtworkLayout"
         static let isHapticFeedbackEnabled = "isHapticFeedbackEnabled"
         static let watchQuickBookmarkTimeoutSeconds = "watchQuickBookmarkTimeoutSeconds"
     }
@@ -91,6 +93,7 @@ final class SettingsManager {
     var linearBarHidden: Bool { didSet { defaults.set(linearBarHidden, forKey: Keys.linearBarHidden) } }
     var circularRingMode: String { didSet { defaults.set(circularRingMode, forKey: Keys.circularRingMode) } }
     var circularRingHidden: Bool { didSet { defaults.set(circularRingHidden, forKey: Keys.circularRingHidden) } }
+    var watchArtworkLayout: String { didSet { defaults.set(watchArtworkLayout, forKey: Keys.watchArtworkLayout) } }
     var isHapticFeedbackEnabled: Bool { didSet { appGroupDefaults.set(isHapticFeedbackEnabled, forKey: Keys.isHapticFeedbackEnabled) } }
     var watchQuickBookmarkTimeoutSeconds: Int {
         didSet {
@@ -136,6 +139,7 @@ final class SettingsManager {
         linearBarHidden = defaults.bool(forKey: Keys.linearBarHidden)
         circularRingMode = defaults.string(forKey: Keys.circularRingMode) ?? Defaults.circularRingMode
         circularRingHidden = defaults.bool(forKey: Keys.circularRingHidden)
+        watchArtworkLayout = defaults.string(forKey: Keys.watchArtworkLayout) ?? Defaults.watchArtworkLayout
         isHapticFeedbackEnabled = appGroupDefaults.bool(forKey: Keys.isHapticFeedbackEnabled)
         watchQuickBookmarkTimeoutSeconds = max(
             1,
@@ -167,7 +171,8 @@ final class SettingsManager {
             Keys.linearBarMode: Defaults.linearBarMode,
             Keys.linearBarHidden: Defaults.linearBarHidden,
             Keys.circularRingMode: Defaults.circularRingMode,
-            Keys.circularRingHidden: Defaults.circularRingHidden
+            Keys.circularRingHidden: Defaults.circularRingHidden,
+            Keys.watchArtworkLayout: Defaults.watchArtworkLayout
         ])
         appGroupDefaults.register(defaults: [
             Keys.isHapticFeedbackEnabled: Defaults.isHapticFeedbackEnabled,

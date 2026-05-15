@@ -406,6 +406,7 @@ final class PlayerModel {
         context["linearBarHidden"] = settings?.linearBarHidden ?? SettingsManager.Defaults.linearBarHidden
         context["circularRingMode"] = settings?.circularRingMode ?? SettingsManager.Defaults.circularRingMode
         context["circularRingHidden"] = settings?.circularRingHidden ?? SettingsManager.Defaults.circularRingHidden
+        context["watchArtworkLayout"] = settings?.watchArtworkLayout ?? SettingsManager.Defaults.watchArtworkLayout
         context["hasThumbnail"] = watchThumbnailData != nil
 
         // Sleep timer state for watch UI.

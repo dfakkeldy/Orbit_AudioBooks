@@ -204,6 +204,27 @@ struct WatchAppSettingsView: View {
                     )
                 }
 
+                // MARK: Artwork Layout
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Artwork Layout")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Artwork Layout", selection: $settings.watchArtworkLayout) {
+                        Label("Full Face", systemImage: "rectangle.expand.vertical").tag("immersive")
+                        Label("Thumbnail", systemImage: "photo").tag("classic")
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: settings.watchArtworkLayout) { _, _ in
+                        model.syncToWatch()
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.quaternary)
+                    )
+                }
+
                 // MARK: Watch App Designer
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Watch App Designer")
