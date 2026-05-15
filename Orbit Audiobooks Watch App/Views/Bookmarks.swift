@@ -62,7 +62,7 @@ private struct WatchBookmarkRow: View {
             if bookmark.hasAudio {
                 Button {
                     isPlaying.toggle()
-                    if AppGroupDefaults.isHapticFeedbackEnabled {
+                    if AppGroupDefaults.shared.bool(forKey: "isHapticFeedbackEnabled") {
                         WKInterfaceDevice.current().play(.click)
                     }
                 } label: {

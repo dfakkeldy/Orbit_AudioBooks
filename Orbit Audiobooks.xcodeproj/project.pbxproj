@@ -550,25 +550,34 @@
 		AA0100000000000000000033 /* Build and Copy OrbitTranscriptionCLI */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/Tools/OrbitTranscriptionCLI/Package.swift",
 				"$(SRCROOT)/Tools/OrbitTranscriptionCLI/Sources/OrbitTranscriptionCLI/OrbitTranscriptionCLI.swift",
 				"$(SRCROOT)/Tools/OrbitTranscriptionCLI/Sources/OrbitTranscriptionCLI/TranscriptionCLIEvent.swift",
 			);
 			name = "Build and Copy OrbitTranscriptionCLI";
-			outputFileListPaths = (
-			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/OrbitTranscriptionCLI",
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\n\nCLI_PACKAGE=\"${SRCROOT}/Tools/OrbitTranscriptionCLI\"\nBUILD_CONFIG=$(printf '%s' \"${CONFIGURATION}\" | tr '[:upper:]' '[:lower:]')\nDEST_DIR=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nDEST=\"${DEST_DIR}/OrbitTranscriptionCLI\"\n\n/usr/bin/swift build --package-path \"${CLI_PACKAGE}\" -c \"${BUILD_CONFIG}\"\nmkdir -p \"${DEST_DIR}\"\ncp \"${CLI_PACKAGE}/.build/${BUILD_CONFIG}/OrbitTranscriptionCLI\" \"${DEST}\"\nchmod +x \"${DEST}\"\n\nif [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${DEST}\"\nfi\n";
+			shellScript = (
+				"set -euo pipefail",
+				"",
+				"CLI_PACKAGE=\"${SRCROOT}/Tools/OrbitTranscriptionCLI\"",
+				"BUILD_CONFIG=$(printf '%s' \"${CONFIGURATION}\" | tr '[:upper:]' '[:lower:]')",
+				"DEST_DIR=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"",
+				"DEST=\"${DEST_DIR}/OrbitTranscriptionCLI\"",
+				"",
+				"/usr/bin/swift build --package-path \"${CLI_PACKAGE}\" -c \"${BUILD_CONFIG}\"",
+				"mkdir -p \"${DEST_DIR}\"",
+				"cp \"${CLI_PACKAGE}/.build/${BUILD_CONFIG}/OrbitTranscriptionCLI\" \"${DEST}\"",
+				"chmod +x \"${DEST}\"",
+				"",
+				"if [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then",
+				"    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp=none \"${DEST}\"",
+				"fi",
+				"",
+			);
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -665,8 +674,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Orbit Audiobooks macOS/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
@@ -706,8 +715,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Orbit Audiobooks macOS/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";

@@ -86,17 +86,17 @@ final class SettingsManager {
 
     // MARK: - Watch
 
-    var crownAction: String { didSet { defaults.set(crownAction, forKey: Keys.crownAction) } }
+    var crownAction: String { didSet { appGroupDefaults.set(crownAction, forKey: Keys.crownAction) } }
     var crownVolumeSensitivity: Double { didSet { defaults.set(crownVolumeSensitivity, forKey: Keys.crownVolumeSensitivity) } }
     var crownScrubSensitivity: Double { didSet { defaults.set(crownScrubSensitivity, forKey: Keys.crownScrubSensitivity) } }
-    var watchPage1: String { didSet { defaults.set(watchPage1, forKey: Keys.watchPage1) } }
-    var watchPage2: String { didSet { defaults.set(watchPage2, forKey: Keys.watchPage2) } }
-    var linearBarMode: String { didSet { defaults.set(linearBarMode, forKey: Keys.linearBarMode) } }
-    var linearBarHidden: Bool { didSet { defaults.set(linearBarHidden, forKey: Keys.linearBarHidden) } }
-    var circularRingMode: String { didSet { defaults.set(circularRingMode, forKey: Keys.circularRingMode) } }
-    var circularRingHidden: Bool { didSet { defaults.set(circularRingHidden, forKey: Keys.circularRingHidden) } }
-    var watchArtworkLayout: String { didSet { defaults.set(watchArtworkLayout, forKey: Keys.watchArtworkLayout) } }
-    var watchBackgroundStyle: String { didSet { defaults.set(watchBackgroundStyle, forKey: Keys.watchBackgroundStyle) } }
+    var watchPage1: String { didSet { appGroupDefaults.set(watchPage1, forKey: Keys.watchPage1) } }
+    var watchPage2: String { didSet { appGroupDefaults.set(watchPage2, forKey: Keys.watchPage2) } }
+    var linearBarMode: String { didSet { appGroupDefaults.set(linearBarMode, forKey: Keys.linearBarMode) } }
+    var linearBarHidden: Bool { didSet { appGroupDefaults.set(linearBarHidden, forKey: Keys.linearBarHidden) } }
+    var circularRingMode: String { didSet { appGroupDefaults.set(circularRingMode, forKey: Keys.circularRingMode) } }
+    var circularRingHidden: Bool { didSet { appGroupDefaults.set(circularRingHidden, forKey: Keys.circularRingHidden) } }
+    var watchArtworkLayout: String { didSet { appGroupDefaults.set(watchArtworkLayout, forKey: Keys.watchArtworkLayout) } }
+    var watchBackgroundStyle: String { didSet { appGroupDefaults.set(watchBackgroundStyle, forKey: Keys.watchBackgroundStyle) } }
     var isHapticFeedbackEnabled: Bool { didSet { appGroupDefaults.set(isHapticFeedbackEnabled, forKey: Keys.isHapticFeedbackEnabled) } }
     var watchQuickBookmarkTimeoutSeconds: Int {
         didSet {
@@ -110,12 +110,42 @@ final class SettingsManager {
 
     init(
         defaults: UserDefaults = .standard,
-        appGroupDefaults: UserDefaults = AppGroupDefaults.shared
+        appGroupDefaults: UserDefaults = {
+            guard let d = UserDefaults(suiteName: "group.com.orbitaudiobooks") else {
+                assertionFailure("Unable to open app-group UserDefaults suite: group.com.orbitaudiobooks")
+                return .standard
+            }
+            return d
+        }()
     ) {
         self.defaults = defaults
         self.appGroupDefaults = appGroupDefaults
 
         Self.registerDefaults(defaults: defaults, appGroupDefaults: appGroupDefaults)
+
+        // One-time migration: copy watch-facing settings from standard defaults
+        // to the App Group suite so the Watch and Widget can read them directly.
+        if !appGroupDefaults.bool(forKey: "didMigrateWatchSettingsToAppGroup_v2") {
+            let watchKeys: [(String, () -> Any?)] = [
+                (Keys.crownAction, { defaults.object(forKey: Keys.crownAction) }),
+                (Keys.watchPage1, { defaults.object(forKey: Keys.watchPage1) }),
+                (Keys.watchPage2, { defaults.object(forKey: Keys.watchPage2) }),
+                (Keys.linearBarMode, { defaults.object(forKey: Keys.linearBarMode) }),
+                (Keys.linearBarHidden, { defaults.object(forKey: Keys.linearBarHidden) }),
+                (Keys.circularRingMode, { defaults.object(forKey: Keys.circularRingMode) }),
+                (Keys.circularRingHidden, { defaults.object(forKey: Keys.circularRingHidden) }),
+                (Keys.watchArtworkLayout, { defaults.object(forKey: Keys.watchArtworkLayout) }),
+                (Keys.watchBackgroundStyle, { defaults.object(forKey: Keys.watchBackgroundStyle) }),
+                (Keys.isHapticFeedbackEnabled, { defaults.object(forKey: Keys.isHapticFeedbackEnabled) }),
+                (Keys.watchQuickBookmarkTimeoutSeconds, { defaults.object(forKey: Keys.watchQuickBookmarkTimeoutSeconds) }),
+            ]
+            for (key, read) in watchKeys {
+                if appGroupDefaults.object(forKey: key) == nil, let value = read() {
+                    appGroupDefaults.set(value, forKey: key)
+                }
+            }
+            appGroupDefaults.set(true, forKey: "didMigrateWatchSettingsToAppGroup_v2")
+        }
 
         isDarkMode = defaults.bool(forKey: Keys.isDarkMode)
         let storedAppFont = defaults.string(forKey: Keys.appFont) ?? Defaults.appFont
@@ -133,17 +163,17 @@ final class SettingsManager {
         rewindAmountAfterHours = defaults.integer(forKey: Keys.rewindAmountAfterHours)
         rewindHoursToChapterStart = defaults.bool(forKey: Keys.rewindHoursToChapterStart)
         playBookmarksInline = defaults.bool(forKey: Keys.playBookmarksInline)
-        crownAction = defaults.string(forKey: Keys.crownAction) ?? Defaults.crownAction
+        crownAction = appGroupDefaults.string(forKey: Keys.crownAction) ?? Defaults.crownAction
         crownVolumeSensitivity = defaults.double(forKey: Keys.crownVolumeSensitivity)
         crownScrubSensitivity = defaults.double(forKey: Keys.crownScrubSensitivity)
-        watchPage1 = defaults.string(forKey: Keys.watchPage1) ?? Defaults.watchPage1
-        watchPage2 = defaults.string(forKey: Keys.watchPage2) ?? Defaults.watchPage2
-        linearBarMode = defaults.string(forKey: Keys.linearBarMode) ?? Defaults.linearBarMode
-        linearBarHidden = defaults.bool(forKey: Keys.linearBarHidden)
-        circularRingMode = defaults.string(forKey: Keys.circularRingMode) ?? Defaults.circularRingMode
-        circularRingHidden = defaults.bool(forKey: Keys.circularRingHidden)
-        watchArtworkLayout = defaults.string(forKey: Keys.watchArtworkLayout) ?? Defaults.watchArtworkLayout
-        watchBackgroundStyle = defaults.string(forKey: Keys.watchBackgroundStyle) ?? Defaults.watchBackgroundStyle
+        watchPage1 = appGroupDefaults.string(forKey: Keys.watchPage1) ?? Defaults.watchPage1
+        watchPage2 = appGroupDefaults.string(forKey: Keys.watchPage2) ?? Defaults.watchPage2
+        linearBarMode = appGroupDefaults.string(forKey: Keys.linearBarMode) ?? Defaults.linearBarMode
+        linearBarHidden = appGroupDefaults.bool(forKey: Keys.linearBarHidden)
+        circularRingMode = appGroupDefaults.string(forKey: Keys.circularRingMode) ?? Defaults.circularRingMode
+        circularRingHidden = appGroupDefaults.bool(forKey: Keys.circularRingHidden)
+        watchArtworkLayout = appGroupDefaults.string(forKey: Keys.watchArtworkLayout) ?? Defaults.watchArtworkLayout
+        watchBackgroundStyle = appGroupDefaults.string(forKey: Keys.watchBackgroundStyle) ?? Defaults.watchBackgroundStyle
         isHapticFeedbackEnabled = appGroupDefaults.bool(forKey: Keys.isHapticFeedbackEnabled)
         watchQuickBookmarkTimeoutSeconds = max(
             1,
@@ -153,7 +183,13 @@ final class SettingsManager {
 
     static func registerDefaults(
         defaults: UserDefaults = .standard,
-        appGroupDefaults: UserDefaults = AppGroupDefaults.shared
+        appGroupDefaults: UserDefaults = {
+            guard let d = UserDefaults(suiteName: "group.com.orbitaudiobooks") else {
+                assertionFailure("Unable to open app-group UserDefaults suite: group.com.orbitaudiobooks")
+                return .standard
+            }
+            return d
+        }()
     ) {
         defaults.register(defaults: [
             Keys.isDarkMode: Defaults.isDarkMode,
@@ -167,9 +203,11 @@ final class SettingsManager {
             Keys.rewindAmountAfterHours: Defaults.rewindAmountAfterHours,
             Keys.rewindHoursToChapterStart: Defaults.rewindHoursToChapterStart,
             Keys.playBookmarksInline: Defaults.playBookmarksInline,
-            Keys.crownAction: Defaults.crownAction,
             Keys.crownVolumeSensitivity: Defaults.crownVolumeSensitivity,
-            Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity,
+            Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity
+        ])
+        appGroupDefaults.register(defaults: [
+            Keys.crownAction: Defaults.crownAction,
             Keys.watchPage1: Defaults.watchPage1,
             Keys.watchPage2: Defaults.watchPage2,
             Keys.linearBarMode: Defaults.linearBarMode,
@@ -177,9 +215,7 @@ final class SettingsManager {
             Keys.circularRingMode: Defaults.circularRingMode,
             Keys.circularRingHidden: Defaults.circularRingHidden,
             Keys.watchArtworkLayout: Defaults.watchArtworkLayout,
-            Keys.watchBackgroundStyle: Defaults.watchBackgroundStyle
-        ])
-        appGroupDefaults.register(defaults: [
+            Keys.watchBackgroundStyle: Defaults.watchBackgroundStyle,
             Keys.isHapticFeedbackEnabled: Defaults.isHapticFeedbackEnabled,
             Keys.watchQuickBookmarkTimeoutSeconds: Defaults.watchQuickBookmarkTimeoutSeconds
         ])

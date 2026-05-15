@@ -14,11 +14,6 @@ enum AppGroupDefaults {
         }
         return defaults
     }
-    
-    static var isHapticFeedbackEnabled: Bool {
-        get { shared.object(forKey: "isHapticFeedbackEnabled") as? Bool ?? true }
-        set { shared.set(newValue, forKey: "isHapticFeedbackEnabled") }
-    }
 }
 
 class SessionDelegator: NSObject, WCSessionDelegate {

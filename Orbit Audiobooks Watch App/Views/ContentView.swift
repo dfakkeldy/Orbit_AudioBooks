@@ -19,46 +19,6 @@ enum AppGroupDefaults {
         return defaults
     }
 
-    static var isHapticFeedbackEnabled: Bool {
-        get { shared.object(forKey: "isHapticFeedbackEnabled") as? Bool ?? true }
-        set { shared.set(newValue, forKey: "isHapticFeedbackEnabled") }
-    }
-
-    static var watchQuickBookmarkTimeoutSeconds: Int {
-        get { shared.object(forKey: "watchQuickBookmarkTimeoutSeconds") as? Int ?? 5 }
-        set { shared.set(max(1, newValue), forKey: "watchQuickBookmarkTimeoutSeconds") }
-    }
-
-    static var linearBarMode: String {
-        get { shared.string(forKey: "linearBarMode") ?? "total" }
-        set { shared.set(newValue, forKey: "linearBarMode") }
-    }
-
-    static var linearBarHidden: Bool {
-        get { shared.bool(forKey: "linearBarHidden") }
-        set { shared.set(newValue, forKey: "linearBarHidden") }
-    }
-
-    static var circularRingMode: String {
-        get { shared.string(forKey: "circularRingMode") ?? "chapter" }
-        set { shared.set(newValue, forKey: "circularRingMode") }
-    }
-
-    static var circularRingHidden: Bool {
-        get { shared.bool(forKey: "circularRingHidden") }
-        set { shared.set(newValue, forKey: "circularRingHidden") }
-    }
-
-    static var watchArtworkLayout: String {
-        get { shared.string(forKey: "watchArtworkLayout") ?? "immersive" }
-        set { shared.set(newValue, forKey: "watchArtworkLayout") }
-    }
-
-    static var watchBackgroundStyle: String {
-        get { shared.string(forKey: "watchBackgroundStyle") ?? "artwork" }
-        set { shared.set(newValue, forKey: "watchBackgroundStyle") }
-    }
-
     static func migrateStandardDefaultsIfNeeded() {
         guard let groupedDefaults = UserDefaults(suiteName: suiteName),
               !groupedDefaults.bool(forKey: migrationKey) else {
@@ -76,18 +36,7 @@ enum AppGroupDefaults {
             "folderKey",
             "trackId",
             "totalBookDuration",
-            "thumbnailData",
-            "watchPage1",
-            "watchPage2",
-            "crownAction",
-            "isHapticFeedbackEnabled",
-            "watchQuickBookmarkTimeoutSeconds",
-            "linearBarMode",
-            "linearBarHidden",
-            "circularRingMode",
-            "circularRingHidden",
-            "watchArtworkLayout",
-            "watchBackgroundStyle"
+            "thumbnailData"
         ]
 
         for key in keys {
@@ -230,7 +179,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var sleepTimerMinutes: Int = 0
     var sleepTimerRemainingSeconds: Int = 0
     var isSleepTimerActive: Bool { sleepTimerMode != "off" }
-    var watchQuickBookmarkTimeoutSeconds: Int = AppGroupDefaults.watchQuickBookmarkTimeoutSeconds
+    var watchQuickBookmarkTimeoutSeconds: Int = {
+        let raw = AppGroupDefaults.shared.integer(forKey: "watchQuickBookmarkTimeoutSeconds")
+        return raw > 0 ? raw : 5
+    }()
 
     var page1Slots: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
     var page2Slots: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
@@ -288,12 +240,12 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             page2Slots = padded(parseSlots(raw))
         }
 
-        linearBarMode = AppGroupDefaults.linearBarMode
-        linearBarHidden = AppGroupDefaults.linearBarHidden
-        circularRingMode = AppGroupDefaults.circularRingMode
-        circularRingHidden = AppGroupDefaults.circularRingHidden
-        watchArtworkLayout = AppGroupDefaults.watchArtworkLayout
-        watchBackgroundStyle = AppGroupDefaults.watchBackgroundStyle
+        linearBarMode = defaults.string(forKey: "linearBarMode") ?? "total"
+        linearBarHidden = defaults.bool(forKey: "linearBarHidden")
+        circularRingMode = defaults.string(forKey: "circularRingMode") ?? "chapter"
+        circularRingHidden = defaults.bool(forKey: "circularRingHidden")
+        watchArtworkLayout = defaults.string(forKey: "watchArtworkLayout") ?? "immersive"
+        watchBackgroundStyle = defaults.string(forKey: "watchBackgroundStyle") ?? "artwork"
     }
 
     private func parseSlots(_ raw: String) -> [WatchAction] {
@@ -353,12 +305,12 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 self.defaults.set(crownAction, forKey: "crownAction")
             }
             if let isHapticEnabled = state["isHapticFeedbackEnabled"] as? Bool {
-                AppGroupDefaults.isHapticFeedbackEnabled = isHapticEnabled
+                self.defaults.set(isHapticEnabled, forKey: "isHapticFeedbackEnabled")
             }
             if let timeoutSeconds = state["watchQuickBookmarkTimeoutSeconds"] as? Int {
                 let safeTimeout = max(1, timeoutSeconds)
                 self.watchQuickBookmarkTimeoutSeconds = safeTimeout
-                AppGroupDefaults.watchQuickBookmarkTimeoutSeconds = safeTimeout
+                self.defaults.set(safeTimeout, forKey: "watchQuickBookmarkTimeoutSeconds")
             }
             if let isPlaying = state["isPlaying"] as? Bool {
                 self.isPlaying = isPlaying
@@ -449,27 +401,27 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             }
             if let linearBarMode = state["linearBarMode"] as? String {
                 self.linearBarMode = linearBarMode
-                AppGroupDefaults.linearBarMode = linearBarMode
+                self.defaults.set(linearBarMode, forKey: "linearBarMode")
             }
             if let linearBarHidden = state["linearBarHidden"] as? Bool {
                 self.linearBarHidden = linearBarHidden
-                AppGroupDefaults.linearBarHidden = linearBarHidden
+                self.defaults.set(linearBarHidden, forKey: "linearBarHidden")
             }
             if let circularRingMode = state["circularRingMode"] as? String {
                 self.circularRingMode = circularRingMode
-                AppGroupDefaults.circularRingMode = circularRingMode
+                self.defaults.set(circularRingMode, forKey: "circularRingMode")
             }
             if let circularRingHidden = state["circularRingHidden"] as? Bool {
                 self.circularRingHidden = circularRingHidden
-                AppGroupDefaults.circularRingHidden = circularRingHidden
+                self.defaults.set(circularRingHidden, forKey: "circularRingHidden")
             }
             if let watchArtworkLayout = state["watchArtworkLayout"] as? String {
                 self.watchArtworkLayout = watchArtworkLayout
-                AppGroupDefaults.watchArtworkLayout = watchArtworkLayout
+                self.defaults.set(watchArtworkLayout, forKey: "watchArtworkLayout")
             }
             if let watchBackgroundStyle = state["watchBackgroundStyle"] as? String {
                 self.watchBackgroundStyle = watchBackgroundStyle
-                AppGroupDefaults.watchBackgroundStyle = watchBackgroundStyle
+                self.defaults.set(watchBackgroundStyle, forKey: "watchBackgroundStyle")
             }
             if let thumbnailData = state["thumbnailData"] as? Data {
                 self.defaults.set(thumbnailData, forKey: "thumbnailData")
@@ -546,7 +498,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             return true
         }
 
-        if AppGroupDefaults.isHapticFeedbackEnabled {
+        if self.defaults.bool(forKey: "isHapticFeedbackEnabled") {
             switch command {
             case "play", "pause", "toggle":
                 WKInterfaceDevice.current().play(.click)
