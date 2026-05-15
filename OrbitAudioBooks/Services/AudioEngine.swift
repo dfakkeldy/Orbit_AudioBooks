@@ -38,6 +38,8 @@ final class AudioEngine {
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
+    private var mediaServicesLostObserver: NSObjectProtocol?
+    private var mediaServicesResetObserver: NSObjectProtocol?
     private var audioSessionConfigured = false
 
     deinit {
@@ -57,6 +59,7 @@ final class AudioEngine {
             print("AudioSession error: \(error)")
         }
         setupInterruptionObserver()
+        setupMediaServicesObservers()
     }
 
     // MARK: - Playback Controls
@@ -158,6 +161,7 @@ final class AudioEngine {
         removeTimeObserver()
         removeEndObserver()
         removeInterruptionObserver()
+        removeMediaServicesObservers()
         player = nil
         audioSessionConfigured = false
     }
@@ -222,6 +226,7 @@ final class AudioEngine {
 
             switch type {
             case .began:
+                audioSessionConfigured = false
                 self.isPlaying = false
                 self.delegate?.audioEngineInterruptionBegan(self)
             case .ended:
@@ -239,5 +244,40 @@ final class AudioEngine {
             NotificationCenter.default.removeObserver(obs)
         }
         interruptionObserver = nil
+    }
+
+    private func setupMediaServicesObservers() {
+        guard mediaServicesLostObserver == nil else { return }
+
+        mediaServicesLostObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.mediaServicesWereLostNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.isPlaying = false
+            self.delegate?.audioEngineInterruptionBegan(self)
+        }
+
+        mediaServicesResetObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.audioSessionConfigured = false
+            self.configureAudioSession()
+        }
+    }
+
+    private func removeMediaServicesObservers() {
+        if let obs = mediaServicesLostObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        mediaServicesLostObserver = nil
+        if let obs = mediaServicesResetObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        mediaServicesResetObserver = nil
     }
 }
