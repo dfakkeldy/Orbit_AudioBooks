@@ -913,11 +913,10 @@ struct ContentView: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.horizontal, 8)
-                        .opacity(0.82)
+                        .frame(width: 168, height: 168)
+                        .opacity(0.68)
                 }
-                .overlay(Color.black.opacity(0.34))
+                .overlay(Color.black.opacity(0.38))
                 .overlay(artworkScrim)
                 .ignoresSafeArea()
             case .classic:
@@ -987,7 +986,11 @@ private struct PlayerPage: View {
                         .animation(viewModel.progressAnimationSuppressed ? nil : .linear(duration: 0.5), value: linearProgress)
                 }
 
-                Spacer(minLength: layout == .classic ? 8 : 12)
+                if layout == .classic {
+                    Color.clear.frame(height: 8)
+                } else {
+                    Spacer(minLength: 12)
+                }
 
                 TransportRow(
                     leftSlot: slots[2],
@@ -997,7 +1000,7 @@ private struct PlayerPage: View {
                     onBookmark: onBookmark,
                     onSleepTimer: onSleepTimer
                 )
-                .padding(.bottom, 8)
+                .padding(.bottom, layout == .classic ? 28 : 8)
             }
             
             // Top-row slots
