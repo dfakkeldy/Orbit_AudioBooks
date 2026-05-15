@@ -826,14 +826,23 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Blurred background derived from the artwork (preserved from blueprint)
             if let image = viewModel.thumbnailImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
                     .ignoresSafeArea()
-                    .blur(radius: 40)
-                    .overlay(Color.black.opacity(0.6))
+                    .overlay(Color.black.opacity(0.32))
+                    .overlay(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.66),
+                                Color.black.opacity(0.18),
+                                Color.black.opacity(0.78)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
             } else {
                 Color.black.ignoresSafeArea()
             }
@@ -892,15 +901,12 @@ struct ContentView: View {
 
 // MARK: - Player Page (per-page layout matching the blueprint)
 //
-// Layout invariants (from the blueprint / "Source of Truth"):
-//   • Artwork is centered horizontally, ~80×80, rounded.
-//   • The chapter / track title sits directly under the artwork with its own
-//     horizontal padding — NOTHING is allowed to overlap it.
-//   • Top-left / top-right slot buttons are anchored to the very top of the
-//     screen (in line with the system clock area), which guarantees clear
-//     breathing room between them and the title below the artwork.
-//   • The 3-button transport row sits at the bottom with the large play
-//     control (with progress ring) in the middle.
+// Layout invariants:
+// - Full-face artwork comes from ContentView's background layer.
+// - Top-left and top-right slot buttons remain reachable at the top edge.
+// - Title, progress, and transport controls sit in material-backed regions
+//   so they stay legible over changing artwork.
+// - The 3-button transport row stays at the bottom with play/pause centered.
 
 private struct PlayerPage: View {
     let slots: [WatchAction]
@@ -910,37 +916,21 @@ private struct PlayerPage: View {
 
     var body: some View {
         ZStack {
-            // Main vertical content (artwork + title + progress bar + transport row)
             VStack(spacing: 8) {
-                if let image = viewModel.thumbnailImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
-                        )
-                        .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
-                } else {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .frame(width: 80, height: 80)
-                        .overlay(
-                            Image(systemName: "music.note")
-                                .font(.title)
-                                .foregroundColor(.white)
-                        )
-                }
+                Spacer(minLength: 42)
 
                 Text(viewModel.title)
                     .font(.system(.caption, design: .rounded))
-                    .fontWeight(.medium)
+                    .fontWeight(.semibold)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .truncationMode(.tail)
-                    .padding(.horizontal)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.horizontal, 18)
                 
                 // Linear progress bar (configurable mode + visibility)
                 if !viewModel.linearBarHidden {
@@ -955,6 +945,8 @@ private struct PlayerPage: View {
                         .animation(viewModel.progressAnimationSuppressed ? nil : .linear(duration: 0.5), value: linearProgress)
                 }
 
+                Spacer(minLength: 12)
+
                 TransportRow(
                     leftSlot: slots[2],
                     centerSlot: slots[3],
@@ -963,7 +955,7 @@ private struct PlayerPage: View {
                     onBookmark: onBookmark,
                     onSleepTimer: onSleepTimer
                 )
-                .padding(.top, 6)
+                .padding(.bottom, 8)
             }
             
             // Top-row slots
@@ -1034,8 +1026,9 @@ private struct TopSlotButton: View {
                     }
                 }
                 .foregroundStyle(.white)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabelText)
@@ -1183,6 +1176,10 @@ private struct TransportRow: View {
 
             SideTransportButton(action: rightSlot, viewModel: viewModel, onBookmark: onBookmark, onSleepTimer: onSleepTimer)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, 10)
     }
 }
 
@@ -1232,12 +1229,12 @@ private struct SideTransportButton: View {
                         .font(.system(size: 20))
                 }
             }
-            .frame(width: 38, height: 38)
-            .padding(15)
-            .contentShape(Rectangle())
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
             .opacity(action == .empty ? 0.35 : 1.0)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.plain)
+        .background(.ultraThinMaterial, in: Circle())
         .disabled(action == .empty)
         .accessibilityLabel(accessibilityLabelText)
         .modifier(ToggleTraitModifier(isToggle: action == .loopMode, value: action == .loopMode ? loopModeAccessibilityValue : nil))
