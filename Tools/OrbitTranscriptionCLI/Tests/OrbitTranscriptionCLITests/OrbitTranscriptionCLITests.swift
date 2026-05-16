@@ -36,10 +36,40 @@ import Testing
 }
 
 @Test func cliCompletedEventCarriesOutputPath() throws {
-    let event = TranscriptionCLIEvent.completed(outputPath: "/tmp/book.transcript.json", segmentCount: 12)
+    let event = TranscriptionCLIEvent.completed(
+        outputPath: "/tmp/book.transcript.json",
+        segmentCount: 12,
+        wordFrequencyPath: "/tmp/book.word_frequencies.json"
+    )
 
     let data = try JSONEncoder().encode(event)
     let decoded = try JSONDecoder().decode(TranscriptionCLIEvent.self, from: data)
 
     #expect(decoded == event)
+}
+
+@Test func cliWordFrequenciesEventRoundTrips() throws {
+    let words = [
+        CLIWordFrequency(word: "whisper", count: 15),
+        CLIWordFrequency(word: "transcribe", count: 8),
+    ]
+    let event = TranscriptionCLIEvent.wordFrequencies(words: words)
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(TranscriptionCLIEvent.self, from: data)
+
+    #expect(decoded == event)
+}
+
+@Test func wordFrequencyEncodingMatchesSwiftAppSchema() throws {
+    let word = CLIWordFrequency(word: "chapter", count: 42)
+    let data = try JSONEncoder().encode(word)
+    let decoded = try JSONDecoder().decode(CLIWordFrequency.self, from: data)
+    #expect(decoded.word == "chapter")
+    #expect(decoded.count == 42)
+
+    // Verify JSON structure matches the iOS/macOS WordFrequency schema.
+    let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    let keys = Set(json.keys)
+    #expect(keys == ["count", "word"])
 }

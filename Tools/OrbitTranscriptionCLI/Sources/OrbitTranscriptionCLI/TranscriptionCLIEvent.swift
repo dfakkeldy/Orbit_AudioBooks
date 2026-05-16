@@ -4,7 +4,8 @@ enum TranscriptionCLIEvent: Codable, Equatable {
     case status(message: String)
     case progress(Double)
     case segment(TranscriptionSegment)
-    case completed(outputPath: String, segmentCount: Int)
+    case wordFrequencies(words: [CLIWordFrequency])
+    case completed(outputPath: String, segmentCount: Int, wordFrequencyPath: String?)
     case error(message: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -12,14 +13,17 @@ enum TranscriptionCLIEvent: Codable, Equatable {
         case message
         case progress
         case segment
+        case words
         case outputPath
         case segmentCount
+        case wordFrequencyPath
     }
 
     private enum EventType: String, Codable {
         case status
         case progress
         case segment
+        case wordFrequencies
         case completed
         case error
     }
@@ -35,10 +39,13 @@ enum TranscriptionCLIEvent: Codable, Equatable {
             self = .progress(try container.decode(Double.self, forKey: .progress))
         case .segment:
             self = .segment(try container.decode(TranscriptionSegment.self, forKey: .segment))
+        case .wordFrequencies:
+            self = .wordFrequencies(words: try container.decode([CLIWordFrequency].self, forKey: .words))
         case .completed:
             self = .completed(
                 outputPath: try container.decode(String.self, forKey: .outputPath),
-                segmentCount: try container.decode(Int.self, forKey: .segmentCount)
+                segmentCount: try container.decode(Int.self, forKey: .segmentCount),
+                wordFrequencyPath: try container.decodeIfPresent(String.self, forKey: .wordFrequencyPath)
             )
         case .error:
             self = .error(message: try container.decode(String.self, forKey: .message))
@@ -58,10 +65,14 @@ enum TranscriptionCLIEvent: Codable, Equatable {
         case .segment(let segment):
             try container.encode(EventType.segment, forKey: .type)
             try container.encode(segment, forKey: .segment)
-        case .completed(let outputPath, let segmentCount):
+        case .wordFrequencies(let words):
+            try container.encode(EventType.wordFrequencies, forKey: .type)
+            try container.encode(words, forKey: .words)
+        case .completed(let outputPath, let segmentCount, let wordFrequencyPath):
             try container.encode(EventType.completed, forKey: .type)
             try container.encode(outputPath, forKey: .outputPath)
             try container.encode(segmentCount, forKey: .segmentCount)
+            try container.encodeIfPresent(wordFrequencyPath, forKey: .wordFrequencyPath)
         case .error(let message):
             try container.encode(EventType.error, forKey: .type)
             try container.encode(message, forKey: .message)

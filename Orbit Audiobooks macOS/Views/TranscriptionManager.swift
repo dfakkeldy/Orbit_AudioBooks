@@ -30,7 +30,8 @@ private enum TranscriptionCLIEvent: Codable {
     case status(message: String)
     case progress(Double)
     case segment(TranscriptionSegment)
-    case completed(outputPath: String, segmentCount: Int)
+    case wordFrequencies(words: [MacWordFrequency])
+    case completed(outputPath: String, segmentCount: Int, wordFrequencyPath: String?)
     case error(message: String)
 
     private enum CodingKeys: String, CodingKey {
@@ -38,14 +39,17 @@ private enum TranscriptionCLIEvent: Codable {
         case message
         case progress
         case segment
+        case words
         case outputPath
         case segmentCount
+        case wordFrequencyPath
     }
 
     private enum EventType: String, Codable {
         case status
         case progress
         case segment
+        case wordFrequencies
         case completed
         case error
     }
@@ -61,10 +65,13 @@ private enum TranscriptionCLIEvent: Codable {
             self = .progress(try container.decode(Double.self, forKey: .progress))
         case .segment:
             self = .segment(try container.decode(TranscriptionSegment.self, forKey: .segment))
+        case .wordFrequencies:
+            self = .wordFrequencies(words: try container.decode([MacWordFrequency].self, forKey: .words))
         case .completed:
             self = .completed(
                 outputPath: try container.decode(String.self, forKey: .outputPath),
-                segmentCount: try container.decode(Int.self, forKey: .segmentCount)
+                segmentCount: try container.decode(Int.self, forKey: .segmentCount),
+                wordFrequencyPath: try container.decodeIfPresent(String.self, forKey: .wordFrequencyPath)
             )
         case .error:
             self = .error(message: try container.decode(String.self, forKey: .message))
@@ -84,10 +91,14 @@ private enum TranscriptionCLIEvent: Codable {
         case .segment(let segment):
             try container.encode(EventType.segment, forKey: .type)
             try container.encode(segment, forKey: .segment)
-        case .completed(let outputPath, let segmentCount):
+        case .wordFrequencies(let words):
+            try container.encode(EventType.wordFrequencies, forKey: .type)
+            try container.encode(words, forKey: .words)
+        case .completed(let outputPath, let segmentCount, let wordFrequencyPath):
             try container.encode(EventType.completed, forKey: .type)
             try container.encode(outputPath, forKey: .outputPath)
             try container.encode(segmentCount, forKey: .segmentCount)
+            try container.encodeIfPresent(wordFrequencyPath, forKey: .wordFrequencyPath)
         case .error(let message):
             try container.encode(EventType.error, forKey: .type)
             try container.encode(message, forKey: .message)
@@ -102,6 +113,7 @@ class TranscriptionManager: ObservableObject {
     @Published var status: String = ""
     @Published var liveLogStream: [TranscriptionLogEntry] = []
     @Published var liveSegments: [TranscriptionSegment] = []
+    @Published var liveWordCloud: [MacWordFrequency] = []
 
     private var currentProcess: Process?
     private var completedTranscriptURL: URL?
@@ -134,6 +146,7 @@ class TranscriptionManager: ObservableObject {
         status = "Starting CLI..."
         liveLogStream = []
         liveSegments = []
+        liveWordCloud = []
         completedTranscriptURL = nil
         defer {
             isTranscribing = false
@@ -162,6 +175,18 @@ class TranscriptionManager: ObservableObject {
                 status = "Loaded \(loaded.count) segments from cache"
                 appendLog(.completed, "Loaded \(loaded.count) segments from existing transcript.")
                 completedTranscriptURL = cachedURL
+
+                // Also load word frequencies sidecar if available.
+                let freqSidecar = cachedURL
+                    .deletingPathExtension()
+                    .appendingPathExtension("word_frequencies.json")
+                if let freq = loadWordFrequenciesFromDisk(freqSidecar) {
+                    liveWordCloud = freq
+                    appendLog(.status, "Loaded \(freq.count) word frequencies from sidecar.")
+                } else {
+                    liveWordCloud = TranscriptStore.computeWordFrequencies(from: loaded)
+                }
+
                 NotificationCenter.default.post(name: NSNotification.Name("TranscriptDidUpdate"), object: nil)
                 return cachedURL
             }
@@ -261,6 +286,12 @@ class TranscriptionManager: ObservableObject {
         return try? JSONDecoder().decode([TranscriptionSegment].self, from: data)
     }
 
+    /// Loads word frequencies from a JSON file on disk.
+    private func loadWordFrequenciesFromDisk(_ url: URL) -> [MacWordFrequency]? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode([MacWordFrequency].self, from: data)
+    }
+
     // MARK: - Binary resolution
 
     private func resolveCLIBinary() -> URL? {
@@ -342,11 +373,17 @@ class TranscriptionManager: ObservableObject {
         case .segment(let segment):
             liveSegments.append(segment)
             appendLog(.segment, "\(formatTimestamp(segment.startTime)) \(segment.text)")
-        case .completed(let outputPath, let segmentCount):
+        case .wordFrequencies(let words):
+            liveWordCloud = words
+            appendLog(.status, "Received \(words.count) word frequencies")
+        case .completed(let outputPath, let segmentCount, let wordFrequencyPath):
             completedTranscriptURL = URL(fileURLWithPath: outputPath)
             status = "Wrote \(segmentCount) segments"
             progress = 1.0
             appendLog(.completed, "Wrote \(segmentCount) segments to \(URL(fileURLWithPath: outputPath).lastPathComponent)")
+            if let freqPath = wordFrequencyPath {
+                appendLog(.status, "Word frequencies saved to \(URL(fileURLWithPath: freqPath).lastPathComponent)")
+            }
         case .error(let message):
             status = "Transcription failed"
             appendLog(.error, message)

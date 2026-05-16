@@ -26,6 +26,27 @@ from pathlib import Path
 
 AUDIO_EXTENSIONS = {".mp3", ".m4b", ".m4a", ".wav", ".flac"}
 
+# English stop words filtered out during word frequency computation.
+STOP_WORDS: set[str] = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
+    "any", "are", "aren", "as", "at", "be", "because", "been", "before", "being",
+    "below", "between", "both", "but", "by", "can", "could", "couldn", "did",
+    "didn", "do", "does", "doesn", "doing", "don", "down", "during", "each",
+    "few", "for", "from", "further", "had", "hadn", "has", "hasn", "have",
+    "haven", "having", "he", "her", "here", "hers", "herself", "him",
+    "himself", "his", "how", "i", "if", "in", "into", "is", "isn", "it",
+    "its", "itself", "just", "ll", "m", "ma", "me", "might", "mightn",
+    "more", "most", "mustn", "my", "myself", "needn", "no", "nor", "not",
+    "now", "o", "of", "off", "on", "once", "only", "or", "other", "our",
+    "ours", "ourselves", "out", "over", "own", "re", "s", "same", "shan",
+    "she", "should", "shouldn", "so", "some", "such", "t", "than", "that",
+    "the", "their", "theirs", "them", "themselves", "then", "there", "these",
+    "they", "this", "those", "through", "to", "too", "under", "until", "up",
+    "ve", "very", "was", "wasn", "we", "were", "weren", "what", "when",
+    "where", "which", "while", "who", "whom", "why", "will", "with", "won",
+    "would", "wouldn", "y", "you", "your", "yours", "yourself", "yourselves",
+}
+
 
 def check_ffmpeg() -> None:
     if shutil.which("ffmpeg") is None:
@@ -53,6 +74,26 @@ def find_audio_files(directory: str, skip_existing: bool) -> list[Path]:
             continue
         files.append(entry)
     return files
+
+
+def compute_word_frequencies(segments: list[dict], max_words: int = 50) -> list[dict]:
+    """Compute word frequencies from transcription segments with stop-word filtering.
+
+    Returns a list of {"word": str, "count": int} dicts sorted by count descending,
+    matching the WordFrequency Codable schema consumed by the iOS/macOS apps.
+    """
+    counts: dict[str, int] = {}
+    for segment in segments:
+        for raw in segment["text"].lower().split():
+            word = raw.strip(".,!?;:\"'()[]{}<>-—–…")
+            if not word or len(word) < 2 or word in STOP_WORDS:
+                continue
+            if not any(c.isalpha() for c in word):
+                continue
+            counts[word] = counts.get(word, 0) + 1
+
+    sorted_words = sorted(counts.items(), key=lambda item: item[1], reverse=True)
+    return [{"word": w, "count": c} for w, c in sorted_words[:max_words]]
 
 
 def transcribe_file(
@@ -83,6 +124,13 @@ def transcribe_file(
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     print(f"  -> {len(results)} segments to: {output_path}")
+
+    # Write word frequencies sidecar.
+    frequencies = compute_word_frequencies(results)
+    freq_path = str(Path(output_path).parent / f"{Path(output_path).stem}.word_frequencies.json")
+    with open(freq_path, "w", encoding="utf-8") as f:
+        json.dump(frequencies, f, indent=2, ensure_ascii=False)
+    print(f"  -> {len(frequencies)} word frequencies to: {freq_path}")
 
 
 def main() -> None:

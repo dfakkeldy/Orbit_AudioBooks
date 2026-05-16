@@ -56,6 +56,10 @@ class TranscriptStore: ObservableObject {
         var newTranscriptions: [String: [TranscriptionSegment]] = [:]
         var newWordClouds: [String: [MacWordFrequency]] = [:]
         for file in files where file.pathExtension == "json" {
+            let stem = file.deletingPathExtension().lastPathComponent
+            // Skip word_frequencies sidecar files — loaded alongside their transcript.
+            guard !stem.hasSuffix(".word_frequencies") else { continue }
+
             let hash = file.deletingPathExtension().deletingPathExtension().lastPathComponent
             if let data = try? Data(contentsOf: file),
                let segments = try? JSONDecoder().decode([TranscriptionSegment].self, from: data) {
@@ -63,7 +67,14 @@ class TranscriptStore: ObservableObject {
                 print("TranscriptStore: Loaded \(segments.count) segments for hash \(hash)")
 #endif
                 newTranscriptions[hash] = segments
-                newWordClouds[hash] = Self.computeWordFrequencies(from: segments)
+                // Prefer pre-computed word_frequencies.json sidecar.
+                let freqSidecar = transcriptDir.appendingPathComponent("\(hash).transcript.word_frequencies.json")
+                if let freqData = try? Data(contentsOf: freqSidecar),
+                   let freq = try? JSONDecoder().decode([MacWordFrequency].self, from: freqData) {
+                    newWordClouds[hash] = freq
+                } else {
+                    newWordClouds[hash] = Self.computeWordFrequencies(from: segments)
+                }
                 fileMapping[hash] = "Audiobook"
             } else {
 #if DEBUG
