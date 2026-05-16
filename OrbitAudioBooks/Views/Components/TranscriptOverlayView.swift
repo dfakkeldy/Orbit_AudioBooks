@@ -13,6 +13,14 @@ struct TranscriptOverlayView<Content: View>: View {
     @ViewBuilder let content: Content
 
     @State private var displayMode: TranscriptDisplayMode = .transcript
+    @State private var searchText: String = ""
+
+    private var filteredSegments: [TranscriptionSegment] {
+        if searchText.isEmpty { return player.transcription }
+        return player.transcription.filter {
+            $0.text.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -45,6 +53,35 @@ struct TranscriptOverlayView<Content: View>: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
 
+                    // Search field in transcript mode.
+                    if displayMode == .transcript {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Search transcript...", text: $searchText)
+                                .textFieldStyle(.plain)
+                            if !searchText.isEmpty {
+                                Button {
+                                    searchText = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+
+                        if !searchText.isEmpty {
+                            Text("\(filteredSegments.count) of \(player.transcription.count) segments")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                        }
+                    }
+
                     displayContent
                         .frame(maxHeight: isExpanded ? .infinity : 130)
                 }
@@ -75,24 +112,33 @@ struct TranscriptOverlayView<Content: View>: View {
 
     @ViewBuilder
     private var transcriptList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(player.transcription) { segment in
-                        Text(segment.text)
-                            .font(.body)
-                            .padding(8)
-                            .background(isActive(segment) ? Color.accentColor.opacity(0.3) : Color.clear)
-                            .cornerRadius(8)
-                            .onTapGesture {
-                                player.seek(toSeconds: segment.startTime)
-                            }
-                            .id(segment.id)
+        if !searchText.isEmpty && filteredSegments.isEmpty {
+            ContentUnavailableView(
+                "No Results",
+                systemImage: "magnifyingglass",
+                description: Text("No transcript segments match \"\(searchText)\".")
+            )
+            .padding()
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(filteredSegments) { segment in
+                            Text(segment.text)
+                                .font(.body)
+                                .padding(8)
+                                .background(isActive(segment) ? Color.accentColor.opacity(0.3) : Color.clear)
+                                .cornerRadius(8)
+                                .onTapGesture {
+                                    player.seek(toSeconds: segment.startTime)
+                                }
+                                .id(segment.id)
+                        }
                     }
-                }
-                .padding()
-                .onChange(of: player.progressFraction) {
-                    if let active = activeSegment {
+                    .padding()
+                    .onChange(of: player.progressFraction) {
+                        // Don't auto-scroll while the user is searching.
+                        guard searchText.isEmpty, let active = activeSegment else { return }
                         withAnimation {
                             proxy.scrollTo(active.id, anchor: .center)
                         }
