@@ -1,8 +1,8 @@
-# Plan A5: Protocol Extraction for Testability
+# Plan A5: Protocol Extraction for Testability ✅ DONE (2026-05-16)
 
 ## Summary
 
-Extract protocols for services to enable unit testing. Account for the fact that PlayerModel uses `@Observable` (iOS 17+ Observation framework) which does not support protocol-typed environment injection with automatic change tracking.
+Extracted protocols for services to enable unit testing. The environment key migration for SettingsManager/StoreManager was intentionally skipped — both use `@Observable`, which loses automatic view invalidation through a protocol existential. Protocols are still defined for mock injection in PlayerModel tests.
 
 ## Current State
 
@@ -14,16 +14,11 @@ Extract protocols for services to enable unit testing. Account for the fact that
 @Environment(StoreManager.self) private var storeManager
 ```
 
-## Critical Constraint: @Observable + Protocols
+## Critical Constraint: @Observable + Protocols (VALIDATED)
 
-**Code review finding:** SwiftUI's Observation framework (iOS 17+) tracks property reads through the concrete `@Observable` type used as the environment key. You CANNOT replace `@Environment(PlayerModel.self)` with a protocol-typed environment value and retain automatic view invalidation.
+**Confirmed during implementation:** SwiftUI's Observation framework (iOS 17+) tracks property reads through the concrete `@Observable` type. Both SettingsManager and StoreManager ARE `@Observable` (not `@Published` as the original plan assumed). Views use `@Bindable` for two-way bindings (e.g., `$settings.isDarkMode`), which requires the concrete `@Observable` type.
 
-```swift
-// This does NOT work with Observation:
-@Environment(PlayerModelProtocol.self) private var model
-// Views won't re-render when properties change because Observation
-// can't track reads through a protocol existential.
-```
+Environment key migration for SettingsManager/StoreManager was **skipped** — it would silently break view reactivity and binding support.
 
 ## Revised Approach
 
@@ -67,41 +62,19 @@ let mockPlayback = MockPlaybackController()
 let model = PlayerModel(bookmarkStore: mockStore, playbackController: mockPlayback)
 ```
 
-### For SettingsManager and StoreManager: Protocols via Environment
+### For SettingsManager and StoreManager: Protocols Only, No Environment Migration
 
-These are NOT `@Observable` — they use `@Published` or are simple value types. They CAN be protocol-typed in the environment:
+Both are `@Observable` — they STAY as concrete types in the environment. The protocols exist solely for:
+- Mock objects in unit tests
+- Future PlayerModel composition (A1 can take `SettingsManagerProtocol` in its init)
 
+Views continue using the existing pattern:
 ```swift
-// Define custom environment keys
-struct SettingsManagerKey: EnvironmentKey {
-    static let defaultValue: SettingsManagerProtocol = SettingsManager()
-}
-
-struct StoreManagerKey: EnvironmentKey {
-    static let defaultValue: StoreManagerProtocol = StoreManager()
-}
-
-extension EnvironmentValues {
-    var settings: SettingsManagerProtocol {
-        get { self[SettingsManagerKey.self] }
-        set { self[SettingsManagerKey.self] = newValue }
-    }
-    var storeManager: StoreManagerProtocol {
-        get { self[StoreManagerKey.self] }
-        set { self[StoreManagerKey.self] = newValue }
-    }
-}
+@Environment(SettingsManager.self) private var settings
+@Environment(StoreManager.self) private var storeManager
 ```
 
-Views then use:
-```swift
-@Environment(\.settings) private var settings
-@Environment(\.storeManager) private var storeManager
-```
-
-### Component Protocols (NOT environment-facing)
-
-These protocols are used internally by PlayerModel, not by views:
+### Component Protocols (internal — used by PlayerModel, not views)
 
 ```swift
 protocol BookmarkStoreProtocol {
@@ -149,34 +122,33 @@ protocol StoreManagerProtocol {
 }
 ```
 
-## Migration Strategy
+## Implementation Done (2026-05-16)
 
-1. Define component protocols (`BookmarkStoreProtocol`, `PlaybackControllerProtocol`, etc.)
-2. Define `SettingsManagerProtocol` and `StoreManagerProtocol` + environment keys
-3. Update `SettingsManager` and `StoreManager` to conform
-4. Update views to use `@Environment(\.settings)` and `@Environment(\.storeManager)`
-5. Create mock implementations in test targets
-6. Add initial unit tests for PlayerModel with mock services
-7. (Later, during A1) Extract components behind the already-defined protocols
+1. ✅ Defined component protocols (`BookmarkStoreProtocol`, `PlaybackControllerProtocol`, `SleepTimerManagerProtocol`)
+2. ✅ Defined `SettingsManagerProtocol` and `StoreManagerProtocol` (NO environment keys — @Observable conflict)
+3. ✅ Updated `SettingsManager` and `StoreManager` to conform
+4. ⏭️ Skipped view environment migration (would break @Observable tracking and @Bindable)
+5. ✅ Created mock implementations in test target (`MockBookmarkStore`, `MockPlaybackController`, etc.)
+6. ✅ Added 8 unit tests for mocks and PlayerModel init — all passing
+7. 🔜 (Later, during A1) Extract components behind the already-defined protocols
 
-## Files to Create/Modify
+## Files Created/Modified
 
-| Action | File |
-|--------|------|
-| Create | `OrbitAudioBooks/Protocols/PlayerModelComponentProtocols.swift` |
-| Create | `OrbitAudioBooks/Protocols/SettingsManagerProtocol.swift` |
-| Create | `OrbitAudioBooks/Protocols/StoreManagerProtocol.swift` |
-| Create | `OrbitAudioBooks/Environment/SettingsEnvironmentKey.swift` |
-| Create | `OrbitAudioBooks/Environment/StoreManagerEnvironmentKey.swift` |
-| Modify | `OrbitAudioBooks/Services/SettingsManager.swift` (add conformance) |
-| Modify | `OrbitAudioBooks/Services/StoreManager.swift` (add conformance) |
-| Modify | `OrbitAudioBooks/Orbit_AudioBooksApp.swift` (register environment keys) |
-| Modify | 17 views: `@Environment(SettingsManager.self)` → `@Environment(\.settings)` |
-| Modify | 17 views: `@Environment(StoreManager.self)` → `@Environment(\.storeManager)` |
-| Create | `OrbitAudioBooksTests/Mocks/MockBookmarkStore.swift` |
-| Create | `OrbitAudioBooksTests/Mocks/MockPlaybackController.swift` |
-| Create | `OrbitAudioBooksTests/Mocks/MockSettingsManager.swift` |
-| Create | `OrbitAudioBooksTests/Mocks/MockStoreManager.swift` |
+| Action | File | Status |
+|--------|------|--------|
+| Create | `OrbitAudioBooks/Protocols/PlayerModelComponentProtocols.swift` | ✅ |
+| Create | `OrbitAudioBooks/Protocols/SettingsManagerProtocol.swift` | ✅ |
+| Create | `OrbitAudioBooks/Protocols/StoreManagerProtocol.swift` | ✅ |
+| ~~Create~~ | ~~Environment key files~~ | ❌ Skipped — @Observable incompatible |
+| Modify | `OrbitAudioBooks/Services/SettingsManager.swift` (add conformance) | ✅ |
+| Modify | `OrbitAudioBooks/Services/StoreManager.swift` (add conformance) | ✅ |
+| ~~Modify~~ | ~~17 views / app entry point~~ | ❌ Skipped — @Observable incompatible |
+| Create | `Orbit AudiobooksTests/Mocks/MockBookmarkStore.swift` | ✅ |
+| Create | `Orbit AudiobooksTests/Mocks/MockPlaybackController.swift` | ✅ |
+| Create | `Orbit AudiobooksTests/Mocks/MockSleepTimerManager.swift` | ✅ |
+| Create | `Orbit AudiobooksTests/Mocks/MockSettingsManager.swift` | ✅ |
+| Create | `Orbit AudiobooksTests/Mocks/MockStoreManager.swift` | ✅ |
+| Create | `Orbit AudiobooksTests/PlayerModelTests.swift` | ✅ (8 tests passing) |
 
 ## Dependencies
 

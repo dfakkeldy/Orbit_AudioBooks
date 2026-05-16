@@ -1,8 +1,8 @@
-# Plan A6: AudioEngine Volume Control API
+# Plan A6: AudioEngine Volume Control API ✅ DONE (2026-05-16)
 
 ## Summary
 
-Add a `setGain(_:)` method to AudioEngine for volume control, enabling the sleep timer fade-out and volume boost without the MPVolumeView hack. The encapsulation is already fixed — this plan is now just adding the missing gain control API.
+Added `setGain(_:)` and `fadeGain(to:duration:)` to AudioEngine. The existing `setVolumeBoost(enabled:)` now delegates to `setGain(_:)` for a unified gain control path.
 
 ## Current State (updated after code review)
 
@@ -48,11 +48,17 @@ func fadeGain(to targetGain: Float, duration: TimeInterval) {
 
 Remove `setSystemVolume(_:)`, `_volumeView`, and all MPVolumeView-related code from `PlayerModel` (moved to B12 plan — this plan just provides the API B12 needs).
 
-## Files to Modify
+## Files Modified
 
-| File | Change |
-|------|--------|
-| `OrbitAudioBooks/Services/AudioEngine.swift` | Add `setGain(_:)` and `fadeGain(to:duration:)` |
+| File | Change | Status |
+|------|--------|--------|
+| `OrbitAudioBooks/Services/AudioEngine.swift` | Add `setGain(_:)`, `fadeGain(to:duration:)`; refactor `setVolumeBoost` to delegate to `setGain` | ✅ |
+
+## Implementation Notes
+
+- `setGain(_:)` is a simple passthrough to `eqNode?.globalGain`
+- `fadeGain(to:duration:)` uses a repeating Timer at ~50ms intervals (20 steps/sec), with a guard for `steps > 0`
+- `setVolumeBoost(enabled:)` now calls `setGain(enabled ? 9.0 : 0.0)` instead of directly setting `eqNode?.globalGain` — all gain changes go through the new API
 
 ## Dependencies
 

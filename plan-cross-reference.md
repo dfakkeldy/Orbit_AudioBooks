@@ -11,8 +11,8 @@
 | A2 | Watch ContentView Decomposition | Medium | Architecture |
 | A3 | Cross-Target Deduplication | Medium | Architecture |
 | A4 | Accessibility Audit | Medium | Architecture |
-| A5 | Protocol Extraction (revised) | Medium | Architecture |
-| A6 | AudioEngine Volume API (rescoped) | Small | Architecture |
+| A5 | Protocol Extraction (revised) | Medium | Architecture | ✅ DONE |
+| A6 | AudioEngine Volume API (rescoped) | Small | Architecture | ✅ DONE |
 | A7 | Typed Watch Configuration | Small | Architecture |
 | L10N | Localization & Settings | Large | Feature |
 | M4B | Audio Queue M4B Folders | Large | Feature |

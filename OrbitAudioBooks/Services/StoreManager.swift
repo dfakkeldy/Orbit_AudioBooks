@@ -4,7 +4,7 @@ import StoreKit
 
 @MainActor
 @Observable
-final class StoreManager {
+final class StoreManager: StoreManagerProtocol {
     static let proUnlockProductID = "com.orbit.pro.unlock"
 
     private(set) var products: [Product] = []

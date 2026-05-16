@@ -170,12 +170,43 @@ final class AudioEngine {
         varispeedNode?.rate = newSpeed
     }
 
+    // MARK: - Gain Control
+
+    /// Set the output gain of the EQ node. 0.0 = unity gain.
+    /// Range typically -96 to 24 dB.
+    func setGain(_ gain: Float) {
+        eqNode?.globalGain = gain
+    }
+
+    /// Smoothly fade gain to a target value over the specified duration.
+    /// Uses a repeating Timer at ~20 steps per second.
+    func fadeGain(to targetGain: Float, duration: TimeInterval) {
+        guard let eqNode else { return }
+        let startGain = eqNode.globalGain
+        let steps = Int(duration / 0.05)
+        guard steps > 0 else {
+            eqNode.globalGain = targetGain
+            return
+        }
+        let gainDelta = (targetGain - startGain) / Float(steps)
+        var currentStep = 0
+        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { timer in
+            currentStep += 1
+            if currentStep >= steps {
+                eqNode.globalGain = targetGain
+                timer.invalidate()
+            } else {
+                eqNode.globalGain = startGain + gainDelta * Float(currentStep)
+            }
+        }
+    }
+
     // MARK: - Volume Boost
 
     /// Toggles a +9 dB global gain on the EQ node.
     func setVolumeBoost(enabled: Bool) {
         isVolumeBoostEnabled = enabled
-        eqNode?.globalGain = enabled ? 9.0 : 0.0
+        setGain(enabled ? 9.0 : 0.0)
     }
 
     // MARK: - Item Management
