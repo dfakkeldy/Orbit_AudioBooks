@@ -6,8 +6,8 @@ Decompose the 2918-line `PlayerModel` god class into focused, testable component
 
 ## Current State
 
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 1867 lines (was 2918 at start, -1051, -36%)
-**Progress:** Phase 1-8 complete. Phase 9a-c complete. Phase 9d-e remaining.
+**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 1762 lines (was 2918 at start, -1156, -40%)
+**Progress:** Phase 1-8 complete. Phase 9a-d complete. Phase 9e remaining.
 
 Conflates: playback, bookmarks, voice memos, sleep timer, Watch connectivity, Now Playing, artwork caching, iCloud, security-scoped resources, chapters, transcripts, deep links, loop modes, and persistence.
 
@@ -151,13 +151,19 @@ PlaybackController: 155 → 594 (+439 lines).
 
 **Impact:** ~500 lines moved from PlayerModel to PlaybackController. PlayerModel: 1,867.
 
-### Phase 9d: Extract Folder/Loading to PlaylistManager (Future)
+### Phase 9d: Extract PlaylistManager — ✅ COMPLETE
 
-After 9c, the remaining big block is folder/track loading and security-scoped resource management (~200 lines in `loadFolder`, `loadTracks`, `restoreLastSelectionIfPossible`, `persistSelection`). This can move to a new `PlaylistManager` service.
+**Result:** Created `OrbitAudioBooks/Services/PlaylistManager.swift` (147 lines). Used direct injection of `PlaybackState` and `Persistence` instead of coordinator closures — a cleaner pattern for data-access services. One coordinator for post-reset chapter refresh.
+
+Moved: `loadTracks`, `moveTracks`, `moveChapters`, `toggleTrackEnabled`, `toggleChapterEnabled`, `resetPlaylist`.
+
+Kept in PlayerModel (too many cross-cutting dependencies): `loadFolder`, `restoreLastSelectionIfPossible`, `persistSelection`.
+
+PlayerModel: 1,867 → 1,762 (-105).
 
 ### Phase 9e: Shrink PlayerModel to Coordinator (Final)
 
-After 9a-9d, remaining blocks in PlayerModel (currently 1,867 lines):
+After 9a-9d, remaining blocks in PlayerModel (currently 1,762 lines):
 - `prepareToPlay` (~100 lines) — track loading orchestration
 - Bookmark CRUD API (~200 lines) — `addBookmarkAtCurrentTime`, `appendBookmark`, `updateBookmark`, `deleteBookmark`, `jumpToBookmark`, `addWatchBookmark`
 - Watch connectivity (~180 lines) — `handleMessage`, `watchStateContext`, `handleWatchBookmarkFile`, `addWatchVoiceBookmark`
@@ -180,7 +186,8 @@ Target: ~400-500 lines (thin coordinator owning service references + init wiring
 | Create | `OrbitAudioBooks/Services/DeepLinkHandler.swift` | ✅ |
 | Create | `OrbitAudioBooks/Services/Persistence.swift` | ✅ |
 | Create | `OrbitAudioBooks/State/PlaybackState.swift` | ✅ |
-| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | ✅ (1867 lines) |
+| Create | `OrbitAudioBooks/Services/PlaylistManager.swift` | ✅ |
+| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | ✅ (1762 lines) |
 | Modify | `OrbitAudioBooks/Orbit_AudioBooksApp.swift` | ✅ |
 
 ## Dependencies
