@@ -55,7 +55,7 @@ final class PlayerModel {
 
     // MARK: - Services (continued)
 
-    let playlistManager: PlaylistManager
+    @ObservationIgnored let playlistManager: PlaylistManager
     let transcriptService: TranscriptService
 
     // MARK: - UI state (pass-through to PlaybackController)
@@ -224,7 +224,7 @@ final class PlayerModel {
             guard let self, let key = bookmarksStorageKey else { return }
             persistence.saveBookmarks(bookmarks, for: key, folderURL: folderURL)
         }
-        bookmarkStore.onDeleteFile = { [weak self] url in
+        bookmarkStore.onDeleteFile = { url in
             do {
                 try FileManager.default.removeItem(at: url)
             } catch {
@@ -875,8 +875,7 @@ final class PlayerModel {
         startCurrentFileSecurityScopeForURL(tracks[index].url)
 
         let trackURL = tracks[index].url
-        Task { [weak self] in
-            guard let self else { return }
+        Task {
             await ArtworkCache.ensureItemIsAvailable(url: trackURL)
         }
 
@@ -1105,8 +1104,9 @@ final class PlayerModel {
             return
         }
 
+        let scale = displayScale
         let result = await Task.detached(priority: .userInitiated) {
-            ArtworkCache.generateThumbnails(from: sourceImage, displayScale: self.displayScale)
+            ArtworkCache.generateThumbnails(from: sourceImage, displayScale: scale)
         }.value
 
         await MainActor.run {
@@ -1119,7 +1119,7 @@ final class PlayerModel {
     private func loadChaptersForCurrentItem() async {
         guard audioEngine.isItemLoaded,
               state.tracks.indices.contains(currentIndex) else { return }
-        let asset = AVAsset(url: state.tracks[currentIndex].url)
+        let asset = AVURLAsset(url: state.tracks[currentIndex].url)
 
         let ext = state.tracks[currentIndex].url.pathExtension.lowercased()
         guard ext == "m4b" || ext == "m4a" else { return }
