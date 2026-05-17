@@ -309,6 +309,29 @@ final class PlayerModel {
         sleepTimerManager.onTick = { [weak self] in
             self?.syncToWatch()
         }
+
+        // Wire PlaybackController coordination closures.
+        playbackController.coordinator_smartRewind = { [weak self] pausedDuration in
+            self?.smartRewindAmount(for: pausedDuration) ?? 0
+        }
+        playbackController.coordinator_jumpToChapterStartForHours = { [weak self] pausedDuration in
+            self?.shouldJumpToChapterStartForHoursLevel(pausedDuration: pausedDuration) ?? false
+        }
+        playbackController.coordinator_loadTrack = { [weak self] index, autoplay in
+            self?.prepareToPlay(index: index, autoplay: autoplay)
+        }
+        playbackController.coordinator_persistAndSync = { [weak self] isPaused in
+            self?.updateNowPlayingInfo(isPaused: isPaused)
+            self?.syncToWatch()
+        }
+        playbackController.coordinator_checkVoiceMemo = { [weak self] at, prev in
+            self?.checkVoiceMemoTrigger(at: at, previousSeconds: prev)
+        }
+        playbackController.coordinator_seekCompleted = { [weak self] isManual in
+            if !isManual {
+                self?.updateCurrentChapterFromPlayerTime()
+            }
+        }
     }
 
     private func handleMessage(_ message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
@@ -902,19 +925,11 @@ final class PlayerModel {
     }
 
     private func findNextEnabledTrackIndex() -> Int? {
-        guard !tracks.isEmpty else { return nil }
-        for i in (currentIndex + 1)..<tracks.count {
-            if tracks[i].isEnabled { return i }
-        }
-        return nil
+        playbackController.findNextEnabledTrackIndex(in: tracks, currentIndex: currentIndex)
     }
 
     private func findPrevEnabledTrackIndex() -> Int? {
-        guard !tracks.isEmpty else { return nil }
-        for i in stride(from: currentIndex - 1, through: 0, by: -1) {
-            if tracks[i].isEnabled { return i }
-        }
-        return nil
+        playbackController.findPrevEnabledTrackIndex(in: tracks, currentIndex: currentIndex)
     }
 
     private func findNextEnabledChapterIndex(after idx: Int) -> Int? {
@@ -1228,8 +1243,7 @@ final class PlayerModel {
 
     /// Toggles volume boost (+9 dB) on or off.
     func setVolumeBoost(enabled: Bool) {
-        isVolumeBoostEnabled = enabled
-        audioEngine.setVolumeBoost(enabled: enabled)
+        playbackController.setVolumeBoost(enabled: enabled)
     }
 
     /// Sets the loop mode and persists the preference for the current book.
@@ -1445,11 +1459,7 @@ final class PlayerModel {
     }
 
     private func applySpeedToCurrentItem() {
-        // AVAudioUnitVarispeed handles rate natively.
-        audioEngine.setSpeed(speed)
-        if isPlaying {
-            audioEngine.playImmediately(atRate: speed)
-        }
+        playbackController.applySpeedToCurrentItem()
     }
 
     // MARK: AVAudioSession (background audio)

@@ -26,8 +26,41 @@ final class PlaybackController {
     var currentTime: TimeInterval { audioEngine.currentTime }
     var duration: TimeInterval? { audioEngine.duration }
 
+    // Coordinators — set by PlayerModel to handle cross-cutting concerns.
+    @ObservationIgnored var coordinator_smartRewind: ((_ pausedDuration: TimeInterval) -> Double)?
+    @ObservationIgnored var coordinator_jumpToChapterStartForHours: ((_ pausedDuration: TimeInterval) -> Bool)?
+    @ObservationIgnored var coordinator_loadTrack: ((_ index: Int, _ autoplay: Bool) -> Void)?
+    @ObservationIgnored var coordinator_persistAndSync: ((_ isPaused: Bool) -> Void)?
+    @ObservationIgnored var coordinator_checkVoiceMemo: ((_ at: Double, _ previous: Double?) -> Void)?
+    @ObservationIgnored var coordinator_seekCompleted: ((_ isManual: Bool) -> Void)?
+
     init() {
         audioEngine.delegate = self
+    }
+
+    // MARK: - Pure Helpers
+
+    func findNextEnabledTrackIndex(in tracks: [Track], currentIndex: Int) -> Int? {
+        guard !tracks.isEmpty else { return nil }
+        for i in (currentIndex + 1)..<tracks.count {
+            if tracks[i].isEnabled { return i }
+        }
+        return nil
+    }
+
+    func findPrevEnabledTrackIndex(in tracks: [Track], currentIndex: Int) -> Int? {
+        guard !tracks.isEmpty else { return nil }
+        for i in stride(from: currentIndex - 1, through: 0, by: -1) {
+            if tracks[i].isEnabled { return i }
+        }
+        return nil
+    }
+
+    func applySpeedToCurrentItem() {
+        audioEngine.setSpeed(speed)
+        if isPlaying {
+            audioEngine.playImmediately(atRate: speed)
+        }
     }
 
     // MARK: - Playback Commands
@@ -74,13 +107,6 @@ final class PlaybackController {
 
     func replaceCurrentItem(with url: URL, startTime: TimeInterval? = nil) {
         audioEngine.replaceCurrentItem(with: url, startTime: startTime)
-    }
-
-    // MARK: - Internal
-
-    func applySpeedToCurrentItem() {
-        guard audioEngine.isItemLoaded else { return }
-        audioEngine.setSpeed(speed)
     }
 }
 
