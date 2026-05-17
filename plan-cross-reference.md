@@ -248,7 +248,7 @@ M4B then adds the aggregation without changing the protocol signature.
 | B13 — Watch State Consistency | ✅ Done | 2026-05-16 |
 | A1 — PlayerModel Decomposition | 🔄 In Progress | — |
 | L10N — Localization & Settings | ✅ Done | 2026-05-17 |
-| B16 — Bookmark Cleanup Logging | ⏳ Pending | — |
+| B16 — Bookmark Cleanup Logging | ✅ Done | 2026-05-17 |
 | A2 — Watch ContentView Decomposition | ⏳ Pending | — |
 | A3 — Cross-Target Deduplication | ⏳ Pending | — |
 | A4 — Accessibility Audit | ⏳ Pending | — |
@@ -258,4 +258,4 @@ M4B then adds the aggregation without changing the protocol signature.
 | CAR — CarPlay Integration | ⏳ Pending | — |
 | SQL — SQL Database Integration | ⏳ Pending | — |
 | PLIST — Playlist Packaging | ⏳ Pending | — |
-| BKMG — Bookmark Playlist Grouping | ⏳ Pending | — |
+| BKMG — Bookmark Playlist Grouping | ✅ Done | 2026-05-17 |
