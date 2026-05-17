@@ -43,28 +43,38 @@ enum SleepTimerMode: Equatable {
 final class PlayerModel {
     // MARK: - Services
 
-    let audioEngine = AudioEngine()
+    let playbackController = PlaybackController()
     let watchSyncManager = WatchSyncManager()
+
+    /// Temporary bridge — allows existing callers to access the audio engine
+    /// through `audioEngine` while methods are gradually moved to PlaybackController.
+    var audioEngine: AudioEngine { playbackController.audioEngine }
     @ObservationIgnored private weak var settingsManager: SettingsManager?
 
     // MARK: - UI state
 
     /// The current playback loop mode (off, chapter, or bookmark).
-    var loopMode: LoopMode = .off
+    var loopMode: LoopMode {
+        get { playbackController.loopMode }
+        set { playbackController.loopMode = newValue }
+    }
     /// Playback speed multiplier. Persisted per-book.
-    var speed: Float
+    var speed: Float {
+        get { playbackController.speed }
+        set { playbackController.speed = newValue }
+    }
     /// Whether volume boost (+9 dB) is active.
-    var isVolumeBoostEnabled: Bool = false
+    var isVolumeBoostEnabled: Bool {
+        get { playbackController.isVolumeBoostEnabled }
+        set { playbackController.isVolumeBoostEnabled = newValue }
+    }
 
     // MARK: - Sleep timer state
 
-    /// The currently armed sleep-timer mode. Observers can read this to
-    /// drive UI; call `setSleepTimer(_:)` to mutate.
-    private(set) var sleepTimerMode: SleepTimerMode = .off
-    /// Remaining seconds for time-based sleep timer modes. 0 when inactive.
-    private(set) var sleepTimerRemainingSeconds: Int = 0
-    @ObservationIgnored private var sleepTimer: Timer?
-    @ObservationIgnored private var sleepTimerEndDate: Date?
+    /// The currently armed sleep-timer mode.
+    var sleepTimerMode: SleepTimerMode { sleepTimerManager.mode }
+    /// Remaining seconds for time-based sleep timer modes.
+    var sleepTimerRemainingSeconds: Int { sleepTimerManager.remainingSeconds }
 
     // MARK: - Playlist state
 
@@ -131,7 +141,10 @@ final class PlayerModel {
     /// Timestamp recorded when playback was last paused, used to calculate
     /// rewind amounts on resume. `nil` while playing.
     private var pauseTimestamp: Date? = nil
-    private var pendingDeepLinkSeekTime: TimeInterval?
+    var deepLinkHandler = DeepLinkHandler()
+    let nowPlayingController = NowPlayingController()
+    let bookmarkStore = BookmarkStore()
+    let sleepTimerManager = SleepTimerManager()
 
     /// Whether the current seek operation was initiated by a chapter boundary jump.
     private var isSeekingForChapterBoundary: Bool = false
@@ -248,21 +261,16 @@ final class PlayerModel {
     /// The URL for which `hasCurrentFileSecurityScopeAccess` was obtained.
     private var currentFileSecurityScopeURL: URL?
 
-    /// UserDefaults-backed persistence helper for book progress, bookmarks, speed, and ordering.
-    private let persistence = Persistence()
+    let persistence = Persistence()
 
-    /// Tokens returned by `MPRemoteCommand.addTarget(handler:)`. Must be retained
-    /// per Apple documentation, otherwise handlers may be deallocated.
-    @ObservationIgnored private var remoteCommandTokens: [Any] = []
     /// Current app-level output gain in dB, used for watch crown volume control.
     /// Not observable — gain changes don't trigger view re-renders.
     @ObservationIgnored private var _outputGain: Float = 0
 
     init() {
-        speed = 1.25
         SettingsManager.registerDefaults()
 
-        audioEngine.delegate = self
+        playbackController.delegate = self
 
         watchSyncManager.onMessage = { [weak self] message, reply in
             self?.handleMessage(message, replyHandler: reply)
@@ -281,6 +289,25 @@ final class PlayerModel {
                 return (nil, nil)
             }
             return (self.currentArtworkSyncKey, self.watchThumbnailData)
+        }
+
+        bookmarkStore.onPersist = { [weak self] bookmarks in
+            self?.persistBookmarks()
+        }
+        bookmarkStore.onSwitchToVoiceMemo = { [weak self] in
+            self?.switchAudioSource(to: .voiceMemo)
+        }
+        bookmarkStore.onSwitchToMainPlayer = { [weak self] in
+            self?.switchAudioSource(to: .mainPlayer)
+        }
+
+        sleepTimerManager.onFire = { [weak self] in
+            guard let self else { return }
+            if self.isPlaying { self.pause() }
+            self.syncToWatch()
+        }
+        sleepTimerManager.onTick = { [weak self] in
+            self?.syncToWatch()
         }
     }
 
@@ -671,18 +698,14 @@ final class PlayerModel {
     }
 
     func handleDeepLink(_ deepLink: PlayerDeepLink) {
-        switch deepLink {
-        case .play(let time):
-            if let time {
-                if audioEngine.isItemLoaded {
-                    seek(toSeconds: time)
-                } else {
-                    pendingDeepLinkSeekTime = time
-                }
-            }
-            if audioEngine.isItemLoaded, !isPlaying {
-                play()
-            }
+        guard let action = deepLinkHandler.handle(deepLink, isItemLoaded: audioEngine.isItemLoaded, isPlaying: isPlaying) else { return }
+        switch action {
+        case .play:
+            play()
+        case .seek(let time):
+            seek(toSeconds: time)
+        case .queueSeek:
+            break
         }
     }
 
@@ -898,19 +921,11 @@ final class PlayerModel {
     }
 
     private func findNextEnabledChapterIndex(after idx: Int) -> Int? {
-        guard chapters.count >= 2 else { return nil }
-        for i in (idx + 1)..<chapters.count {
-            if chapters[i].isEnabled { return i }
-        }
-        return nil
+        ChapterService.nextEnabledIndex(after: idx, in: chapters)
     }
 
     private func findPrevEnabledChapterIndex(before idx: Int) -> Int? {
-        guard chapters.count >= 2 else { return nil }
-        for i in stride(from: idx - 1, through: 0, by: -1) {
-            if chapters[i].isEnabled { return i }
-        }
-        return nil
+        ChapterService.prevEnabledIndex(before: idx, in: chapters)
     }
 
     /// Advances to the next enabled track, or loops to the first if at the end.
@@ -1171,9 +1186,10 @@ final class PlayerModel {
     }
 
     private func applyPendingDeepLinkSeekIfPossible() {
-        guard audioEngine.isItemLoaded, let target = pendingDeepLinkSeekTime else { return }
-        pendingDeepLinkSeekTime = nil
-        seek(toSeconds: target)
+        guard let action = deepLinkHandler.applyPendingSeekIfPossible(isItemLoaded: audioEngine.isItemLoaded) else { return }
+        if case .seek(let time) = action {
+            seek(toSeconds: time)
+        }
     }
 
     /// Seeks to a fractional position (0...1) within the current chapter or
@@ -1246,70 +1262,18 @@ final class PlayerModel {
 
     // MARK: - Sleep Timer
 
-    /// Configure the sleep timer.
-    /// - `.minutes(n)` schedules a one-shot pause after n minutes.
-    /// - `.endOfChapter` arms a flag; pause is triggered when the current
-    ///   chapter concludes (handled inside `applyChapterLoopIfNeeded`).
-    /// - `.off` cancels any active timer.
     func setSleepTimer(_ mode: SleepTimerMode) {
-        cancelSleepTimerInternal()
-        sleepTimerMode = mode
-
-        switch mode {
-        case .off:
-            sleepTimerRemainingSeconds = 0
-            sleepTimerEndDate = nil
-        case .minutes(let minutes):
-            let total = max(1, minutes) * 60
-            sleepTimerRemainingSeconds = total
-            sleepTimerEndDate = Date().addingTimeInterval(TimeInterval(total))
-            // 1-second tick to update countdown UI; on fire we pause.
-            sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                guard let self else { return }
-                guard let end = self.sleepTimerEndDate else { return }
-                let remaining = max(0, Int(end.timeIntervalSinceNow.rounded(.up)))
-                self.sleepTimerRemainingSeconds = remaining
-                if remaining <= 0 {
-                    self.sleepTimerDidFire()
-                } else {
-                    self.syncToWatch()
-                }
-            }
-            if let timer = sleepTimer {
-                RunLoop.main.add(timer, forMode: .common)
-            }
-        case .endOfChapter:
-            // No wall-clock countdown; trigger handled at chapter boundary.
-            sleepTimerRemainingSeconds = 0
-            sleepTimerEndDate = nil
-        }
-
+        sleepTimerManager.setTimer(mode)
         syncToWatch()
     }
 
-    /// Cancels any active sleep timer, restoring normal playback behavior.
     func cancelSleepTimer() {
-        setSleepTimer(.off)
-    }
-
-    private func cancelSleepTimerInternal() {
-        sleepTimer?.invalidate()
-        sleepTimer = nil
-    }
-
-    private func sleepTimerDidFire() {
-        cancelSleepTimerInternal()
-        sleepTimerMode = .off
-        sleepTimerRemainingSeconds = 0
-        sleepTimerEndDate = nil
-        if isPlaying { pause() }
+        sleepTimerManager.cancel()
         syncToWatch()
     }
 
-    /// Called from chapter-end logic to honor `.endOfChapter` sleep mode.
     private func evaluateSleepTimerAtChapterEnd() {
-        guard case .endOfChapter = sleepTimerMode else { return }
-        sleepTimerDidFire()
+        sleepTimerManager.evaluateAtChapterEnd()
     }
 
     private func stop() {
@@ -1541,57 +1505,14 @@ final class PlayerModel {
 
     // MARK: Now Playing + Remote controls (Apple Watch / Control Center)
 
-    /// Tracks whether `MPRemoteCommandCenter` targets have been registered,
-    /// ensuring configuration happens exactly once per session.
-    private var didConfigureRemoteCommands = false
-
-    /// Registers handlers for Now Playing remote commands (play, pause, skip, etc.)
-    /// on `MPRemoteCommandCenter`. Called once; subsequent calls are no-ops.
     private func configureRemoteCommandsIfNeeded() {
-        guard !didConfigureRemoteCommands else { return }
-        didConfigureRemoteCommands = true
-
-        let center = MPRemoteCommandCenter.shared()
-
-        // Show only: Play/Pause, Skip Backward (30s), Next Track
-        center.playCommand.isEnabled = true
-        center.pauseCommand.isEnabled = true
-        center.togglePlayPauseCommand.isEnabled = true
-
-        center.nextTrackCommand.isEnabled = true
-
-        center.skipBackwardCommand.isEnabled = true
-        center.skipBackwardCommand.preferredIntervals = [30]
-
-        // Explicitly DISABLE "Previous Track" and "Skip Forward"
-        center.previousTrackCommand.isEnabled = false
-        center.skipForwardCommand.isEnabled = false
-
-        // Some UIs also show "Change Playback Position" — disable for a simpler Watch UI.
-        center.changePlaybackPositionCommand.isEnabled = false
-
-        remoteCommandTokens = [
-            center.playCommand.addTarget { [weak self] _ in
-                DispatchQueue.main.async { self?.play() }
-                return .success
-            },
-            center.pauseCommand.addTarget { [weak self] _ in
-                DispatchQueue.main.async { self?.pause() }
-                return .success
-            },
-            center.togglePlayPauseCommand.addTarget { [weak self] _ in
-                DispatchQueue.main.async { self?.togglePlayPause() }
-                return .success
-            },
-            center.nextTrackCommand.addTarget { [weak self] _ in
-                DispatchQueue.main.async { self?.skipForwardNavigation() }
-                return .success
-            },
-            center.skipBackwardCommand.addTarget { [weak self] _ in
-                DispatchQueue.main.async { self?.skipBackward30() }
-                return .success
-            }
-        ]
+        nowPlayingController.configureRemoteCommands(
+            play: { [weak self] in self?.play() },
+            pause: { [weak self] in self?.pause() },
+            togglePlayPause: { [weak self] in self?.togglePlayPause() },
+            nextTrack: { [weak self] in self?.skipForwardNavigation() },
+            skipBackward: { [weak self] in self?.skipBackward30() }
+        )
     }
 
     private func updateNowPlayingElapsedTime() {
@@ -1599,59 +1520,38 @@ final class PlayerModel {
         let current = audioEngine.currentTime
         guard current.isFinite else { return }
 
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-        
+        let chapterOffset: TimeInterval?
         if chapters.count >= 2, let idx = currentChapterIndex {
-            let c = chapters[idx]
-            let chapterElapsed = max(0, current - c.startSeconds)
-            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = chapterElapsed
+            chapterOffset = chapters[idx].startSeconds
         } else {
-            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = current
+            chapterOffset = nil
         }
-        
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+
+        nowPlayingController.updateElapsedTime(current, chapterStartOffset: chapterOffset)
     }
 
     private func updateNowPlayingInfo(isPaused: Bool) {
-        let center = MPNowPlayingInfoCenter.default()
-
-        var info = center.nowPlayingInfo ?? [:]
-        
         let elapsed = audioEngine.currentTime
-        
+
+        var params = NowPlayingController.NowPlayingParams()
+        params.title = currentTitle
+        params.subtitle = currentSubtitle
+        params.elapsed = elapsed
+        params.isPaused = isPaused
+        params.playbackRate = speed
+        params.artworkImage = currentDisplayArtwork ?? thumbnailImage
+        params.duration = durationSeconds ?? 0
+
         if chapters.count >= 2, let idx = currentChapterIndex {
             let c = chapters[idx]
-            let chapterDuration = c.endSeconds - c.startSeconds
-            let chapterElapsed = max(0, elapsed - c.startSeconds)
-            
-            info[MPMediaItemPropertyTitle] = currentSubtitle.isEmpty ? "Chapter \(idx + 1)" : currentSubtitle
-            info[MPMediaItemPropertyAlbumTitle] = currentTitle
-            info[MPMediaItemPropertyPlaybackDuration] = chapterDuration
-            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = chapterElapsed
+            params.chapterIndex = idx
+            params.chapterElapsed = max(0, elapsed - c.startSeconds)
+            params.chapterDuration = c.endSeconds - c.startSeconds
         } else {
-            info[MPMediaItemPropertyTitle] = currentTitle
-            if !currentSubtitle.isEmpty {
-                info[MPMediaItemPropertyAlbumTitle] = currentSubtitle
-            } else {
-                info.removeValue(forKey: MPMediaItemPropertyAlbumTitle)
-            }
-            if let d = durationSeconds, d.isFinite, d > 0 {
-                info[MPMediaItemPropertyPlaybackDuration] = d
-            }
-            if elapsed.isFinite {
-                info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
-            }
+            params.albumTitle = currentSubtitle.isEmpty ? nil : currentSubtitle
         }
 
-        if let image = currentDisplayArtwork ?? thumbnailImage {
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-            info[MPMediaItemPropertyArtwork] = artwork
-        }
-
-        // CRUCIAL: do not clear metadata on pause; just set rate appropriately.
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPaused ? 0.0 : speed
-
-        center.nowPlayingInfo = info
+        nowPlayingController.updateNowPlayingInfo(params)
     }
 
     private func updateProgressFromPlayer() {
@@ -1684,8 +1584,8 @@ final class PlayerModel {
                     let didChange = abs(progressFraction - frac) > 0.005
                     progressFraction = frac
                     let remaining = max(0, chapterDuration - chapterElapsed) / Double(speed)
-                    progressText = "-\(formatTime(remaining))"
-                    elapsedText = formatTime(max(0, chapterElapsed) / Double(speed))
+                    progressText = "-\(NowPlayingController.formatTime(remaining))"
+                    elapsedText = NowPlayingController.formatTime(max(0, chapterElapsed) / Double(speed))
                     if didChange { syncToWatch() }
                     return
                 }
@@ -1706,22 +1606,11 @@ final class PlayerModel {
         progressFraction = frac
 
         let remaining = max(0, duration - elapsed) / Double(speed)
-        progressText = "-\(formatTime(remaining))"
-        elapsedText = formatTime(max(0, elapsed) / Double(speed))
+        progressText = "-\(NowPlayingController.formatTime(remaining))"
+        elapsedText = NowPlayingController.formatTime(max(0, elapsed) / Double(speed))
         if didChange { syncToWatch() }
     }
 
-    private func formatTime(_ seconds: Double) -> String {
-        let total = max(0, Int(seconds.rounded(.down)))
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
-        } else {
-            return String(format: "%d:%02d", m, s)
-        }
-    }
 
     // MARK: iCloud / Files provider helpers
 
@@ -1753,7 +1642,7 @@ final class PlayerModel {
         updateProgressFromPlayer()
 
         // Once asset is ready, check for saved progress and seek
-        if pendingDeepLinkSeekTime != nil {
+        if deepLinkHandler.pendingSeekTime != nil {
             await MainActor.run {
                 self.applyPendingDeepLinkSeekIfPossible()
             }
@@ -1836,25 +1725,7 @@ final class PlayerModel {
     }
 
     private func embeddedArtworkImage(for url: URL) async -> UIImage? {
-        let asset = AVURLAsset(url: url)
-        let metadata = (try? await asset.load(.commonMetadata)) ?? []
-
-        let maxPixelSize = 600
-        for item in metadata where item.commonKey == .commonKeyArtwork {
-            guard let data = try? await item.load(.dataValue) else { continue }
-            guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { continue }
-            let options: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceShouldCacheImmediately: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
-            ]
-            if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
-                return UIImage(cgImage: cgImage)
-            }
-        }
-
-        return nil
+        await ArtworkCache.embeddedArtworkImage(for: url)
     }
 
     private func folderArtworkImage(near url: URL) async -> UIImage? {
@@ -1893,22 +1764,7 @@ final class PlayerModel {
     }
 
     private func listFilesInFolder(_ folderURL: URL) -> [URL] {
-        if let files = try? FileManager.default.contentsOfDirectory(
-            at: folderURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            return files
-        }
-
-        let didStart = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
-
-        return (try? FileManager.default.contentsOfDirectory(
-            at: folderURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )) ?? []
+        ArtworkCache.listFilesInFolder(folderURL)
     }
 
     private func loadImageFile(at imageURL: URL) async -> UIImage? {
@@ -1934,54 +1790,10 @@ final class PlayerModel {
               tracks.indices.contains(currentIndex) else { return }
         let asset = AVAsset(url: tracks[currentIndex].url)
 
-        // Only bother for common audiobook container types.
-        let ext = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url.pathExtension.lowercased() : ""
+        let ext = tracks[currentIndex].url.pathExtension.lowercased()
         guard ext == "m4b" || ext == "m4a" else { return }
 
-        // Most audiobooks expose chapters via AVAsset timed chapter metadata groups.
-        var groups: [AVTimedMetadataGroup] = []
-        
-        do {
-            let locales = try await asset.load(.availableChapterLocales)
-            if let firstLocale = locales.first {
-                groups = try await asset.loadChapterMetadataGroups(
-                    withTitleLocale: firstLocale,
-                    containingItemsWithCommonKeys: []
-                )
-            } else {
-                groups = try await asset.loadChapterMetadataGroups(
-                    withTitleLocale: Locale.current,
-                    containingItemsWithCommonKeys: []
-                )
-            }
-        } catch {
-            groups = []
-        }
-
-        var built: [Chapter] = []
-        built.reserveCapacity(groups.count)
-
-        for g in groups {
-            let start = g.timeRange.start.seconds
-            let end = (g.timeRange.start + g.timeRange.duration).seconds
-
-            var title: String? = nil
-            if let item = g.items.first(where: { $0.commonKey?.rawValue == AVMetadataKey.commonKeyTitle.rawValue }) {
-                title = try? await item.load(.stringValue)
-            } else if let item = g.items.first {
-                title = try? await item.load(.stringValue)
-            }
-
-            if start.isFinite, end.isFinite, end > start {
-                built.append(Chapter(index: 0, title: title, startSeconds: start, endSeconds: end))
-            }
-        }
-        
-        // Ensure chronological order and exact index alignment
-        built.sort { $0.startSeconds < $1.startSeconds }
-        for i in 0..<built.count {
-            built[i] = Chapter(index: i, title: built[i].title, startSeconds: built[i].startSeconds, endSeconds: built[i].endSeconds)
-        }
+        var built = await ChapterService.parseChapters(from: asset)
 
         let trackKey = tracks.indices.contains(currentIndex) ? tracks[currentIndex].url.absoluteString : ""
         if let savedStates = persistence.loadEnabledState(for: trackKey) {
@@ -2046,9 +1858,7 @@ final class PlayerModel {
     }
 
     private func currentChapterForTime(_ t: Double) -> Chapter? {
-        guard chapters.count >= 2 else { return nil }
-        let matching = chapters.filter { t >= $0.startSeconds && t < $0.endSeconds }
-        return matching.min(by: { ($0.endSeconds - $0.startSeconds) < ($1.endSeconds - $1.startSeconds) })
+        ChapterService.chapter(forTime: t, in: chapters)
     }
 
     private func applyChapterLoopIfNeeded() {
@@ -2264,14 +2074,7 @@ final class PlayerModel {
     }
 
     private func makeWatchThumbnailData(from image: UIImage) -> Data? {
-        let watchSize = CGSize(width: 60, height: 60)
-        let watchFormat = UIGraphicsImageRendererFormat()
-        watchFormat.scale = 1.0
-        let watchRenderer = UIGraphicsImageRenderer(size: watchSize, format: watchFormat)
-        let watchImage = watchRenderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: watchSize))
-        }
-        return watchImage.jpegData(compressionQuality: 0.6)
+        ArtworkCache.makeWatchThumbnailData(from: image)
     }
 
     /// Creates a new bookmark at the current playback position with an
@@ -2655,224 +2458,11 @@ final class PlayerModel {
     }
 }
 
-/// UserDefaults-backed persistence layer for bookmarks, playback progress,
-/// track/chapter ordering, enabled states, playback speed, and loop mode.
-/// Also manages security-scoped bookmark restoration and JSON sidecar I/O
-/// for bookmark data.
-private struct Persistence {
-    private let defaults = UserDefaults.standard
-    private let bookmarkKey = "OrbitAudiobooks.selection.bookmark"
-    private let progressKey = "OrbitAudiobooks.progress.dictionary"
-    private let speedKey = "OrbitAudiobooks.playback.speed.dictionary"
-    private let loopModeKey = "OrbitAudiobooks.playback.loopMode.dictionary"
-    private let lastTrackKey = "OrbitAudiobooks.lastTrack.dictionary"
-    
-    func saveLastTrack(for folderKey: String, trackId: String) {
-        var dict = defaults.dictionary(forKey: lastTrackKey) as? [String: String] ?? [:]
-        dict[folderKey] = trackId
-        defaults.set(dict, forKey: lastTrackKey)
-    }
-    
-    func getLastTrack(for folderKey: String) -> String? {
-        let dict = defaults.dictionary(forKey: lastTrackKey) as? [String: String] ?? [:]
-        return dict[folderKey]
-    }
-    
-    func saveSpeed(for title: String, speed: Float) {
-        var dict = defaults.dictionary(forKey: speedKey) as? [String: Double] ?? [:]
-        dict[title] = Double(speed)
-        defaults.set(dict, forKey: speedKey)
-    }
 
-    func getSpeed(for title: String) -> Float? {
-        let dict = defaults.dictionary(forKey: speedKey) as? [String: Double] ?? [:]
-        return dict[title].map { Float($0) }
-    }
-    
-    func saveLoopMode(for key: String, loopMode: String) {
-        var dict = defaults.dictionary(forKey: loopModeKey) as? [String: String] ?? [:]
-        dict[key] = loopMode
-        defaults.set(dict, forKey: loopModeKey)
-    }
+// MARK: - PlaybackControllerDelegate
 
-    func getLoopMode(for key: String) -> String? {
-        let dict = defaults.dictionary(forKey: loopModeKey) as? [String: String] ?? [:]
-        return dict[key]
-    }
-
-    func saveOrder(for key: String, ids: [String]) {
-        defaults.set(ids, forKey: "order_\(key)")
-    }
-    
-    func loadOrder(for key: String) -> [String]? {
-        defaults.stringArray(forKey: "order_\(key)")
-    }
-    
-    func saveEnabledState(for key: String, states: [String: Bool]) {
-        defaults.set(states, forKey: "enabled_\(key)")
-    }
-    
-    func loadEnabledState(for key: String) -> [String: Bool]? {
-        defaults.dictionary(forKey: "enabled_\(key)") as? [String: Bool]
-    }
-
-    /// Saves the current playback position (track ID and time) for a given book.
-    func saveBookProgress(for folderKey: String, trackId: String, time: Double) {
-        var dict = defaults.dictionary(forKey: progressKey) as? [String: [String: Any]] ?? [:]
-        dict[folderKey] = ["trackId": trackId, "time": time]
-        defaults.set(dict, forKey: progressKey)
-    }
-
-    /// Returns the saved playback position for a book, or `nil` if none exists.
-    func getBookProgress(for folderKey: String) -> (trackId: String, time: Double)? {
-        let dict = defaults.dictionary(forKey: progressKey) as? [String: [String: Any]] ?? [:]
-        if let item = dict[folderKey], let trackId = item["trackId"] as? String, let time = item["time"] as? Double {
-            return (trackId, time)
-        }
-        return nil
-    }
-
-    /// Creates a security-scoped bookmark data blob for the given URL and
-    /// stores it in UserDefaults, enabling restoration across app launches.
-    func saveBookmark(url: URL) {
-        do {
-            let data = try url.bookmarkData(
-                // iOS does not support `.withSecurityScope` bookmarks; the security scope is applied
-                // when you call `startAccessingSecurityScopedResource()` on the resolved URL.
-                options: [.minimalBookmark],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-            defaults.set(data, forKey: bookmarkKey)
-        } catch {
-            print("Bookmark save failed: \(error)")
-        }
-    }
-
-    // MARK: - Bookmarks (per-book) persistence
-
-    private func bookmarksKey(for key: String) -> String { "bookmarks_\(key)" }
-
-    /// Persists the bookmark list for a book to both a JSON sidecar file
-    /// (primary store) and UserDefaults (backup).
-    /// - Parameters:
-    ///   - bookmarks: The list of bookmarks to persist.
-    ///   - key: The storage key identifying the book.
-    ///   - folderURL: If provided, writes a sidecar JSON alongside the audiobook.
-    func saveBookmarks(_ bookmarks: [Bookmark], for key: String, folderURL: URL? = nil) {
-        let data: Data
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            data = try encoder.encode(bookmarks)
-        } catch {
-            print("Bookmark encode failed: \(error)")
-            return
-        }
-
-        if let folderURL {
-            writeSidecar(data: data, folderURL: folderURL)
-        }
-
-        defaults.set(data, forKey: bookmarksKey(for: key))
-    }
-
-    /// Loads the bookmark list for a book. Prefers the `[BookName].json`
-    /// sidecar (if `folderURL` is provided and the file exists); falls back
-    /// to UserDefaults. If the sidecar is missing but UserDefaults has data,
-    /// the sidecar is created (one-shot migration).
-    /// Loads bookmarks for a book. Prefers the JSON sidecar when available;
-    /// falls back to UserDefaults. Migrates UserDefaults data to the sidecar
-    /// on first access when the sidecar is missing.
-    /// - Parameters:
-    ///   - key: The storage key identifying the book.
-    ///   - folderURL: If provided, attempts to read the sidecar JSON first.
-    /// - Returns: The decoded bookmark list, or an empty array.
-    func loadBookmarks(for key: String, folderURL: URL? = nil) -> [Bookmark] {
-        if let folderURL,
-           let bookmarks = readSidecar(folderURL: folderURL) {
-            return bookmarks
-        }
-
-        let defaultsBookmarks: [Bookmark]
-        if let data = defaults.data(forKey: bookmarksKey(for: key)),
-           let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) {
-            defaultsBookmarks = decoded
-        } else {
-            defaultsBookmarks = []
-        }
-
-        if let folderURL, !defaultsBookmarks.isEmpty {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            if let data = try? encoder.encode(defaultsBookmarks) {
-                writeSidecar(data: data, folderURL: folderURL)
-            }
-        }
-
-        return defaultsBookmarks
-    }
-
-    /// Acquires security-scoped access to the audiobook location and writes
-    /// the sidecar atomically. Failure is logged but non-fatal: callers
-    /// always have the UserDefaults backup to fall back to.
-    private func writeSidecar(data: Data, folderURL: URL) {
-        let sidecar = Bookmark.sidecarURL(for: folderURL)
-        let didStart = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
-        do {
-            try data.write(to: sidecar, options: .atomic)
-        } catch {
-#if DEBUG
-            print("Bookmark sidecar write failed at \(sidecar.path): \(error)")
-#endif
-        }
-    }
-
-    /// Reads and decodes the sidecar JSON for the audiobook. Returns nil if
-    /// no sidecar exists or the file cannot be decoded; callers should fall
-    /// back to UserDefaults in that case.
-    private func readSidecar(folderURL: URL) -> [Bookmark]? {
-        let sidecar = Bookmark.sidecarURL(for: folderURL)
-        let didStart = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
-        guard FileManager.default.fileExists(atPath: sidecar.path),
-              let data = try? Data(contentsOf: sidecar) else { return nil }
-        return try? JSONDecoder().decode([Bookmark].self, from: data)
-    }
-
-    /// Resolves the stored security-scoped bookmark data back to a URL.
-    /// Re-saves the bookmark if the data is stale.
-    /// - Returns: The resolved URL, or `nil` if no bookmark is stored or resolution fails.
-    func restoreBookmark() -> URL? {
-        guard let data = defaults.data(forKey: bookmarkKey) else { return nil }
-
-        var isStale = false
-        do {
-            let url = try URL(
-                resolvingBookmarkData: data,
-                options: [],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-
-            // If stale, resave a fresh bookmark (best-effort).
-            if isStale {
-                saveBookmark(url: url)
-            }
-
-            return url
-        } catch {
-            print("Bookmark restore failed: \(error)")
-            return nil
-        }
-    }
-}
-
-// MARK: - AudioEngineDelegate
-
-extension PlayerModel: AudioEngineDelegate {
-    func audioEngineDidUpdateTime(_ engine: AudioEngine, currentTime: TimeInterval) {
+extension PlayerModel: PlaybackControllerDelegate {
+    func playbackController(_ controller: PlaybackController, didUpdateTime currentTime: TimeInterval) {
         autoreleasepool {
             updateNowPlayingElapsedTime()
             updateCurrentChapterFromPlayerTime()
@@ -2889,15 +2479,15 @@ extension PlayerModel: AudioEngineDelegate {
         }
     }
 
-    func audioEngineDidPlayToEnd(_ engine: AudioEngine) {
+    func playbackControllerDidPlayToEnd(_ controller: PlaybackController) {
         handleTrackEnded()
     }
 
-    func audioEngineInterruptionBegan(_ engine: AudioEngine) {
+    func playbackControllerInterruptionBegan(_ controller: PlaybackController) {
         pause()
     }
 
-    func audioEngineInterruptionEnded(_ engine: AudioEngine, shouldResume: Bool) {
+    func playbackControllerInterruptionEnded(_ controller: PlaybackController, shouldResume: Bool) {
         if shouldResume {
             play()
         }
