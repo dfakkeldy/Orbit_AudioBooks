@@ -64,6 +64,27 @@ final class PlaybackController {
         return nil
     }
 
+    /// Jumps to the next enabled chapter or track when the current one is disabled.
+    /// Called on each time update tick from the delegate.
+    func enforceEnabledState() {
+        guard !state.isManualSeeking else { return }
+        if state.chapters.count >= 2 {
+            if let idx = state.currentChapterIndex, !state.chapters[idx].isEnabled {
+                if let nextIdx = ChapterService.nextEnabledIndex(after: idx, in: state.chapters) {
+                    seekToChapter(at: nextIdx)
+                } else if loopMode == .chapter, let firstIdx = ChapterService.nextEnabledIndex(after: -1, in: state.chapters) {
+                    seekToChapter(at: firstIdx)
+                } else {
+                    nextTrack()
+                }
+            }
+        } else {
+            if state.tracks.indices.contains(state.currentIndex), !state.tracks[state.currentIndex].isEnabled {
+                nextTrack()
+            }
+        }
+    }
+
     func findPrevEnabledTrackIndex(in tracks: [Track], currentIndex: Int) -> Int? {
         guard !tracks.isEmpty else { return nil }
         for i in stride(from: currentIndex - 1, through: 0, by: -1) {
@@ -569,6 +590,56 @@ final class PlaybackController {
             audioEngine.seek(to: sorted[startIdx].timestamp + 0.05) { [weak self] _ in
                 self?.resumeAfterSeek()
             }
+        }
+    }
+
+    // MARK: - Track End Handling
+
+    func handleTrackEnded() {
+        guard audioEngine.isItemLoaded else { return }
+
+        if coordinator_handleChapterEndSleepTimer?() == true { return }
+
+        if state.chapters.count >= 2 {
+            if loopMode == .chapter {
+                if let idx = state.currentChapterIndex {
+                    let targetSeconds = state.chapters[idx].startSeconds + 0.05
+                    state.progressFraction = 0
+                    audioEngine.seek(to: targetSeconds) { [weak self] _ in
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            if self.isPlaying {
+                                self.audioEngine.playImmediately(atRate: self.speed)
+                                self.applySpeedToCurrentItem()
+                            } else {
+                                self.coordinator_persistAndSync?(true)
+                            }
+                            self.coordinator_refreshProgress?()
+                        }
+                    }
+                    return
+                }
+            }
+            nextTrack()
+            return
+        }
+
+        if loopMode == .chapter {
+            state.progressFraction = 0
+            audioEngine.seek(to: 0) { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    if self.isPlaying {
+                        self.audioEngine.playImmediately(atRate: self.speed)
+                        self.applySpeedToCurrentItem()
+                    } else {
+                        self.coordinator_persistAndSync?(true)
+                    }
+                    self.coordinator_refreshProgress?()
+                }
+            }
+        } else {
+            nextTrack()
         }
     }
 }

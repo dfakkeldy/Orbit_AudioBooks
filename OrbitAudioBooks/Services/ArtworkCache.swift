@@ -123,8 +123,6 @@ struct ArtworkCache {
     }
 
     /// Creates a 60×60 JPEG thumbnail suitable for Watch transfer.
-    /// - Parameter image: The source image to downscale.
-    /// - Returns: JPEG data, or nil on failure.
     static func makeWatchThumbnailData(from image: UIImage) -> Data? {
         let watchSize = CGSize(width: 60, height: 60)
         let watchFormat = UIGraphicsImageRendererFormat()
@@ -134,5 +132,22 @@ struct ArtworkCache {
             image.draw(in: CGRect(origin: .zero, size: watchSize))
         }
         return watchImage.jpegData(compressionQuality: 0.6)
+    }
+
+    /// Generates display (300×300) and watch (60×60) thumbnails from a source image.
+    /// - Parameters:
+    ///   - sourceImage: The artwork to resize.
+    ///   - displayScale: The screen scale factor for the display thumbnail.
+    /// - Returns: Tuple of (displayImage, watchData).
+    static func generateThumbnails(from sourceImage: UIImage, displayScale: CGFloat) -> (UIImage, Data?) {
+        let displaySize = CGSize(width: 300, height: 300)
+        let displayFormat = UIGraphicsImageRendererFormat()
+        displayFormat.scale = displayScale
+        let displayRenderer = UIGraphicsImageRenderer(size: displaySize, format: displayFormat)
+        let thumbnailImage = displayRenderer.image { _ in
+            sourceImage.draw(in: CGRect(origin: .zero, size: displaySize))
+        }
+        let watchData = makeWatchThumbnailData(from: sourceImage)
+        return (thumbnailImage, watchData)
     }
 }

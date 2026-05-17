@@ -27,6 +27,10 @@ final class BookmarkStore {
     @ObservationIgnored var onSwitchToVoiceMemo: (() -> Void)?
     @ObservationIgnored var onSwitchToMainPlayer: (() -> Void)?
     @ObservationIgnored var onPersist: (([Bookmark]) -> Void)?
+    @ObservationIgnored var onDeleteFile: ((URL) -> Void)?
+    @ObservationIgnored var onBookmarksChanged: (() -> Void)?
+    /// Returns the storage key for the current book. Set by PlayerModel.
+    @ObservationIgnored var storageKeyProvider: (() -> String?)?
 
     // MARK: - Queries
 
@@ -105,6 +109,7 @@ final class BookmarkStore {
         bookmarks.append(bm)
         bookmarks.sort { $0.timestamp < $1.timestamp }
         onPersist?(bookmarks)
+        onBookmarksChanged?()
         return bm
     }
 
@@ -124,12 +129,14 @@ final class BookmarkStore {
         bookmarks[idx].bookmarkImageFileName = bookmarkImageFileName
         bookmarks.sort { $0.timestamp < $1.timestamp }
         onPersist?(bookmarks)
+        onBookmarksChanged?()
     }
 
     func toggleBookmarkEnabled(id: UUID) {
         guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
         bookmarks[idx].isEnabled.toggle()
         onPersist?(bookmarks)
+        onBookmarksChanged?()
     }
 
     func moveBookmarks(from source: IndexSet, to destination: Int) {
@@ -140,15 +147,22 @@ final class BookmarkStore {
         let insertIndex = min(destination, bookmarks.count)
         bookmarks.insert(contentsOf: moving.reversed(), at: insertIndex)
         onPersist?(bookmarks)
+        onBookmarksChanged?()
     }
 
-    func deleteBookmark(id: UUID) {
+    func deleteBookmark(id: UUID, folderURL: URL? = nil) {
+        if let idx = bookmarks.firstIndex(where: { $0.id == id }), let url = folderURL {
+            let bm = bookmarks[idx]
+            if let memoURL = bm.voiceMemoURL(in: url) {
+                onDeleteFile?(memoURL)
+            }
+            if let imageURL = bm.bookmarkImageURL(in: url) {
+                onDeleteFile?(imageURL)
+            }
+        }
         bookmarks.removeAll { $0.id == id }
         onPersist?(bookmarks)
-    }
-
-    func clearArtworkCache() {
-        // Placeholder — bookmark artwork caching is managed by PlayerModel.
+        onBookmarksChanged?()
     }
 
     // MARK: - Voice Memo Playback

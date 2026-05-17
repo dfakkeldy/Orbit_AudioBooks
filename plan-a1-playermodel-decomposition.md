@@ -6,8 +6,10 @@ Decompose the 2918-line `PlayerModel` god class into focused, testable component
 
 ## Current State
 
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 1762 lines (was 2918 at start, -1156, -40%)
-**Progress:** Phase 1-8 complete. Phase 9a-d complete. Phase 9e remaining.
+**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 1494 lines (was 2918 at start, -1424, -49%)
+**Progress:** Phase 1-8 complete. Phase 9a-e complete.
+
+Phase 9e reduced PlayerModel from 1,762 to 1,494 lines (-268, -15.2% for 9e alone).
 
 Conflates: playback, bookmarks, voice memos, sleep timer, Watch connectivity, Now Playing, artwork caching, iCloud, security-scoped resources, chapters, transcripts, deep links, loop modes, and persistence.
 
@@ -161,15 +163,31 @@ Kept in PlayerModel (too many cross-cutting dependencies): `loadFolder`, `restor
 
 PlayerModel: 1,867 → 1,762 (-105).
 
-### Phase 9e: Shrink PlayerModel to Coordinator (Final)
+### Phase 9e: Shrink PlayerModel to Coordinator (Final) — ✅ COMPLETE
 
-After 9a-9d, remaining blocks in PlayerModel (currently 1,762 lines):
-- `prepareToPlay` (~100 lines) — track loading orchestration
-- Bookmark CRUD API (~200 lines) — `addBookmarkAtCurrentTime`, `appendBookmark`, `updateBookmark`, `deleteBookmark`, `jumpToBookmark`, `addWatchBookmark`
-- Watch connectivity (~180 lines) — `handleMessage`, `watchStateContext`, `handleWatchBookmarkFile`, `addWatchVoiceBookmark`
-- Now Playing / artwork (~150 lines) — `updateNowPlayingInfo`, `updateCurrentDisplayArtwork`, `generateThumbnail`, `loadChaptersForCurrentItem`, `loadDurationForNowPlaying`
-- Transcript / word clouds (~50 lines) — `loadTranscript`, `computeWordClouds`
-- Infrastructure (~150 lines) — security scoping, `configureAudioSession`, `endBackgroundTask`, `evaluateSleepTimerAtChapterEnd`, `handleTrackEnded`, `enforceEnabledState`
+**Result:** PlayerModel reduced from 1,762 to 1,494 lines (-268, -15.2%). Six focused extractions:
+
+1. **Bookmark CRUD dedup**: Removed duplicate logic from PlayerModel — methods now delegate directly to BookmarkStore's existing CRUD. Added `onDeleteFile`, `onBookmarksChanged`, and `storageKeyProvider` closures to BookmarkStore for file cleanup, artwork refresh, and loop mode management. Removed `persistBookmarks()` (inlined into `onPersist`). PlayerModel bookmark methods became thin context-gathering wrappers (~78 lines saved).
+
+2. **TranscriptService** (new file): Extracted `loadTranscript(for:)` and `computeWordClouds()` into a dedicated `TranscriptService` using direct `PlaybackState` injection (same pattern as PlaylistManager). (~39 lines saved).
+
+3. **SecurityScopeManager** (new file): Extracted all security-scoped resource management (start/stop selection, start/stop current file) into a dedicated service. Replaced 6 methods and 4 stored properties with clean delegation. (~23 lines saved).
+
+4. **ArtworkCache thumbnail generation**: Added `generateThumbnails(from:displayScale:)` static method to ArtworkCache, consolidating display + watch thumbnail rendering. PlayerModel's `generateThumbnail(for:)` now delegates the image processing. (~20 lines saved).
+
+5. **PlaybackController.enforceEnabledState**: Moved chapter/track enabled-state enforcement to PlaybackController, using existing `ChapterService.nextEnabledIndex` directly. Removed dead helpers `findNextEnabledTrackIndex()` and `findNextEnabledChapterIndex()`. (~27 lines saved).
+
+6. **PlaybackController.handleTrackEnded**: Moved end-of-track handling to PlaybackController using existing coordinator closures (`coordinator_handleChapterEndSleepTimer`, `coordinator_persistAndSync`, `coordinator_refreshProgress`). Removed `applySpeedToCurrentItem()` and `evaluateSleepTimerAtChapterEnd()` wrappers, inlined `applyChapterLoopIfNeeded`/`applyBookmarkLoopIfNeeded`/`resumeAfterSeek`/`seekToChapter` delegate calls. (~81 lines saved).
+
+**New files created:**
+- `OrbitAudioBooks/Services/TranscriptService.swift`
+- `OrbitAudioBooks/Services/SecurityScopeManager.swift`
+
+**Files modified:**
+- `PlayerModel.swift`: 1,762 → 1,494 (-268)
+- `BookmarkStore.swift`: Added `onDeleteFile`, `onBookmarksChanged`, `storageKeyProvider` closures; updated `deleteBookmark` for file cleanup
+- `ArtworkCache.swift`: Added `generateThumbnails(from:displayScale:)` static method
+- `PlaybackController.swift`: Added `enforceEnabledState()`, `handleTrackEnded()`
 
 Target: ~400-500 lines (thin coordinator owning service references + init wiring)
 
@@ -187,8 +205,13 @@ Target: ~400-500 lines (thin coordinator owning service references + init wiring
 | Create | `OrbitAudioBooks/Services/Persistence.swift` | ✅ |
 | Create | `OrbitAudioBooks/State/PlaybackState.swift` | ✅ |
 | Create | `OrbitAudioBooks/Services/PlaylistManager.swift` | ✅ |
-| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | ✅ (1762 lines) |
+| Create | `OrbitAudioBooks/Services/TranscriptService.swift` | ✅ (Phase 9e) |
+| Create | `OrbitAudioBooks/Services/SecurityScopeManager.swift` | ✅ (Phase 9e) |
+| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | ✅ (1494 lines) |
 | Modify | `OrbitAudioBooks/Orbit_AudioBooksApp.swift` | ✅ |
+| Modify | `OrbitAudioBooks/Services/BookmarkStore.swift` | ✅ (Phase 9e) |
+| Modify | `OrbitAudioBooks/Services/PlaybackController.swift` | ✅ (Phase 9e) |
+| Modify | `OrbitAudioBooks/Services/ArtworkCache.swift` | ✅ (Phase 9e) |
 
 ## Dependencies
 
