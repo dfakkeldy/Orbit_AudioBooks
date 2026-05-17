@@ -153,6 +153,14 @@ final class BookmarkStore {
 
     // MARK: - Voice Memo Playback
 
+    private func cachedVoiceMemoGain(for url: URL) -> Float {
+        let key = url.absoluteString
+        if let cached = voiceMemoGainCache[key] { return cached }
+        let gain = voiceMemoGain(for: url)
+        voiceMemoGainCache[key] = gain
+        return gain
+    }
+
     func checkVoiceMemoTrigger(
         at currentSeconds: Double,
         previousSeconds: Double?,
@@ -203,7 +211,7 @@ final class BookmarkStore {
         return memoURL
     }
 
-    func startVoiceMemoPlayback(url: URL, gain: Float) {
+    func startVoiceMemoPlayback(url: URL) {
         onSwitchToVoiceMemo?()
         do {
             let audioFile = try AVAudioFile(forReading: url)
@@ -212,7 +220,7 @@ final class BookmarkStore {
             engine.attach(playerNode)
             engine.connect(playerNode, to: engine.mainMixerNode, format: audioFile.processingFormat)
 
-            engine.mainMixerNode.outputVolume = gain
+            engine.mainMixerNode.outputVolume = cachedVoiceMemoGain(for: url)
 
             try engine.start()
 

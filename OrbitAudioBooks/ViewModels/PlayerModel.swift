@@ -204,19 +204,11 @@ final class PlayerModel {
     // MARK: - Bookmarks
 
     /// All bookmarks for the currently loaded book, sorted by timestamp.
-    var bookmarks: [Bookmark] = []
+    var bookmarks: [Bookmark] { bookmarkStore.bookmarks }
     /// Whether a voice memo attached to a bookmark is currently playing in overlay mode.
-    private(set) var isPlayingVoiceMemo: Bool = false
+    var isPlayingVoiceMemo: Bool { bookmarkStore.isPlayingVoiceMemo }
     /// 0...1 progress of the currently playing voice memo, for the overlay UI.
-    private(set) var voiceMemoProgress: Double = 0.0
-    /// The AVAudioEngine used for voice-memo overlay playback.
-    @ObservationIgnored private var voiceMemoEngine: AVAudioEngine?
-    /// The player node scheduled with the voice-memo audio file.
-    @ObservationIgnored private var voiceMemoPlayerNode: AVAudioPlayerNode?
-    /// Duration of the currently playing voice memo, in seconds.
-    @ObservationIgnored private var voiceMemoDuration: Double = 0
-    /// Progress timer fired at 0.1 s intervals during voice-memo playback.
-    @ObservationIgnored private var voiceMemoProgressTimer: Timer?
+    var voiceMemoProgress: Double { bookmarkStore.voiceMemoProgress }
 
     /// UUID of the most recently triggered bookmark, used to prevent retrigger loops.
     @ObservationIgnored private var lastTriggeredBookmarkID: UUID?
@@ -224,8 +216,6 @@ final class PlayerModel {
     @ObservationIgnored private var lastTriggeredAtPlayerSecond: Double = -1
     /// The player time used during the last bookmark voice-memo trigger check.
     @ObservationIgnored private var lastBookmarkCheckSecond: Double?
-    /// Per-URL cache of computed voice-memo gain values to avoid recomputation.
-    @ObservationIgnored private var voiceMemoGainCache: [String: Float] = [:]
 
     /// Tracks the last track ID for which a thumbnail was sent to the watch,
     /// avoiding redundant heavy image transfers on every periodic sync.
@@ -296,10 +286,19 @@ final class PlayerModel {
             self?.persistBookmarks()
         }
         bookmarkStore.onSwitchToVoiceMemo = { [weak self] in
-            self?.switchAudioSource(to: .voiceMemo)
+            self?.prepareAudioForVoiceMemo()
         }
         bookmarkStore.onSwitchToMainPlayer = { [weak self] in
-            self?.switchAudioSource(to: .mainPlayer)
+            guard let self else { return }
+            self.bookmarkStore.stopVoiceMemo()
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .spokenAudio, options: [])
+            try? session.setActive(true)
+            if self.isPlaying {
+                self.audioEngine.playImmediately(atRate: self.speed)
+                self.applySpeedToCurrentItem()
+                self.updateNowPlayingInfo(isPaused: false)
+            }
         }
 
         sleepTimerManager.onFire = { [weak self] in
@@ -540,10 +539,7 @@ final class PlayerModel {
         
         
         audioEngine.cleanup()
-        voiceMemoProgressTimer?.invalidate()
-        voiceMemoPlayerNode?.stop()
-        voiceMemoEngine?.stop()
-        voiceMemoEngine = nil
+        bookmarkStore.stopVoiceMemo()
         endBackgroundTask()
         stopAllSecurityScope()
     }
@@ -866,7 +862,7 @@ final class PlayerModel {
         isPlaying = true
         let currentSecond = currentPlaybackTime
         if currentSecond.isFinite {
-            checkBookmarkVoiceMemoTrigger(at: currentSecond, previousSeconds: nil)
+            checkVoiceMemoTrigger(at: currentSecond, previousSeconds: nil)
             lastBookmarkCheckSecond = currentSecond
         }
 
@@ -1250,7 +1246,7 @@ final class PlayerModel {
     /// Cycles through the available loop modes: off → chapter → bookmark → off.
     /// The bookmark mode is skipped when no bookmarks exist.
     func cycleLoopMode() {
-        let hasBookmarks = !bookmarks.isEmpty
+        let hasBookmarks = !bookmarkStore.bookmarks.isEmpty
         switch loopMode {
         case .off:
             setLoopMode(.chapter)
@@ -1996,25 +1992,23 @@ final class PlayerModel {
     /// Falls back to an empty list if no storage key is available.
     func loadBookmarksForCurrentBook() {
         guard let key = bookmarksStorageKey else {
-            bookmarks = []
-            
+            bookmarkStore.bookmarks = []
             updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
             return
         }
-        bookmarks = persistence.loadBookmarks(for: key, folderURL: folderURL).sorted { $0.timestamp < $1.timestamp }
-        
+        bookmarkStore.bookmarks = persistence.loadBookmarks(for: key, folderURL: folderURL).sorted { $0.timestamp < $1.timestamp }
         updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
     }
 
     private func persistBookmarks() {
         guard let key = bookmarksStorageKey else { return }
-        persistence.saveBookmarks(bookmarks, for: key, folderURL: folderURL)
+        persistence.saveBookmarks(bookmarkStore.bookmarks, for: key, folderURL: folderURL)
     }
 
     /// Bookmarks scoped to the currently playing track, sorted by timestamp.
     var currentTrackBookmarks: [Bookmark] {
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
-        return bookmarks
+        return bookmarkStore.bookmarks
             .filter { $0.trackId == nil || $0.trackId == trackId }
             .sorted { $0.timestamp < $1.timestamp }
     }
@@ -2088,15 +2082,15 @@ final class PlayerModel {
         guard t.isFinite else { return nil }
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
         // Auto-numbered default title scoped to the current track.
-        let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
+        let scopedCount = bookmarkStore.bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
         let bm = Bookmark(
             title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderURL?.absoluteString,
             trackId: trackId,
             timestamp: t
         )
-        bookmarks.append(bm)
-        bookmarks.sort { $0.timestamp < $1.timestamp }
+        bookmarkStore.bookmarks.append(bm)
+        bookmarkStore.bookmarks.sort { $0.timestamp < $1.timestamp }
         persistBookmarks()
         
         return bm
@@ -2110,7 +2104,7 @@ final class PlayerModel {
         let t = audioEngine.currentTime
         guard t.isFinite else { return nil }
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
-        let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
+        let scopedCount = bookmarkStore.bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
         return BookmarkDraft(
             title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderURL?.absoluteString,
@@ -2146,8 +2140,8 @@ final class PlayerModel {
             voiceMemoFileName: voiceMemoFileName,
             bookmarkImageFileName: bookmarkImageFileName
         )
-        bookmarks.append(bm)
-        bookmarks.sort { $0.timestamp < $1.timestamp }
+        bookmarkStore.bookmarks.append(bm)
+        bookmarkStore.bookmarks.sort { $0.timestamp < $1.timestamp }
         persistBookmarks()
         
         updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
@@ -2169,13 +2163,13 @@ final class PlayerModel {
         voiceMemoFileName: String?,
         bookmarkImageFileName: String? = nil
     ) {
-        guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
-        bookmarks[idx].title = title
-        bookmarks[idx].timestamp = timestamp
-        bookmarks[idx].note = note
-        bookmarks[idx].voiceMemoFileName = voiceMemoFileName
-        bookmarks[idx].bookmarkImageFileName = bookmarkImageFileName
-        bookmarks.sort { $0.timestamp < $1.timestamp }
+        guard let idx = bookmarkStore.bookmarks.firstIndex(where: { $0.id == id }) else { return }
+        bookmarkStore.bookmarks[idx].title = title
+        bookmarkStore.bookmarks[idx].timestamp = timestamp
+        bookmarkStore.bookmarks[idx].note = note
+        bookmarkStore.bookmarks[idx].voiceMemoFileName = voiceMemoFileName
+        bookmarkStore.bookmarks[idx].bookmarkImageFileName = bookmarkImageFileName
+        bookmarkStore.bookmarks.sort { $0.timestamp < $1.timestamp }
         bookmarkArtworkCache.removeAll()
         persistBookmarks()
         
@@ -2197,7 +2191,7 @@ final class PlayerModel {
         // I/O is restricted to that case; other books fall back to UserDefaults.
         let targetFolderURL: URL? = isCurrentBook ? folderURL : nil
         var targetBookmarks = isCurrentBook
-            ? bookmarks
+            ? bookmarkStore.bookmarks
             : persistence.loadBookmarks(for: storageKey, folderURL: targetFolderURL)
         let scopedCount = targetBookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
 
@@ -2215,7 +2209,7 @@ final class PlayerModel {
         persistence.saveBookmarks(targetBookmarks, for: storageKey, folderURL: targetFolderURL)
 
         if isCurrentBook {
-            bookmarks = targetBookmarks
+            bookmarkStore.bookmarks = targetBookmarks
             
         }
     }
@@ -2224,8 +2218,8 @@ final class PlayerModel {
     /// during bookmark-loop navigation and voice-memo triggering.
     /// - Parameter id: The UUID of the bookmark to toggle.
     func toggleBookmarkEnabled(id: UUID) {
-        guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
-        bookmarks[idx].isEnabled.toggle()
+        guard let idx = bookmarkStore.bookmarks.firstIndex(where: { $0.id == id }) else { return }
+        bookmarkStore.bookmarks[idx].isEnabled.toggle()
         persistBookmarks()
         
         updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
@@ -2236,7 +2230,7 @@ final class PlayerModel {
     ///   - source: The indices of bookmarks to move.
     ///   - destination: The index to insert the bookmarks at.
     func moveBookmarks(from source: IndexSet, to destination: Int) {
-        bookmarks.move(fromOffsets: source, toOffset: destination)
+        bookmarkStore.bookmarks.move(fromOffsets: source, toOffset: destination)
         persistBookmarks()
         
         updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
@@ -2247,23 +2241,23 @@ final class PlayerModel {
     /// - Parameter id: The UUID of the bookmark to delete.
     func deleteBookmark(id: UUID) {
 
-        if let idx = bookmarks.firstIndex(where: { $0.id == id }) {
+        if let idx = bookmarkStore.bookmarks.firstIndex(where: { $0.id == id }) {
             // Clean up the on-disk voice memo if any.
-            if let url = bookmarks[idx].voiceMemoURL(in: folderURL) {
+            if let url = bookmarkStore.bookmarks[idx].voiceMemoURL(in: folderURL) {
                 do {
                     try FileManager.default.removeItem(at: url)
                 } catch {
                     os_log(.error, "Failed to remove voice memo: %{private}@", error.localizedDescription)
                 }
             }
-            if let url = bookmarks[idx].bookmarkImageURL(in: folderURL) {
+            if let url = bookmarkStore.bookmarks[idx].bookmarkImageURL(in: folderURL) {
                 do {
                     try FileManager.default.removeItem(at: url)
                 } catch {
                     os_log(.error, "Failed to remove bookmark image: %{private}@", error.localizedDescription)
                 }
             }
-            bookmarks.remove(at: idx)
+            bookmarkStore.bookmarks.remove(at: idx)
             bookmarkArtworkCache.removeAll()
             persistBookmarks()
             
@@ -2287,157 +2281,51 @@ final class PlayerModel {
 
     // MARK: Audio Source Switching
 
-    private enum AudioSource { case mainPlayer, voiceMemo }
-
-    /// Explicitly transitions audio between the main AVPlayer and voice memo
-    /// engine.  Pausing the primary player first prevents overlapping streams;
-    /// reconfiguring the AVAudioSession on each transition ensures routing and
-    /// ducking are correct.
-    private func switchAudioSource(to source: AudioSource) {
+    /// Configures the AVAudioSession for voice memo overlay playback.
+    /// Called by BookmarkStore via `onSwitchToVoiceMemo` callback.
+    private func prepareAudioForVoiceMemo() {
+        audioEngine.pause()
+        updateNowPlayingInfo(isPaused: true)
         let session = AVAudioSession.sharedInstance()
-        switch source {
-        case .voiceMemo:
-            audioEngine.pause()
-            try? session.setCategory(.playback, mode: .spokenAudio,
-                                     options: [.interruptSpokenAudioAndMixWithOthers, .duckOthers])
-            try? session.setActive(true)
-        case .mainPlayer:
-            voiceMemoPlayerNode?.stop()
-            voiceMemoEngine?.stop()
-            voiceMemoEngine?.reset()
-            voiceMemoProgressTimer?.invalidate()
-            voiceMemoProgressTimer = nil
-            voiceMemoProgress = 0.0
-            voiceMemoPlayerNode = nil
-            voiceMemoEngine = nil
-            isPlayingVoiceMemo = false
-            try? session.setCategory(.playback, mode: .spokenAudio, options: [])
-            try? session.setActive(true)
-        }
+        try? session.setCategory(.playback, mode: .spokenAudio,
+                                 options: [.interruptSpokenAudioAndMixWithOthers, .duckOthers])
+        try? session.setActive(true)
     }
 
-    // MARK: Voice Memo Interception
-
-    /// Called from the boundary + periodic time observers. Detects when
-    /// playback crosses a bookmark with an attached voice memo and intercepts
-    /// playback (when `playBookmarksInline` is enabled).
-    private func checkBookmarkVoiceMemoTrigger(at currentSeconds: Double, previousSeconds: Double?) {
-        guard !isPlayingVoiceMemo, isPlaying, !isManualSeeking else { return }
-        // In bookmark-loop mode the player repeatedly traverses bookmark
-        // boundaries by design; firing the voice memo each time would create
-        // an unwanted overlay loop, so suppress memo triggers entirely.
-        guard loopMode != .bookmark else { return }
-        guard currentSeconds.isFinite else { return }
-        // Honor user preference.
-        guard settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline else { return }
-
-        let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
-
-        let toleranceBefore: Double = 0.1
-        let toleranceAfter: Double = 0.75
-        let candidates = bookmarks.filter { bm in
-            guard bm.isEnabled else { return false }
-            guard bm.voiceMemoFileName != nil else { return false }
-            if let bt = bm.trackId, let ct = trackId, bt != ct { return false }
-
-            if let previousSeconds, previousSeconds.isFinite {
-                let lowerBound = min(previousSeconds, currentSeconds) - toleranceBefore
-                let upperBound = max(previousSeconds, currentSeconds) + toleranceBefore
-                if bm.timestamp >= lowerBound && bm.timestamp <= upperBound {
-                    return true
-                }
-            }
-
-            let delta = currentSeconds - bm.timestamp
-            return delta >= -toleranceBefore && delta <= toleranceAfter
-        }
-
-        guard let bm = candidates.max(by: { $0.timestamp < $1.timestamp }) else { return }
-
-        // Suppress duplicate firings for the same bookmark.
-        if lastTriggeredBookmarkID == bm.id,
-           abs(currentSeconds - lastTriggeredAtPlayerSecond) < 5 {
-            return
-        }
-        guard let memoURL = bm.voiceMemoURL(in: folderURL),
-              FileManager.default.fileExists(atPath: memoURL.path) else { return }
-
-        lastTriggeredBookmarkID = bm.id
-        lastTriggeredAtPlayerSecond = currentSeconds
-        startVoiceMemoPlayback(url: memoURL)
-    }
-
-    private func cachedVoiceMemoGain(for url: URL) -> Float {
-        let key = url.absoluteString
-        if let cached = voiceMemoGainCache[key] { return cached }
-        let gain = voiceMemoGain(for: url)
-        voiceMemoGainCache[key] = gain
-        return gain
-    }
-
-    private func startVoiceMemoPlayback(url: URL) {
-        switchAudioSource(to: .voiceMemo)
-        do {
-            let audioFile = try AVAudioFile(forReading: url)
-            let engine = AVAudioEngine()
-            let playerNode = AVAudioPlayerNode()
-            engine.attach(playerNode)
-            engine.connect(playerNode, to: engine.mainMixerNode, format: audioFile.processingFormat)
-
-            engine.mainMixerNode.outputVolume = cachedVoiceMemoGain(for: url)
-
-            try engine.start()
-
-            let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
-            voiceMemoEngine = engine
-            voiceMemoPlayerNode = playerNode
-            voiceMemoDuration = duration
-            isPlayingVoiceMemo = true
-            voiceMemoProgress = 0.0
-
-            playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
-                DispatchQueue.main.async { self?.voiceMemoDidFinish() }
-            }
-            playerNode.play()
-
-            voiceMemoProgressTimer?.invalidate()
-            voiceMemoProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                guard let self,
-                      let node = self.voiceMemoPlayerNode,
-                      node.isPlaying,
-                      let lastTime = node.lastRenderTime,
-                      let playerTime = node.playerTime(forNodeTime: lastTime)
-                else { return }
-                let current = Double(playerTime.sampleTime) / playerTime.sampleRate
-                self.voiceMemoProgress = min(1.0, max(0.0, current / self.voiceMemoDuration))
-            }
-
-            updateNowPlayingInfo(isPaused: true)
-        } catch {
-            print("Voice memo playback error: \(error)")
-            switchAudioSource(to: .mainPlayer)
-            if isPlaying {
-                audioEngine.playImmediately(atRate: speed)
-            }
-        }
+    /// Restores the AVAudioSession for main player playback.
+    /// Called by BookmarkStore via `onSwitchToMainPlayer` callback.
+    private func resumeAudioForMainPlayer() {
+        bookmarkStore.stopVoiceMemo()
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .spokenAudio, options: [])
+        try? session.setActive(true)
     }
 
     /// Stops the currently playing voice memo overlay and resumes main playback.
     func stopVoiceMemo() {
-        switchAudioSource(to: .mainPlayer)
-
+        bookmarkStore.stopVoiceMemo()
+        resumeAudioForMainPlayer()
         audioEngine.playImmediately(atRate: speed)
         applySpeedToCurrentItem()
         updateNowPlayingInfo(isPaused: false)
     }
 
-    private func voiceMemoDidFinish() {
-        switchAudioSource(to: .mainPlayer)
-
-        if isPlaying {
-            audioEngine.playImmediately(atRate: speed)
-            applySpeedToCurrentItem()
-            updateNowPlayingInfo(isPaused: false)
+    /// Delegates to BookmarkStore to detect and fire inline voice memo triggers.
+    private func checkVoiceMemoTrigger(at currentSeconds: Double, previousSeconds: Double?) {
+        let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
+        if let memoURL = bookmarkStore.checkVoiceMemoTrigger(
+            at: currentSeconds,
+            previousSeconds: previousSeconds,
+            isPlaying: isPlaying,
+            isManualSeeking: isManualSeeking,
+            loopMode: loopMode,
+            playBookmarksInline: settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline,
+            trackId: trackId,
+            folderURL: folderURL,
+            lastTriggeredBookmarkID: &lastTriggeredBookmarkID,
+            lastTriggeredAtPlayerSecond: &lastTriggeredAtPlayerSecond
+        ) {
+            bookmarkStore.startVoiceMemoPlayback(url: memoURL)
         }
     }
 
@@ -2470,7 +2358,7 @@ extension PlayerModel: PlaybackControllerDelegate {
             applyBookmarkLoopIfNeeded()
             if settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline,
                currentTime.isFinite {
-                checkBookmarkVoiceMemoTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
+                checkVoiceMemoTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
                 lastBookmarkCheckSecond = currentTime
             }
         }
