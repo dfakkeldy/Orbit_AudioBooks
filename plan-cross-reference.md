@@ -244,7 +244,7 @@ M4B then adds the aggregation without changing the protocol signature.
 | B12 — Volume Control Cleanup | ✅ Done | 2026-05-15 |
 | B13 — Watch State Consistency | ✅ Done | 2026-05-16 |
 | A1 — PlayerModel Decomposition | 🔄 In Progress | — |
-| L10N — Localization & Settings | 🔄 In Progress | — |
+| L10N — Localization & Settings | ✅ Done | 2026-05-17 |
 | B16 — Bookmark Cleanup Logging | ⏳ Pending | — |
 | A2 — Watch ContentView Decomposition | ⏳ Pending | — |
 | A3 — Cross-Target Deduplication | ⏳ Pending | — |

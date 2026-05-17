@@ -3150,6 +3150,42 @@
           }
         }
       }
+    },
+    "No .mp3/.m4a/.m4b files found": {
+      "comment": "Error shown when selected directory contains no playable audio files",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No .mp3/.m4a/.m4b files found"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen .mp3/.m4a/.m4b bestanden gevonden"
+          }
+        }
+      }
+    },
+    "Bookmark %d": {
+      "comment": "Default bookmark title \u2014 'Bookmark 1', 'Bookmark 2', etc.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark %d"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer %d"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

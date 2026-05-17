@@ -90,7 +90,7 @@ final class PlayerModel {
     /// Whether the player is currently playing.
     private(set) var isPlaying: Bool = false
     /// The title of the currently playing track.
-    private(set) var currentTitle: String = "No track selected"
+    private(set) var currentTitle: String = String(localized: "No track selected")
     /// The subtitle of the currently playing track, typically the chapter name.
     private(set) var currentSubtitle: String = ""
 
@@ -418,7 +418,7 @@ final class PlayerModel {
             context["trackId"] = tracks[currentIndex].id
         }
         
-        let title = chapters.count >= 2 ? (currentSubtitle.isEmpty ? "Chapter \((currentChapterIndex ?? 0) + 1)" : currentSubtitle) : currentTitle
+        let title = chapters.count >= 2 ? (currentSubtitle.isEmpty ? String(localized: "Chapter \((currentChapterIndex ?? 0) + 1)") : currentSubtitle) : currentTitle
         context["title"] = title
         
         // Dual-progress: total book progress (time-based when possible)
@@ -675,7 +675,7 @@ final class PlayerModel {
             prepareToPlay(index: currentIndex, autoplay: autoplay)
             applyPendingDeepLinkSeekIfPossible()
         } else {
-            currentTitle = "No .mp3/.m4a/.m4b files found"
+            currentTitle = String(localized: "No .mp3/.m4a/.m4b files found")
             updateNowPlayingInfo(isPaused: true) // keep something stable in Now Playing
         }
 
@@ -1278,7 +1278,7 @@ final class PlayerModel {
 
     private func stop() {
         isPlaying = false
-        currentTitle = "No track selected"
+        currentTitle = String(localized: "No track selected")
         progressFraction = 0
         progressText = "--:--"
         elapsedText = "--:--"
@@ -1849,7 +1849,7 @@ final class PlayerModel {
                 if let title = c.title, !title.isEmpty {
                     currentSubtitle = title
                 } else {
-                    currentSubtitle = "Chapter \(idx + 1)"
+                    currentSubtitle = String(localized: "Chapter \(idx + 1)")
                 }
                 updateNowPlayingInfo(isPaused: !isPlaying)
                 syncToWatch()
@@ -2089,7 +2089,7 @@ final class PlayerModel {
         // Auto-numbered default title scoped to the current track.
         let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
         let bm = Bookmark(
-            title: "Bookmark \(scopedCount + 1)",
+            title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderURL?.absoluteString,
             trackId: trackId,
             timestamp: t
@@ -2111,7 +2111,7 @@ final class PlayerModel {
         let trackId = tracks.indices.contains(currentIndex) ? tracks[currentIndex].id : nil
         let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
         return BookmarkDraft(
-            title: "Bookmark \(scopedCount + 1)",
+            title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderURL?.absoluteString,
             trackId: trackId,
             timestamp: t
@@ -2201,7 +2201,7 @@ final class PlayerModel {
         let scopedCount = targetBookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
 
         let bookmark = Bookmark(
-            title: "Bookmark \(scopedCount + 1)",
+            title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderKey,
             trackId: trackId,
             timestamp: timestamp,
