@@ -254,22 +254,9 @@ final class PlayerModel {
     /// Tokens returned by `MPRemoteCommand.addTarget(handler:)`. Must be retained
     /// per Apple documentation, otherwise handlers may be deallocated.
     @ObservationIgnored private var remoteCommandTokens: [Any] = []
-    /// A hidden `MPVolumeView` used to programmatically set system volume.
-    @ObservationIgnored private var _volumeView: MPVolumeView?
-
-    private func setSystemVolume(_ level: Float) {
-        if _volumeView == nil {
-            let view = MPVolumeView(frame: CGRect(x: -2000, y: -2000, width: 0, height: 0))
-            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let window = scene.windows.first {
-                window.addSubview(view)
-            }
-            _volumeView = view
-        }
-        guard let slider = _volumeView?.subviews.compactMap({ $0 as? UISlider }).first else { return }
-        slider.value = level
-        slider.sendActions(for: .valueChanged)
-    }
+    /// Current app-level output gain in dB, used for watch crown volume control.
+    /// Not observable — gain changes don't trigger view re-renders.
+    @ObservationIgnored private var _outputGain: Float = 0
 
     init() {
         speed = 1.25
@@ -329,10 +316,9 @@ final class PlayerModel {
                     if let d = message["delta"] as? Double {
                         let sens = self.settingsManager?.crownVolumeSensitivity ?? SettingsManager.Defaults.crownVolumeSensitivity
                         let mult = sens > 0 ? sens : SettingsManager.Defaults.crownVolumeSensitivity
-                        let session = AVAudioSession.sharedInstance()
-                        let currentVol = session.outputVolume
-                        let newVol = max(0, min(1, currentVol + Float(d * 0.4 * mult)))
-                        self.setSystemVolume(newVol)
+                        let newGain = max(-40, min(9, self._outputGain + Float(d * 6 * mult)))
+                        self._outputGain = newGain
+                        self.audioEngine.setGain(newGain)
                     }
                 case "toggle": self.togglePlayPause()
                 case "toggleLoopMode", "cycleLoopMode":

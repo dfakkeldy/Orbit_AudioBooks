@@ -13,7 +13,7 @@ protocol AudioEngineDelegate: AnyObject {
 // MARK: - AudioEngine
 
 /// Encapsulates AVAudioEngine-powered playback through an
-/// AVAudioPlayerNode → AVAudioUnitEQ → AVAudioUnitVarispeed chain.
+/// AVAudioPlayerNode → AVAudioUnitEQ → AVAudioUnitTimePitch chain.
 /// PlayerModel receives time/end/interruption events through the
 /// delegate protocol. Chapter and bookmark boundary detection are
 /// driven by the periodic time callback (0.25 s) rather than AVPlayer
@@ -41,7 +41,7 @@ final class AudioEngine {
     private var engine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
     private var eqNode: AVAudioUnitEQ?
-    private var varispeedNode: AVAudioUnitVarispeed?
+    private var timePitchNode: AVAudioUnitTimePitch?
     private var audioFile: AVAudioFile?
 
     // MARK: - Time Tracking
@@ -85,22 +85,23 @@ final class AudioEngine {
         let engine = AVAudioEngine()
         let playerNode = AVAudioPlayerNode()
         let eqNode = AVAudioUnitEQ()
-        let varispeedNode = AVAudioUnitVarispeed()
+        let timePitchNode = AVAudioUnitTimePitch()
+        timePitchNode.pitch = 0
 
         engine.attach(playerNode)
         engine.attach(eqNode)
-        engine.attach(varispeedNode)
+        engine.attach(timePitchNode)
 
         engine.connect(playerNode, to: eqNode, format: nil)
-        engine.connect(eqNode, to: varispeedNode, format: nil)
-        engine.connect(varispeedNode, to: engine.mainMixerNode, format: nil)
+        engine.connect(eqNode, to: timePitchNode, format: nil)
+        engine.connect(timePitchNode, to: engine.mainMixerNode, format: nil)
 
         engine.prepare()
 
         self.engine = engine
         self.playerNode = playerNode
         self.eqNode = eqNode
-        self.varispeedNode = varispeedNode
+        self.timePitchNode = timePitchNode
     }
 
     // MARK: - Playback Controls
@@ -108,7 +109,7 @@ final class AudioEngine {
     func play() {
         guard let playerNode, engine != nil, isItemLoaded, !isPlaying else { return }
         startEngineIfNeeded()
-        varispeedNode?.rate = speed
+        timePitchNode?.rate = speed
         playerNode.play()
         isPlaying = true
         startTimeTimer()
@@ -118,7 +119,7 @@ final class AudioEngine {
         setSpeed(rate)
         guard let playerNode, engine != nil, isItemLoaded else { return }
         startEngineIfNeeded()
-        varispeedNode?.rate = rate
+        timePitchNode?.rate = rate
         playerNode.play()
         isPlaying = true
         startTimeTimer()
@@ -167,7 +168,7 @@ final class AudioEngine {
 
     func setSpeed(_ newSpeed: Float) {
         speed = newSpeed
-        varispeedNode?.rate = newSpeed
+        timePitchNode?.rate = newSpeed
     }
 
     // MARK: - Gain Control
@@ -247,7 +248,7 @@ final class AudioEngine {
 
             if wasPlaying {
                 startEngineIfNeeded()
-                varispeedNode?.rate = speed
+                timePitchNode?.rate = speed
                 playerNode.play()
                 isPlaying = true
                 startTimeTimer()
@@ -281,7 +282,7 @@ final class AudioEngine {
         engine = nil
         playerNode = nil
         eqNode = nil
-        varispeedNode = nil
+        timePitchNode = nil
     }
 
     // MARK: - Private Helpers
