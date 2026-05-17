@@ -6,7 +6,8 @@ Decompose the 2918-line `PlayerModel` god class into focused, testable component
 
 ## Current State
 
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 2918 lines
+**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 2306 lines (was 2918 at start)
+**Progress:** Phase 1-8 complete (services created). Phase 9 in progress (removing duplication, extracting coordination).
 
 Conflates: playback, bookmarks, voice memos, sleep timer, Watch connectivity, Now Playing, artwork caching, iCloud, security-scoped resources, chapters, transcripts, deep links, loop modes, and persistence.
 
@@ -17,120 +18,193 @@ All injected as a single `@Environment(PlayerModel.self)` concrete type.
 ```
 OrbitAudioBooks/
 ├── ViewModels/
-│   └── PlayerModel.swift              # Thin coordinator (~200 lines)
+│   └── PlayerModel.swift              # Thin coordinator (~400-500 lines)
+├── State/
+│   └── PlaybackState.swift            # NEW: shared mutable state (tracks, chapters, progress)
 ├── Services/
 │   ├── AudioEngine.swift              # Already extracted
-│   ├── PlaybackController.swift        # NEW: play, pause, skip, seek, speed, loop modes
-│   ├── BookmarkStore.swift             # NEW: CRUD, voice memo recording, image cleanup
-│   ├── SleepTimerManager.swift         # NEW: countdown, fade-out, pause-on-end
-│   ├── NowPlayingController.swift      # NEW: MPNowPlayingInfoCenter, MPRemoteCommandCenter
-│   ├── ChapterService.swift            # NEW: chapter parsing, chapter navigation
-│   ├── ArtworkCache.swift              # NEW: artwork fetching and caching
-│   ├── DeepLinkHandler.swift           # NEW: orbitaudio:// URL parsing (moved from PlayerDeepLink)
-│   ├── Persistence.swift               # Extracted from private Persistence struct
+│   ├── PlaybackController.swift        # State + playback logic + delegate callbacks
+│   ├── BookmarkStore.swift             # CRUD, voice memo recording, image cleanup
+│   ├── SleepTimerManager.swift         # Countdown, fade-out, pause-on-end
+│   ├── NowPlayingController.swift      # MPNowPlayingInfoCenter, MPRemoteCommandCenter
+│   ├── ChapterService.swift            # Chapter parsing, chapter navigation
+│   ├── ArtworkCache.swift              # Artwork fetching, caching, iCloud, thumbnails
+│   ├── DeepLinkHandler.swift           # orbitaudio:// URL parsing
+│   ├── Persistence.swift               # UserDefaults/disk persistence
 │   ├── SettingsManager.swift           # Existing
 │   ├── StoreManager.swift              # Existing
 │   └── WatchSyncManager.swift          # Existing
 ```
 
-### Component Responsibilities
-
-**PlaybackController** (~400 lines)
-- Play, pause, toggle
-- Skip forward/backward (30s)
-- Skip to next/previous chapter or track
-- Seek to timestamp
-- Speed adjustment
-- Loop mode management (off, track, bookmark, playlist)
-- AudioEngineDelegate conformance
-
-**BookmarkStore** (~500 lines)
-- CRUD operations on bookmarks
-- Voice memo recording and playback
-- Bookmark image capture and cleanup
-- Bookmark Markdown export
-- Orphaned file cleanup on launch
-- Persistence to UserDefaults/disk
-- `currentTrackBookmarks` filtering
-
-**SleepTimerManager** (~200 lines)
-- Timer countdown state
-- Fade-out animation (via AudioEngine gain, not system volume)
-- Pause-on-end option
-- Timer duration presets
-- `sleepTimerCountdownText` formatting
-
-**NowPlayingController** (~200 lines)
-- `MPNowPlayingInfoCenter` updates (title, artist, artwork, progress)
-- `MPRemoteCommandCenter` handler registration and token retention
-- Command routing to `PlaybackController`
-
-**ChapterService** (~150 lines)
-- Parse chapters from `AVAsset` metadata
-- Chapter lookup by timestamp
-- Chapter navigation (next, previous)
-- Aggregate chapter list for folder-based audiobooks
-
-**ArtworkCache** (~100 lines)
-- Artwork fetching from embedded metadata
-- Cover image scanning in audiobook directory
-- In-memory cache with invalidation
-
-**DeepLinkHandler** (~80 lines)
-- Parse `orbitaudio://` URLs
-- Handle `play`, `play?time=` actions
-- Pending seek queue for pre-load deep links
-
-**PlayerModel** (~200 lines)
-- Owns all components as properties
-- Initializes component graph
-- Exposes `@Observable`-compatible computed properties for SwiftUI views
-- Restores last selection on launch
-- Folder/file URL management (security-scoped)
-- Transcript integration pass-through
-
 ## Migration Strategy
 
 Do NOT attempt a big-bang rewrite. Extract one component at a time, verify the build after each, and commit.
 
-1. Extract `Persistence.swift` (lowest risk, already a private struct)
-2. Extract `ChapterService.swift` (well-bounded, pure AVAsset parsing)
-3. Extract `ArtworkCache.swift` (isolated concern)
-4. Extract `DeepLinkHandler.swift` (small, no dependencies)
-5. Extract `NowPlayingController.swift` (depends on PlaybackController — extract after step 6)
-6. Extract `PlaybackController.swift` (core of the god class, largest extraction)
-7. Extract `BookmarkStore.swift` (depends on PlaybackController for current time)
-8. Extract `SleepTimerManager.swift` (depends on PlaybackController and AudioEngine)
-9. Shrink `PlayerModel` to coordinator
+### Phase 1-8: Service Extraction ✅ COMPLETE
 
-At each step: build all targets, run unit tests, smoke test on simulator.
+1. ✅ Extract `Persistence.swift` (lowest risk, already a private struct)
+2. ✅ Extract `ChapterService.swift` (well-bounded, pure AVAsset parsing)
+3. ✅ Extract `ArtworkCache.swift` (isolated concern)
+4. ✅ Extract `DeepLinkHandler.swift` (small, no dependencies)
+5. ✅ Extract `NowPlayingController.swift` (depends on PlaybackController — extracted after step 6)
+6. ✅ Extract `PlaybackController.swift` (core of the god class, largest extraction)
+7. ✅ Extract `BookmarkStore.swift` (depends on PlaybackController for current time)
+8. ✅ Extract `SleepTimerManager.swift` (depends on PlaybackController and AudioEngine)
+
+### Phase 9a: Remove Duplication ✅ COMPLETE
+
+- ✅ Voice memo dedup — remove duplicate engine, playback, trigger logic from PlayerModel. BookmarkStore is now the single owner of voice memo playback state.
+- ✅ Bookmark data consolidation — `model.bookmarks` is a pass-through to `bookmarkStore.bookmarks`. Single source of truth.
+- ✅ iCloud/file helpers → ArtworkCache — `ensureItemIsAvailable`, `loadImageFile`, `folderArtworkImage` moved to ArtworkCache as static methods. Thin wrappers removed.
+- ✅ PlaybackController expansion — coordinator closure pattern established (`coordinator_smartRewind`, `coordinator_persistAndSync`, etc.), computation helpers moved.
+
+### Phase 9b: Shared State Object (Pattern 3) — NEXT
+
+**Goal:** Eliminate ~150 lines of stored properties and pass-throughs from PlayerModel.
+
+Create `OrbitAudioBooks/State/PlaybackState.swift`:
+
+```swift
+@Observable
+final class PlaybackState {
+    // Playlist
+    var folderURL: URL? = nil
+    var tracks: [Track] = []
+    var currentIndex: Int = 0
+
+    // Playback
+    var isPlaying: Bool = false
+    var currentTitle: String = String(localized: "No track selected")
+    var currentSubtitle: String = ""
+
+    // Progress
+    var progressFraction: Double = 0.0
+    var progressText: String = "--:--"
+    var elapsedText: String = "--:--"
+    var durationSeconds: Double? = nil
+
+    // Chapters
+    var chapters: [Chapter] = []
+    var currentChapterIndex: Int? = nil
+
+    // Flags
+    var isManualSeeking: Bool = false
+    var isSeekingForChapterBoundary: Bool = false
+    var pauseTimestamp: Date? = nil
+
+    // Artwork
+    var thumbnailImage: UIImage? = nil
+    var currentDisplayArtwork: UIImage? = nil
+    var currentDisplayArtworkVersion: Int = 0
+    var watchThumbnailData: Data? = nil
+
+    // Transcript
+    var transcription: [TranscriptionSegment] = []
+    var chapterWordClouds: [Int: [WordFrequency]] = [:]
+    var rollingWordClouds: [(startTime: TimeInterval, frequencies: [WordFrequency])] = []
+}
+```
+
+**Steps:**
+1. Create `OrbitAudioBooks/State/PlaybackState.swift`
+2. Add `let state = PlaybackState()` to both PlayerModel and PlaybackController
+3. Replace PlayerModel's stored properties with `state.xxx` references
+4. Replace PlaybackController's pass-throughs with `state.xxx` references
+5. Build and verify
+
+**Impact:** ~150 lines removed from PlayerModel. PlaybackController gets direct access to tracks/chapters for navigation without a massive delegate protocol.
+
+### Phase 9c: Move Methods via Closures (Pattern 1) — AFTER 9b
+
+**Goal:** Move ~500 lines of playback control methods from PlayerModel to PlaybackController.
+
+**Prerequisites:** Phase 9b (shared state object) must be complete. PlaybackController must have access to `PlaybackState` and coordinator closures.
+
+**Methods to move:**
+
+| Method | Lines | Dependencies |
+|--------|-------|-------------|
+| `play()` | ~65 | state, coordinator_smartRewind, coordinator_loadTrack, coordinator_checkVoiceMemo, coordinator_persistAndSync |
+| `pause()` | ~20 | state, coordinator_persistAndSync |
+| `togglePlayPause()` | 2 | state |
+| `nextTrack()` | ~15 | state, coordinator_loadTrack |
+| `previousTrackOrRestart()` | ~25 | state, coordinator_loadTrack |
+| `nextChapter()` | ~20 | state, coordinator_loadTrack, ChapterService |
+| `previousChapterOrRestart()` | ~25 | state, ChapterService |
+| `skipBackward30()` | ~25 | state |
+| `skipForward30()` | ~25 | state |
+| `skipBackwardNavigation()` | ~15 | state |
+| `skipForwardNavigation()` | ~15 | state |
+| `seek(toSeconds:)` | ~20 | state |
+| `seek(toFraction:)` | ~20 | state |
+| `setSpeed(_:)` | ~12 | state, coordinator_persistAndSync, Persistence |
+| `setVolumeBoost(enabled:)` | 2 | state |
+| `setLoopMode(_:)` | ~8 | state, Persistence |
+| `cycleLoopMode()` | ~10 | state, BookmarkStore |
+| `jumpToNextBookmark()` | ~6 | state, BookmarkStore |
+| `jumpToPreviousBookmark()` | ~6 | state, BookmarkStore |
+| `smartRewindAmount(for:)` | ~35 | SettingsManager |
+| `shouldJumpToChapterStartForHoursLevel(pausedDuration:)` | ~5 | SettingsManager |
+| `applyChapterLoopIfNeeded()` | ~50 | state |
+| `applyBookmarkLoopIfNeeded()` | ~35 | state, BookmarkStore |
+| `stop()` | ~14 | state |
+
+**New coordinator closures needed:**
+
+```swift
+// Already wired (Phase 9a):
+coordinator_smartRewind         // smart rewind computation
+coordinator_jumpToChapterStart  // chapter-start-on-resume decision
+coordinator_loadTrack           // prepareToPlay(index:autoplay:)
+coordinator_persistAndSync      // updateNowPlaying + syncToWatch
+coordinator_checkVoiceMemo      // bookmarkStore.checkVoiceMemoTrigger
+coordinator_seekCompleted       // updateCurrentChapterFromPlayerTime
+
+// Additional needed for Phase 9c:
+coordinator_persistSpeed        // persistence.saveSpeed(for:speed:)
+coordinator_persistLoopMode     // persistence.saveLoopMode(for:loopMode:)
+coordinator_persistProgress     // persistence.saveBookProgress(...)
+coordinator_persistOrder        // persistence.saveOrder(for:ids:)
+```
+
+**Impact:** ~500 lines moved from PlayerModel to PlaybackController. PlayerModel drops to ~1,700 lines.
+
+### Phase 9d: Extract Folder/Loading to PlaylistManager (Future)
+
+After 9c, the remaining big block is folder/track loading and security-scoped resource management (~200 lines). This can move to a new `PlaylistManager` service using the same closure pattern.
+
+### Phase 9e: Shrink PlayerModel to Coordinator (Final)
+
+After 9a-9d:
+- PlayerModel: ~400-500 lines
+- Owns: service references, init() wiring, pass-through computed properties
+- Remaining: watch message dispatch (~100 lines), transcript/wordcloud coordination (~50 lines), Persistence wiring, a few coordination methods that don't fit elsewhere
 
 ## Files to Modify/Create
 
-| Action | File |
-|--------|------|
-| Create | `OrbitAudioBooks/Services/PlaybackController.swift` |
-| Create | `OrbitAudioBooks/Services/BookmarkStore.swift` |
-| Create | `OrbitAudioBooks/Services/SleepTimerManager.swift` |
-| Create | `OrbitAudioBooks/Services/NowPlayingController.swift` |
-| Create | `OrbitAudioBooks/Services/ChapterService.swift` |
-| Create | `OrbitAudioBooks/Services/ArtworkCache.swift` |
-| Create | `OrbitAudioBooks/Services/DeepLinkHandler.swift` |
-| Create | `OrbitAudioBooks/Services/Persistence.swift` |
-| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` |
-| Modify | `OrbitAudioBooks/Orbit_AudioBooksApp.swift` (updated injection) |
-| Modify | All views that reference `PlayerModel` directly (may need property pass-through) |
+| Action | File | Status |
+|--------|------|--------|
+| Create | `OrbitAudioBooks/Services/PlaybackController.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/BookmarkStore.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/SleepTimerManager.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/NowPlayingController.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/ChapterService.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/ArtworkCache.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/DeepLinkHandler.swift` | ✅ |
+| Create | `OrbitAudioBooks/Services/Persistence.swift` | ✅ |
+| Create | `OrbitAudioBooks/State/PlaybackState.swift` | ⏳ Next |
+| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | 🔄 |
+| Modify | `OrbitAudioBooks/Orbit_AudioBooksApp.swift` | ✅ |
 
 ## Dependencies
 
-- **Blocked by:** Plan A5 (protocol extraction) — extract protocols BEFORE decomposing so components communicate through protocols, not concrete references
+- **Blocked by:** Plan A5 (protocol extraction) ✅, Plan A6 (AudioEngine encapsulation) ✅
 - **Conflicts with:** 
-  - Plan A6 (AudioEngine encapsulation) — coordinate so PlaybackController goes through AudioEngine's API
-  - Plan Phase 2 (M4B folder audio) — ChapterService must support the aggregated chapter model
-  - Plan Phase 3 (Dashboard UI) — Dashboard modules will bind to the extracted components
-  - Plan Phase 4 (CarPlay) — CarPlay needs NowPlayingController and PlaybackController
+  - Plan M4B (folder audio) — ChapterService must support aggregated chapters
+  - Plan DASH (Dashboard UI) — Dashboard modules bind to extracted components
+  - Plan CAR (CarPlay) — CarPlay needs NowPlayingController and PlaybackController
   - Plan SQL Database — BookmarkStore would use SQL instead of UserDefaults
 
 ## Complexity
 
-**Very Large.** This is the highest-risk refactoring in the project. Touches every iOS view and service. Must be done incrementally over multiple commits. Recommend doing A5 (protocols) first, then A1 component by component.
+**Very Large.** The highest-risk refactoring in the project. Incremental, component-by-component approach validated — each phase builds and passes tests before the next.
