@@ -6,8 +6,8 @@ Decompose the 2918-line `PlayerModel` god class into focused, testable component
 
 ## Current State
 
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 2306 lines (was 2918 at start)
-**Progress:** Phase 1-8 complete (services created). Phase 9 in progress (removing duplication, extracting coordination).
+**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — 1867 lines (was 2918 at start, -1051, -36%)
+**Progress:** Phase 1-8 complete. Phase 9a-c complete. Phase 9d-e remaining.
 
 Conflates: playback, bookmarks, voice memos, sleep timer, Watch connectivity, Now Playing, artwork caching, iCloud, security-scoped resources, chapters, transcripts, deep links, loop modes, and persistence.
 
@@ -58,9 +58,10 @@ Do NOT attempt a big-bang rewrite. Extract one component at a time, verify the b
 - ✅ iCloud/file helpers → ArtworkCache — `ensureItemIsAvailable`, `loadImageFile`, `folderArtworkImage` moved to ArtworkCache as static methods. Thin wrappers removed.
 - ✅ PlaybackController expansion — coordinator closure pattern established (`coordinator_smartRewind`, `coordinator_persistAndSync`, etc.), computation helpers moved.
 
-### Phase 9b: Shared State Object (Pattern 3) — NEXT
+### Phase 9b: Shared State Object (Pattern 3) — ✅ COMPLETE
 
 **Goal:** Eliminate ~150 lines of stored properties and pass-throughs from PlayerModel.
+**Result:** Created `OrbitAudioBooks/State/PlaybackState.swift` (52 lines). 22 properties moved from PlayerModel stored properties into `@Observable PlaybackState`. PlayerModel accesses them via `private var state: PlaybackState { playbackController.state }` with public-facing computed pass-throughs for API compatibility. PlaybackController holds `let state = PlaybackState()` enabling direct access for Phase 9c method migration. Net line reduction: ~20 lines (most savings deferred to 9c).
 
 Create `OrbitAudioBooks/State/PlaybackState.swift`:
 
@@ -114,71 +115,57 @@ final class PlaybackState {
 
 **Impact:** ~150 lines removed from PlayerModel. PlaybackController gets direct access to tracks/chapters for navigation without a massive delegate protocol.
 
-### Phase 9c: Move Methods via Closures (Pattern 1) — AFTER 9b
+### Phase 9c: Move Methods via Closures (Pattern 1) — ✅ COMPLETE
 
-**Goal:** Move ~500 lines of playback control methods from PlayerModel to PlaybackController.
+**Result:** 23 playback control methods migrated from PlayerModel to PlaybackController
+in 4 tiers, using 15 coordinator closures. PlayerModel: 2,286 → 1,867 (-419 lines).
+PlaybackController: 155 → 594 (+439 lines).
 
-**Prerequisites:** Phase 9b (shared state object) must be complete. PlaybackController must have access to `PlaybackState` and coordinator closures.
+**Tier 1 — Speed, Loop, Volume Boost:**
+- Moved: `setSpeed`, `setLoopMode`, `cycleLoopMode`
+- New coordinators: `persistSpeed`, `persistLoopMode`, `hasBookmarks`
 
-**Methods to move:**
+**Tier 2 — Navigation:**
+- Moved: `nextTrack`, `previousTrackOrRestart`, `nextChapter`, `previousChapterOrRestart`, `seekToChapter`, `resumeAfterSeek`, `currentChapterForTime`
+- New coordinators: `refreshProgress`
 
-| Method | Lines | Dependencies |
-|--------|-------|-------------|
-| `play()` | ~65 | state, coordinator_smartRewind, coordinator_loadTrack, coordinator_checkVoiceMemo, coordinator_persistAndSync |
-| `pause()` | ~20 | state, coordinator_persistAndSync |
-| `togglePlayPause()` | 2 | state |
-| `nextTrack()` | ~15 | state, coordinator_loadTrack |
-| `previousTrackOrRestart()` | ~25 | state, coordinator_loadTrack |
-| `nextChapter()` | ~20 | state, coordinator_loadTrack, ChapterService |
-| `previousChapterOrRestart()` | ~25 | state, ChapterService |
-| `skipBackward30()` | ~25 | state |
-| `skipForward30()` | ~25 | state |
-| `skipBackwardNavigation()` | ~15 | state |
-| `skipForwardNavigation()` | ~15 | state |
-| `seek(toSeconds:)` | ~20 | state |
-| `seek(toFraction:)` | ~20 | state |
-| `setSpeed(_:)` | ~12 | state, coordinator_persistAndSync, Persistence |
-| `setVolumeBoost(enabled:)` | 2 | state |
-| `setLoopMode(_:)` | ~8 | state, Persistence |
-| `cycleLoopMode()` | ~10 | state, BookmarkStore |
-| `jumpToNextBookmark()` | ~6 | state, BookmarkStore |
-| `jumpToPreviousBookmark()` | ~6 | state, BookmarkStore |
-| `smartRewindAmount(for:)` | ~35 | SettingsManager |
-| `shouldJumpToChapterStartForHoursLevel(pausedDuration:)` | ~5 | SettingsManager |
-| `applyChapterLoopIfNeeded()` | ~50 | state |
-| `applyBookmarkLoopIfNeeded()` | ~35 | state, BookmarkStore |
-| `stop()` | ~14 | state |
+**Tier 3 — Skip, Seek, Bookmark Jump:**
+- Moved: `skipBackward30`, `skipForward30`, `skipBackwardNavigation`, `skipForwardNavigation`, `seek(toSeconds:)`, `seek(toFraction:)`, `jumpToNextBookmark`, `jumpToPreviousBookmark`
+- New coordinators: `enabledBookmarks`, `jumpToBookmark`, `refreshArtwork`
 
-**New coordinator closures needed:**
+**Tier 4 — Core Playback + Loop Enforcement:**
+- Moved: `pause`, `stop`, `play`, `togglePlayPause`, `applyChapterLoopIfNeeded`, `applyBookmarkLoopIfNeeded`
+- New coordinators: `endBackgroundTask`, `saveProgress`, `stopSecurityScope`, `handleChapterEndSleepTimer`, `currentTrackBookmarks`, `isRewindEnabled`, `configureAudioSession`, `startSecurityScope`
 
-```swift
-// Already wired (Phase 9a):
-coordinator_smartRewind         // smart rewind computation
-coordinator_jumpToChapterStart  // chapter-start-on-resume decision
-coordinator_loadTrack           // prepareToPlay(index:autoplay:)
-coordinator_persistAndSync      // updateNowPlaying + syncToWatch
-coordinator_checkVoiceMemo      // bookmarkStore.checkVoiceMemoTrigger
-coordinator_seekCompleted       // updateCurrentChapterFromPlayerTime
-
-// Additional needed for Phase 9c:
-coordinator_persistSpeed        // persistence.saveSpeed(for:speed:)
-coordinator_persistLoopMode     // persistence.saveLoopMode(for:loopMode:)
-coordinator_persistProgress     // persistence.saveBookProgress(...)
-coordinator_persistOrder        // persistence.saveOrder(for:ids:)
+**Full coordinator closure interface (15 total):**
+```
+// Phase 9a (6): smartRewind, jumpToChapterStartForHours, loadTrack,
+//               persistAndSync, checkVoiceMemo, seekCompleted
+// Tier 1 (3): persistSpeed, persistLoopMode, hasBookmarks
+// Tier 2 (1): refreshProgress
+// Tier 3 (3): enabledBookmarks, jumpToBookmark, refreshArtwork
+// Tier 4 (8): endBackgroundTask, saveProgress, stopSecurityScope,
+//             handleChapterEndSleepTimer, currentTrackBookmarks,
+//             isRewindEnabled, configureAudioSession, startSecurityScope
 ```
 
-**Impact:** ~500 lines moved from PlayerModel to PlaybackController. PlayerModel drops to ~1,700 lines.
+**Impact:** ~500 lines moved from PlayerModel to PlaybackController. PlayerModel: 1,867.
 
 ### Phase 9d: Extract Folder/Loading to PlaylistManager (Future)
 
-After 9c, the remaining big block is folder/track loading and security-scoped resource management (~200 lines). This can move to a new `PlaylistManager` service using the same closure pattern.
+After 9c, the remaining big block is folder/track loading and security-scoped resource management (~200 lines in `loadFolder`, `loadTracks`, `restoreLastSelectionIfPossible`, `persistSelection`). This can move to a new `PlaylistManager` service.
 
 ### Phase 9e: Shrink PlayerModel to Coordinator (Final)
 
-After 9a-9d:
-- PlayerModel: ~400-500 lines
-- Owns: service references, init() wiring, pass-through computed properties
-- Remaining: watch message dispatch (~100 lines), transcript/wordcloud coordination (~50 lines), Persistence wiring, a few coordination methods that don't fit elsewhere
+After 9a-9d, remaining blocks in PlayerModel (currently 1,867 lines):
+- `prepareToPlay` (~100 lines) — track loading orchestration
+- Bookmark CRUD API (~200 lines) — `addBookmarkAtCurrentTime`, `appendBookmark`, `updateBookmark`, `deleteBookmark`, `jumpToBookmark`, `addWatchBookmark`
+- Watch connectivity (~180 lines) — `handleMessage`, `watchStateContext`, `handleWatchBookmarkFile`, `addWatchVoiceBookmark`
+- Now Playing / artwork (~150 lines) — `updateNowPlayingInfo`, `updateCurrentDisplayArtwork`, `generateThumbnail`, `loadChaptersForCurrentItem`, `loadDurationForNowPlaying`
+- Transcript / word clouds (~50 lines) — `loadTranscript`, `computeWordClouds`
+- Infrastructure (~150 lines) — security scoping, `configureAudioSession`, `endBackgroundTask`, `evaluateSleepTimerAtChapterEnd`, `handleTrackEnded`, `enforceEnabledState`
+
+Target: ~400-500 lines (thin coordinator owning service references + init wiring)
 
 ## Files to Modify/Create
 
@@ -192,8 +179,8 @@ After 9a-9d:
 | Create | `OrbitAudioBooks/Services/ArtworkCache.swift` | ✅ |
 | Create | `OrbitAudioBooks/Services/DeepLinkHandler.swift` | ✅ |
 | Create | `OrbitAudioBooks/Services/Persistence.swift` | ✅ |
-| Create | `OrbitAudioBooks/State/PlaybackState.swift` | ⏳ Next |
-| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | 🔄 |
+| Create | `OrbitAudioBooks/State/PlaybackState.swift` | ✅ |
+| Modify | `OrbitAudioBooks/ViewModels/PlayerModel.swift` | ✅ (1867 lines) |
 | Modify | `OrbitAudioBooks/Orbit_AudioBooksApp.swift` | ✅ |
 
 ## Dependencies
