@@ -62,7 +62,7 @@ final class BookmarkStore {
     func addBookmark(at time: TimeInterval, trackId: String?, folderKey: String?) -> Bookmark {
         let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
         let bm = Bookmark(
-            title: "Bookmark \(scopedCount + 1)",
+            title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderKey,
             trackId: trackId,
             timestamp: time
@@ -76,7 +76,7 @@ final class BookmarkStore {
     func bookmarkDraft(at time: TimeInterval, trackId: String?, folderKey: String?) -> BookmarkDraft {
         let scopedCount = bookmarks.filter { $0.trackId == nil || $0.trackId == trackId }.count
         return BookmarkDraft(
-            title: "Bookmark \(scopedCount + 1)",
+            title: String(localized: "Bookmark \(scopedCount + 1)"),
             folderKey: folderKey,
             trackId: trackId,
             timestamp: time

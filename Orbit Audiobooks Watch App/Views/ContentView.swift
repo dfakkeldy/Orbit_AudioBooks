@@ -1391,21 +1391,21 @@ private struct SleepTimerView: View {
         NavigationStack {
             List {
                 Section {
-                    timerButton(label: "15 Minutes", systemImage: "15.circle", isOn: isMinutes(15)) {
+                    timerButton(label: String(localized: "15 Minutes"), systemImage: "15.circle", isOn: isMinutes(15)) {
                         viewModel.setSleepTimerMinutes(15); dismiss()
                     }
-                    timerButton(label: "30 Minutes", systemImage: "30.circle", isOn: isMinutes(30)) {
+                    timerButton(label: String(localized: "30 Minutes"), systemImage: "30.circle", isOn: isMinutes(30)) {
                         viewModel.setSleepTimerMinutes(30); dismiss()
                     }
-                    timerButton(label: "45 Minutes", systemImage: "45.circle", isOn: isMinutes(45)) {
+                    timerButton(label: String(localized: "45 Minutes"), systemImage: "45.circle", isOn: isMinutes(45)) {
                         viewModel.setSleepTimerMinutes(45); dismiss()
                     }
-                    timerButton(label: "1 Hour", systemImage: "1.circle", isOn: isMinutes(60)) {
+                    timerButton(label: String(localized: "1 Hour"), systemImage: "1.circle", isOn: isMinutes(60)) {
                         viewModel.setSleepTimerMinutes(60); dismiss()
                     }
                 }
                 Section {
-                    timerButton(label: "End of Chapter", systemImage: "book.closed", isOn: viewModel.sleepTimerMode == "endOfChapter") {
+                    timerButton(label: String(localized: "End of Chapter"), systemImage: "book.closed", isOn: viewModel.sleepTimerMode == "endOfChapter") {
                         viewModel.setSleepTimerEndOfChapter(); dismiss()
                     }
                 }
@@ -1418,7 +1418,7 @@ private struct SleepTimerView: View {
                         }
                     } footer: {
                         if viewModel.sleepTimerMode == "minutes" {
-                            Text("Remaining: \(sleepCountdownText(viewModel.sleepTimerRemainingSeconds))")
+                            Text(String(localized: "Remaining: \(sleepCountdownText(viewModel.sleepTimerRemainingSeconds))"))
                         }
                     }
                 }
@@ -1759,7 +1759,7 @@ private struct NewBookmarkView: View {
                 Button {
                     recorder.isRecording ? saveVoiceMemo() : startVoiceBookmark()
                 } label: {
-                    Label(recorder.isRecording ? "Stop" : "Record Note", systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                    Label(recorder.isRecording ? String(localized: "Stop") : String(localized: "Record Note"), systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)

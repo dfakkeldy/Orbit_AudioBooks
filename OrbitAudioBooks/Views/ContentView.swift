@@ -29,9 +29,13 @@ struct ContentView: View {
                 AlbumArtHeroView(
                     artwork: model.currentDisplayArtwork ?? model.thumbnailImage,
                     artworkVersion: model.currentDisplayArtworkVersion,
-                    caption: model.chapters.count >= 2 ? "Current Chapter" : "Current Title",
+                    caption: model.chapters.count >= 2
+                        ? String(localized: "Current Chapter")
+                        : String(localized: "Book Title"),
                     mainText: model.chapters.count >= 2
-                        ? (model.currentSubtitle.isEmpty ? "Chapter \((model.currentChapterIndex ?? 0) + 1)" : model.currentSubtitle)
+                        ? (model.currentSubtitle.isEmpty
+                            ? String(localized: "Chapter \((model.currentChapterIndex ?? 0) + 1)")
+                            : model.currentSubtitle)
                         : model.currentTitle,
                     appFont: settings.appFont
                 )
@@ -40,11 +44,11 @@ struct ContentView: View {
             Spacer()
 
             if model.chapters.count >= 2 {
-                Text("Chapter \((model.currentChapterIndex ?? 0) + 1) of \(model.chapters.count)")
+                Text(String(localized: "Chapter \((model.currentChapterIndex ?? 0) + 1) of \(model.chapters.count)"))
                     .customFont(.footnote, appFont: settings.appFont)
                     .foregroundStyle(.secondary)
             } else if !model.tracks.isEmpty {
-                Text("Track \(model.currentIndex + 1) of \(model.tracks.count)")
+                Text(String(localized: "Track \(model.currentIndex + 1) of \(model.tracks.count)"))
                     .customFont(.footnote, appFont: settings.appFont)
                     .foregroundStyle(.secondary)
             }
@@ -82,7 +86,7 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "folder")
                 }
-                .accessibilityLabel("Open folder")
+                .accessibilityLabel(Text("Open folder"))
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -91,7 +95,7 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .accessibilityLabel("Settings")
+                .accessibilityLabel(Text("Settings"))
             }
         }
         .sheet(isPresented: $showingFolderPicker) {

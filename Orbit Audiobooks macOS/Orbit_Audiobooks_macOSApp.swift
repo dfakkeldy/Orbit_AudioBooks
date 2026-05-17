@@ -26,7 +26,7 @@ struct Orbit_Audiobooks_macOSApp: App {
             }
 
             CommandMenu("Playback") {
-                Button(player.isPlaying ? "Pause" : "Play") {
+                Button(player.isPlaying ? String(localized: "Pause") : String(localized: "Play")) {
                     player.togglePlayPause()
                 }
                 .keyboardShortcut(.space, modifiers: [])

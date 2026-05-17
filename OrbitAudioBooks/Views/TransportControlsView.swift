@@ -17,7 +17,7 @@ struct TransportControlsView: View {
                     .frame(width: 64, height: 64)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel(model.chapters.count >= 2 ? "Previous chapter" : "Previous track")
+            .accessibilityLabel(model.chapters.count >= 2 ? Text("Previous chapter") : Text("Previous track"))
 
             Spacer()
 
@@ -31,7 +31,7 @@ struct TransportControlsView: View {
                     .frame(width: 64, height: 64)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Skip back 30 seconds")
+            .accessibilityLabel(Text("Skip back 30 seconds"))
 
             Spacer()
 
@@ -45,7 +45,7 @@ struct TransportControlsView: View {
                     .frame(width: 76, height: 76)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
+            .accessibilityLabel(model.isPlaying ? Text("Pause") : Text("Play"))
 
             Spacer()
 
@@ -59,7 +59,7 @@ struct TransportControlsView: View {
                     .frame(width: 64, height: 64)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Skip forward 30 seconds")
+            .accessibilityLabel(Text("Skip forward 30 seconds"))
 
             Spacer()
 
@@ -73,7 +73,7 @@ struct TransportControlsView: View {
                     .frame(width: 64, height: 64)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel(model.chapters.count >= 2 ? "Next chapter" : "Next track")
+            .accessibilityLabel(model.chapters.count >= 2 ? Text("Next chapter") : Text("Next track"))
 
             Spacer()
         }

@@ -72,7 +72,7 @@ struct PlaylistView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("Tab", selection: $selectedTab) {
-                    Text(model.chapters.count >= 2 ? "Chapters" : "Tracks").tag(PlaylistTab.items)
+                    Text(model.chapters.count >= 2 ? String(localized: "Chapters") : String(localized: "Tracks")).tag(PlaylistTab.items)
                     Text("Bookmarks").tag(PlaylistTab.bookmarks)
                 }
                 .pickerStyle(.segmented)
@@ -128,7 +128,7 @@ struct PlaylistView: View {
                                                 Image(systemName: "list.bullet")
                                                     .foregroundStyle(.secondary)
                                                     .frame(width: 22)
-                                                Text(chapter.title ?? "Chapter \(chapter.index + 1)")
+                                                Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
                                                 Spacer()
                                                 Text(formatHMS(chapter.startSeconds))
                                                     .customFont(.caption, appFont: settings.appFont)
@@ -183,7 +183,7 @@ struct PlaylistView: View {
                 Image(systemName: "list.bullet")
                     .foregroundStyle(.secondary)
                     .frame(width: 22)
-                Text(chapter.title ?? "Chapter \(chapter.index + 1)")
+                Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
                 Spacer()
                 Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
                     .customFont(.caption, appFont: settings.appFont)
@@ -218,7 +218,7 @@ struct PlaylistView: View {
                     .foregroundStyle(bm.isEnabled ? (bm.voiceMemoFileName != nil ? Color.red : Color.accentColor) : Color.secondary)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(bm.title.isEmpty ? "Bookmark" : bm.title)
+                    Text(bm.title.isEmpty ? String(localized: "Bookmark") : bm.title)
                         .lineLimit(1)
                     Text(formatHMS(bm.timestamp))
                         .customFont(.caption, appFont: settings.appFont)
@@ -236,7 +236,7 @@ struct PlaylistView: View {
             Button {
                 model.toggleBookmarkEnabled(id: bm.id)
             } label: {
-                Label(bm.isEnabled ? "Disable" : "Enable", systemImage: bm.isEnabled ? "bookmark.slash" : "bookmark")
+                Label(bm.isEnabled ? String(localized: "Disable") : String(localized: "Enable"), systemImage: bm.isEnabled ? "bookmark.slash" : "bookmark")
             }
             .tint(bm.isEnabled ? .orange : .green)
         }

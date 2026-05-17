@@ -104,11 +104,11 @@ struct MacContentView: View {
 
     func showOpenPanel() {
         let panel = NSOpenPanel()
-        panel.title = "Open Audiobook"
+        panel.title = String(localized: "Open Audiobook…")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        panel.message = "Select an audiobook file or folder containing audio files."
+        panel.message = String(localized: "Select an audiobook file or folder containing audio files.")
         let audioTypes: [UTType] = [.audio, .mp3, .mpeg4Audio]
             .compactMap { $0 }
         panel.allowedContentTypes = audioTypes

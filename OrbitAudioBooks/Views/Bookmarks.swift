@@ -455,13 +455,13 @@ struct EditBookmarkView: View {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Remove picture bookmark image")
+                            .accessibilityLabel(Text("Remove picture bookmark image"))
                         }
                     }
 
                     #if canImport(PhotosUI)
                     PhotosPicker(selection: $selectedImageItem, matching: .images) {
-                        Label(bookmarkImageFileName == nil ? "Attach Image" : "Replace Image", systemImage: "photo.badge.plus")
+                        Label(bookmarkImageFileName == nil ? String(localized: "Attach Image") : String(localized: "Replace Image"), systemImage: "photo.badge.plus")
                     }
                     #else
                     Text("Image selection is unavailable on this platform.")

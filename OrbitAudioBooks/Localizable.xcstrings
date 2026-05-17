@@ -1,0 +1,3192 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Done": {
+      "comment": "Button to dismiss a modal sheet or settings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gereed"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "comment": "Button to cancel an action or dismiss without saving",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annuleer"
+          }
+        }
+      }
+    },
+    "Save": {
+      "comment": "Button to save changes",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewaar"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "comment": "Button to delete an item",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwijder"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "comment": "Button to edit an item",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewerk"
+          }
+        }
+      }
+    },
+    "OK": {
+      "comment": "Button to dismiss an alert or confirmation",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Clear": {
+      "comment": "Button to clear input or selection",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wis"
+          }
+        }
+      }
+    },
+    "Reset": {
+      "comment": "Button to reset settings to defaults",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herstel"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "comment": "Button to stop playback or recording",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "Close": {
+      "comment": "Button to close a panel or overlay",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sluit"
+          }
+        }
+      }
+    },
+    "Play": {
+      "comment": "Play button label \u2014 transport control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speel af"
+          }
+        }
+      }
+    },
+    "Pause": {
+      "comment": "Pause button label \u2014 transport control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pauzeer"
+          }
+        }
+      }
+    },
+    "Play/Pause": {
+      "comment": "Combined play/pause button label \u2014 used in accessibility and Watch",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play/Pause"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speel af/Pauzeer"
+          }
+        }
+      }
+    },
+    "Toggle Playback": {
+      "comment": "Widget action to toggle playback",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Playback"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afspeel Wissel"
+          }
+        }
+      }
+    },
+    "Skip Forward 30s": {
+      "comment": "Skip forward button label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Forward 30s"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30s Vooruit"
+          }
+        }
+      }
+    },
+    "Skip Backward 30s": {
+      "comment": "Skip backward button label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Backward 30s"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30s Terug"
+          }
+        }
+      }
+    },
+    "Skip forward 30 seconds": {
+      "comment": "Accessibility label for skip forward",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip forward 30 seconds"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ga 30 seconden vooruit"
+          }
+        }
+      }
+    },
+    "Skip back 30 seconds": {
+      "comment": "Accessibility label for skip backward",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip back 30 seconds"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ga 30 seconden terug"
+          }
+        }
+      }
+    },
+    "Next chapter": {
+      "comment": "Skip to next chapter button",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next chapter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volgend hoofdstuk"
+          }
+        }
+      }
+    },
+    "Previous chapter": {
+      "comment": "Skip to previous chapter button",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous chapter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorig hoofdstuk"
+          }
+        }
+      }
+    },
+    "Next track": {
+      "comment": "Skip to next track button",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next track"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volgend nummer"
+          }
+        }
+      }
+    },
+    "Previous track": {
+      "comment": "Skip to previous track button",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous track"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorig nummer"
+          }
+        }
+      }
+    },
+    "Speed": {
+      "comment": "Playback speed control label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speed"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Snelheid"
+          }
+        }
+      }
+    },
+    "Volume": {
+      "comment": "Volume control label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        }
+      }
+    },
+    "Volume Boost": {
+      "comment": "Volume boost toggle label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume Boost"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume Boost"
+          }
+        }
+      }
+    },
+    "Playback speed, %@": {
+      "comment": "Accessibility label for current playback speed",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback speed, %@\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afspeelsnelheid, %@\u00d7"
+          }
+        }
+      }
+    },
+    "0.75\u00d7": {
+      "comment": "Playback speed option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0.75\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "0,75\u00d7"
+          }
+        }
+      }
+    },
+    "1.0\u00d7": {
+      "comment": "Playback speed option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1.0\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1,0\u00d7"
+          }
+        }
+      }
+    },
+    "1.25\u00d7": {
+      "comment": "Playback speed option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1.25\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1,25\u00d7"
+          }
+        }
+      }
+    },
+    "1.5\u00d7": {
+      "comment": "Playback speed option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1.5\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1,5\u00d7"
+          }
+        }
+      }
+    },
+    "1.75\u00d7": {
+      "comment": "Playback speed option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1.75\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1,75\u00d7"
+          }
+        }
+      }
+    },
+    "2.0\u00d7": {
+      "comment": "Playback speed option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2.0\u00d7"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2,0\u00d7"
+          }
+        }
+      }
+    },
+    "Sleep Timer": {
+      "comment": "Sleep timer title and accessibility label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep Timer"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slaaptimer"
+          }
+        }
+      }
+    },
+    "Off": {
+      "comment": "Sleep timer off / disabled state",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uit"
+          }
+        }
+      }
+    },
+    "End of Chapter": {
+      "comment": "Sleep timer option \u2014 stop at end of current chapter",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End of Chapter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einde hoofdstuk"
+          }
+        }
+      }
+    },
+    "EOC": {
+      "comment": "Abbreviated 'End of Chapter' label for compact UI (toolbar)",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EOC"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EHD"
+          }
+        }
+      }
+    },
+    "1 Hour": {
+      "comment": "Sleep timer preset \u2014 1 hour",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Hour"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Uur"
+          }
+        }
+      }
+    },
+    "15 Minutes": {
+      "comment": "Sleep timer preset \u2014 15 minutes",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 Minutes"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 Minuten"
+          }
+        }
+      }
+    },
+    "30 Minutes": {
+      "comment": "Sleep timer preset \u2014 30 minutes",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 Minutes"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 Minuten"
+          }
+        }
+      }
+    },
+    "45 Minutes": {
+      "comment": "Sleep timer preset \u2014 45 minutes",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "45 Minutes"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "45 Minuten"
+          }
+        }
+      }
+    },
+    "Remaining: %@": {
+      "comment": "Sleep timer remaining countdown. Argument is a time string like '5m 30s'",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaining: %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resterend: %@"
+          }
+        }
+      }
+    },
+    "Trigger after:": {
+      "comment": "Label above sleep timer duration options",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trigger after:"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activeer na:"
+          }
+        }
+      }
+    },
+    "Bookmark": {
+      "comment": "Bookmark singular \u2014 used as default title and button label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer"
+          }
+        }
+      }
+    },
+    "Bookmarks": {
+      "comment": "Bookmarks plural \u2014 used as section title",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzers"
+          }
+        }
+      }
+    },
+    "New Bookmark": {
+      "comment": "Title for newly created bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieuwe Bladwijzer"
+          }
+        }
+      }
+    },
+    "Add Bookmark": {
+      "comment": "Button to add a new bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer Toevoegen"
+          }
+        }
+      }
+    },
+    "Edit Bookmark": {
+      "comment": "Button to edit an existing bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer Bewerken"
+          }
+        }
+      }
+    },
+    "Create Bookmark": {
+      "comment": "Widget intent title \u2014 create a bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer Maken"
+          }
+        }
+      }
+    },
+    "Quick Bookmark": {
+      "comment": "Watch quick bookmark button",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Snelle Bladwijzer"
+          }
+        }
+      }
+    },
+    "Picture Bookmark": {
+      "comment": "Bookmark with attached picture",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Picture Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto Bladwijzer"
+          }
+        }
+      }
+    },
+    "Jump to Bookmark": {
+      "comment": "Context action to seek to bookmark position",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ga naar Bladwijzer"
+          }
+        }
+      }
+    },
+    "Delete Bookmark": {
+      "comment": "Context action to delete a bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Bookmark"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer Verwijderen"
+          }
+        }
+      }
+    },
+    "No Bookmarks": {
+      "comment": "Empty state \u2014 no bookmarks yet",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Bookmarks"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen Bladwijzers"
+          }
+        }
+      }
+    },
+    "Note": {
+      "comment": "Bookmark note section / widget parameter",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notitie"
+          }
+        }
+      }
+    },
+    "Record Note": {
+      "comment": "Watch button \u2014 record a voice note",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record Note"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notitie Opnemen"
+          }
+        }
+      }
+    },
+    "Record Voice Memo": {
+      "comment": "Button to start recording a voice memo",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record Voice Memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spraakmemo Opnemen"
+          }
+        }
+      }
+    },
+    "Voice Memo": {
+      "comment": "Voice memo label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice Memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spraakmemo"
+          }
+        }
+      }
+    },
+    "Playing Voice Memo": {
+      "comment": "Overlay title when a voice memo is playing",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing Voice Memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spraakmemo Afspelen"
+          }
+        }
+      }
+    },
+    "Stop voice memo": {
+      "comment": "Accessibility label \u2014 stop voice memo playback",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop voice memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spraakmemo stoppen"
+          }
+        }
+      }
+    },
+    "Play voice memo": {
+      "comment": "Accessibility label \u2014 play attached voice memo",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play voice memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spraakmemo afspelen"
+          }
+        }
+      }
+    },
+    "Play Bookmarks Inline": {
+      "comment": "Toggle label \u2014 auto-play voice memos at bookmark positions",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play Bookmarks Inline"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzers Inline Afspelen"
+          }
+        }
+      }
+    },
+    "Record new voice memo": {
+      "comment": "Button to record a new voice memo",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record new voice memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieuwe spraakmemo opnemen"
+          }
+        }
+      }
+    },
+    "Remove picture bookmark image": {
+      "comment": "Accessibility label \u2014 remove attached image from bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove picture bookmark image"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto van bladwijzer verwijderen"
+          }
+        }
+      }
+    },
+    "Attach Image": {
+      "comment": "Button to attach an image to a bookmark",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach Image"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afbeelding Toevoegen"
+          }
+        }
+      }
+    },
+    "Replace Image": {
+      "comment": "Button to replace an existing bookmark image",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace Image"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afbeelding Vervangen"
+          }
+        }
+      }
+    },
+    "Add bookmark at current time": {
+      "comment": "Accessibility label \u2014 add bookmark button",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add bookmark at current time"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer toevoegen op huidig tijdstip"
+          }
+        }
+      }
+    },
+    "Tap the bookmark button while playing to save a moment.": {
+      "comment": "Empty state description \u2014 no bookmarks yet",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the bookmark button while playing to save a moment."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tik op de bladwijzerknop tijdens het afspelen om een moment te bewaren."
+          }
+        }
+      }
+    },
+    "Tap Quick Bookmark to drop a generic marker, or Record Note to attach a voice memo.": {
+      "comment": "Watch empty state \u2014 instructions for bookmarking",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap Quick Bookmark to drop a generic marker, or Record Note to attach a voice memo."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tik Snelle Bladwijzer voor een marker, of Notitie Opnemen voor een spraakmemo."
+          }
+        }
+      }
+    },
+    "Press \u2318B during playback to add a bookmark.": {
+      "comment": "macOS shortcut hint \u2014 empty bookmarks state",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press \u2318B during playback to add a bookmark."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Druk \u2318B tijdens het afspelen om een bladwijzer toe te voegen."
+          }
+        }
+      }
+    },
+    "Recording\u2026 %@": {
+      "comment": "Voice memo recording indicator with elapsed time",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording\u2026 %@s"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opnemen\u2026 %@s"
+          }
+        }
+      }
+    },
+    "Bookmark Timeout": {
+      "comment": "Watch setting \u2014 bookmark button timeout",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark Timeout"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer Time-out"
+          }
+        }
+      }
+    },
+    "Loop mode": {
+      "comment": "Label for chapter/track looping toggle",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loop mode"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herhaalmodus"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "comment": "Settings view title and accessibility label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instellingen"
+          }
+        }
+      }
+    },
+    "Appearance": {
+      "comment": "Appearance settings section",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weergave"
+          }
+        }
+      }
+    },
+    "Font": {
+      "comment": "Font picker label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lettertype"
+          }
+        }
+      }
+    },
+    "Lexend": {
+      "comment": "Font option \u2014 Lexend typeface",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lexend"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lexend"
+          }
+        }
+      }
+    },
+    "Lexend (Default)": {
+      "comment": "Font option \u2014 Lexend (default setting)",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lexend (Default)"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lexend (Standaard)"
+          }
+        }
+      }
+    },
+    "OpenDyslexic": {
+      "comment": "Font option \u2014 OpenDyslexic accessible typeface",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenDyslexic"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenDyslexic"
+          }
+        }
+      }
+    },
+    "System": {
+      "comment": "Font option \u2014 system default font",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systeem"
+          }
+        }
+      }
+    },
+    "Display": {
+      "comment": "Display settings section",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weergave"
+          }
+        }
+      }
+    },
+    "Dark Mode": {
+      "comment": "Dark mode toggle label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark Mode"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Donkere Modus"
+          }
+        }
+      }
+    },
+    "Smart Rewind": {
+      "comment": "Smart Rewind toggle \u2014 automatically rewind on resume",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Rewind"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slim Terugspoelen"
+          }
+        }
+      }
+    },
+    "Enable Smart Rewind": {
+      "comment": "Toggle label to enable smart rewind",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Smart Rewind"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slim Terugspoelen Inschakelen"
+          }
+        }
+      }
+    },
+    "Rewind by:": {
+      "comment": "Label for rewind duration picker",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rewind by:"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terugspoelen met:"
+          }
+        }
+      }
+    },
+    "Short Pauses": {
+      "comment": "Smart rewind option \u2014 rewind after short pauses",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Short Pauses"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korte Pauzes"
+          }
+        }
+      }
+    },
+    "Medium Pauses": {
+      "comment": "Smart rewind option \u2014 rewind after medium pauses",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium Pauses"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Middellange Pauzes"
+          }
+        }
+      }
+    },
+    "Long Pauses": {
+      "comment": "Smart rewind option \u2014 rewind after long pauses",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Long Pauses"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lange Pauzes"
+          }
+        }
+      }
+    },
+    "Automatically rewinds on resume. Longer pause rules override shorter pause rules.": {
+      "comment": "Smart Rewind settings footer explanation",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically rewinds on resume. Longer pause rules override shorter pause rules."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spoelt automatisch terug bij hervatten. Langere pauzeregels overschrijven kortere."
+          }
+        }
+      }
+    },
+    "Enable": {
+      "comment": "Toggle on state / enable label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inschakelen"
+          }
+        }
+      }
+    },
+    "Disable": {
+      "comment": "Toggle off state / disable label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disable"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uitschakelen"
+          }
+        }
+      }
+    },
+    "Watch App Settings": {
+      "comment": "Watch app settings title",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch App Settings"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch App Instellingen"
+          }
+        }
+      }
+    },
+    "Digital Crown Control": {
+      "comment": "Watch digital crown settings section",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digital Crown Control"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digitale Kroon Bediening"
+          }
+        }
+      }
+    },
+    "Digital Crown": {
+      "comment": "Watch digital crown \u2014 abbreviated label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digital Crown"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digitale Kroon"
+          }
+        }
+      }
+    },
+    "Scrubbing": {
+      "comment": "Digital crown scrubbing mode option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrubbing"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrubben"
+          }
+        }
+      }
+    },
+    "Volume Sensitivity": {
+      "comment": "Watch crown volume sensitivity slider",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume Sensitivity"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumegevoeligheid"
+          }
+        }
+      }
+    },
+    "Scrubbing Sensitivity": {
+      "comment": "Watch crown scrubbing sensitivity slider",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrubbing Sensitivity"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrubgevoeligheid"
+          }
+        }
+      }
+    },
+    "Haptics": {
+      "comment": "Watch haptic feedback settings section",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haptics"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haptiek"
+          }
+        }
+      }
+    },
+    "Button Haptics": {
+      "comment": "Watch button haptic feedback toggle",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Button Haptics"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knop Haptiek"
+          }
+        }
+      }
+    },
+    "Progress Indicators": {
+      "comment": "Watch progress indicator settings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progress Indicators"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voortgangsindicatoren"
+          }
+        }
+      }
+    },
+    "Chapter Progress": {
+      "comment": "Progress indicator \u2014 chapter-based progress",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapter Progress"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstuk Voortgang"
+          }
+        }
+      }
+    },
+    "Total Book Progress": {
+      "comment": "Progress indicator \u2014 total book progress",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total Book Progress"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Totale Boek Voortgang"
+          }
+        }
+      }
+    },
+    "Watch Appearance": {
+      "comment": "Watch appearance settings section",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch Appearance"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch Weergave"
+          }
+        }
+      }
+    },
+    "Face Style": {
+      "comment": "Watch face style picker",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face Style"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wijzerplaat Stijl"
+          }
+        }
+      }
+    },
+    "Full Face": {
+      "comment": "Watch face style \u2014 full face layout",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full Face"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volledig Scherm"
+          }
+        }
+      }
+    },
+    "Circular Ring": {
+      "comment": "Watch progress style \u2014 circular ring",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Circular Ring"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cirkelring"
+          }
+        }
+      }
+    },
+    "Linear Bar": {
+      "comment": "Watch progress style \u2014 linear bar",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linear Bar"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lineaire Balk"
+          }
+        }
+      }
+    },
+    "Classic Background": {
+      "comment": "Watch classic layout background options",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Classic Background"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klassieke Achtergrond"
+          }
+        }
+      }
+    },
+    "Classic": {
+      "comment": "Classic watch layout style",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Classic"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klassiek"
+          }
+        }
+      }
+    },
+    "Blurred": {
+      "comment": "Blurred artwork background option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blurred"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vervaagd"
+          }
+        }
+      }
+    },
+    "Black": {
+      "comment": "Black background option",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Black"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwart"
+          }
+        }
+      }
+    },
+    "Watch App Designer": {
+      "comment": "Watch layout designer section title",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch App Designer"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch App Ontwerper"
+          }
+        }
+      }
+    },
+    "Page 1": {
+      "comment": "Watch page 1 label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page 1"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pagina 1"
+          }
+        }
+      }
+    },
+    "Page 2": {
+      "comment": "Watch page 2 label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page 2"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pagina 2"
+          }
+        }
+      }
+    },
+    "Page": {
+      "comment": "Generic page label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pagina"
+          }
+        }
+      }
+    },
+    "Tab": {
+      "comment": "Watch tab label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab"
+          }
+        }
+      }
+    },
+    "Available Actions (Drag to slots)": {
+      "comment": "Watch designer \u2014 hint text for drag-to-slot",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available Actions (Drag to slots)"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschikbare Acties (Sleep naar vakken)"
+          }
+        }
+      }
+    },
+    "Force Sync to Watch": {
+      "comment": "Button to force sync watch state from iOS",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Force Sync to Watch"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forceer Sync naar Watch"
+          }
+        }
+      }
+    },
+    "Show Circular Ring": {
+      "comment": "Toggle to show circular progress ring on watch",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Circular Ring"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toon Cirkelring"
+          }
+        }
+      }
+    },
+    "Show Linear Bar": {
+      "comment": "Toggle to show linear progress bar on watch",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Linear Bar"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toon Lineaire Balk"
+          }
+        }
+      }
+    },
+    "Show Chapters": {
+      "comment": "Toggle to show chapter markers",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Chapters"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toon Hoofdstukken"
+          }
+        }
+      }
+    },
+    "Transcript": {
+      "comment": "Transcript tab / display mode label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcript"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcript"
+          }
+        }
+      }
+    },
+    "Transcribe": {
+      "comment": "Button to start transcription",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribe"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribeer"
+          }
+        }
+      }
+    },
+    "Word Cloud": {
+      "comment": "Word cloud display mode label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Word Cloud"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Woordwolk"
+          }
+        }
+      }
+    },
+    "No Word Cloud": {
+      "comment": "Empty state \u2014 no word cloud data available",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Word Cloud"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen Woordwolk"
+          }
+        }
+      }
+    },
+    "No Transcript": {
+      "comment": "Empty state \u2014 no transcript data available",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Transcript"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen Transcript"
+          }
+        }
+      }
+    },
+    "Export Transcript": {
+      "comment": "Button to export transcript data",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Transcript"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcript Exporteren"
+          }
+        }
+      }
+    },
+    "Transcribe to see text here.": {
+      "comment": "Empty state \u2014 transcript pane before transcription",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribe to see text here."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribeer om hier tekst te zien."
+          }
+        }
+      }
+    },
+    "Word frequencies will appear after a transcript is loaded.": {
+      "comment": "Empty state \u2014 word cloud before transcript is loaded (macOS)",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Word frequencies will appear after a transcript is loaded."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Woordfrequenties verschijnen nadat een transcript is geladen."
+          }
+        }
+      }
+    },
+    "Word frequencies will appear after transcription data and chapter markers are loaded.": {
+      "comment": "Empty state \u2014 word cloud before data is loaded (iOS)",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Word frequencies will appear after transcription data and chapter markers are loaded."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Woordfrequenties verschijnen nadat transcriptiedata en hoofdstukmarkeringen zijn geladen."
+          }
+        }
+      }
+    },
+    "No word cloud yet.\nTranscribe on your iPhone\nto see top words here.": {
+      "comment": "Watch empty state \u2014 word cloud not yet available",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No word cloud yet.\nTranscribe on your iPhone\nto see top words here."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nog geen woordwolk.\nTranscribeer op je iPhone\nom hier topwoorden te zien."
+          }
+        }
+      }
+    },
+    "No transcript segments match \"%@\".": {
+      "comment": "Empty search results \u2014 no transcript segments found for search query",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No transcript segments match \"%@\"."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen transcriptsegmenten gevonden voor \"%@\"."
+          }
+        }
+      }
+    },
+    "%@ of %@ segments": {
+      "comment": "Transcript segment count display \u2014 current filtered vs total",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of %@ segments"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ van %@ segmenten"
+          }
+        }
+      }
+    },
+    "Track %d of %d": {
+      "comment": "Track position indicator \u2014 current track number of total",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track %d of %d"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummer %d van %d"
+          }
+        }
+      }
+    },
+    "Chapter %d of %d": {
+      "comment": "Chapter position indicator \u2014 current chapter number of total",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapter %d of %d"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstuk %d van %d"
+          }
+        }
+      }
+    },
+    "Chapter": {
+      "comment": "Chapter singular",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstuk"
+          }
+        }
+      }
+    },
+    "Chapters": {
+      "comment": "Chapters plural",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapters"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstukken"
+          }
+        }
+      }
+    },
+    "Track": {
+      "comment": "Track singular",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummer"
+          }
+        }
+      }
+    },
+    "Tracks": {
+      "comment": "Tracks plural",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracks"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummers"
+          }
+        }
+      }
+    },
+    "Chapter %d": {
+      "comment": "Chapter placeholder name \u2014 'Chapter 1', 'Chapter 2', etc.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapter %d"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoofdstuk %d"
+          }
+        }
+      }
+    },
+    "Current Chapter": {
+      "comment": "Current chapter label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current Chapter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Huidig Hoofdstuk"
+          }
+        }
+      }
+    },
+    "Jump to chapter start": {
+      "comment": "Accessibility label \u2014 seek to beginning of current chapter",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to chapter start"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ga naar begin hoofdstuk"
+          }
+        }
+      }
+    },
+    "Title": {
+      "comment": "Bookmark or book title field",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel"
+          }
+        }
+      }
+    },
+    "Book Title": {
+      "comment": "Currently playing book title label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Book Title"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boektitel"
+          }
+        }
+      }
+    },
+    "Time": {
+      "comment": "Time display label",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tijd"
+          }
+        }
+      }
+    },
+    "Playlist": {
+      "comment": "Playlist view title / tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afspeellijst"
+          }
+        }
+      }
+    },
+    "No track selected": {
+      "comment": "Placeholder when no audiobook is loaded",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No track selected"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen nummer geselecteerd"
+          }
+        }
+      }
+    },
+    "No audiobook loaded": {
+      "comment": "Placeholder when no audiobook is loaded (macOS)",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No audiobook loaded"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen audioboek geladen"
+          }
+        }
+      }
+    },
+    "Open Audiobook\u2026": {
+      "comment": "macOS menu item \u2014 open audiobook file/folder",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Audiobook\u2026"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Audioboek\u2026"
+          }
+        }
+      }
+    },
+    "Open folder": {
+      "comment": "macOS button \u2014 open folder picker",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open folder"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open map"
+          }
+        }
+      }
+    },
+    "Pro Transcripts": {
+      "comment": "Store section title for pro transcript feature",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro Transcripts"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro Transcripties"
+          }
+        }
+      }
+    },
+    "Unlocked": {
+      "comment": "Label indicating pro features are unlocked",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlocked"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ontgrendeld"
+          }
+        }
+      }
+    },
+    "Locked": {
+      "comment": "Label indicating pro features are locked",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locked"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vergrendeld"
+          }
+        }
+      }
+    },
+    "Unlock for %@": {
+      "comment": "Purchase button with price. Argument is the formatted price e.g. '$4.99'",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock for %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ontgrendel voor %@"
+          }
+        }
+      }
+    },
+    "Retry Loading Purchase": {
+      "comment": "Button to retry loading StoreKit products",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry Loading Purchase"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aankoop Laden Opnieuw Proberen"
+          }
+        }
+      }
+    },
+    "Restore Purchases": {
+      "comment": "Button to restore previous purchases",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore Purchases"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aankopen Herstellen"
+          }
+        }
+      }
+    },
+    "StoreKit Error": {
+      "comment": "Alert title for StoreKit errors",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "StoreKit Error"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "StoreKit Fout"
+          }
+        }
+      }
+    },
+    "Unlock transcript overlays for audiobooks with transcript sidecars.": {
+      "comment": "Description text for pro transcript feature",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock transcript overlays for audiobooks with transcript sidecars."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ontgrendel transcript-overlays voor audioboeken met transcript-sidecars."
+          }
+        }
+      }
+    },
+    "Image selection is unavailable on this platform.": {
+      "comment": "Error \u2014 image selection not supported on current platform",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image selection is unavailable on this platform."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afbeelding selecteren is niet beschikbaar op dit platform."
+          }
+        }
+      }
+    },
+    "Microphone access is required to record a voice bookmark.": {
+      "comment": "Alert \u2014 microphone access denied",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone access is required to record a voice bookmark."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microfoontoegang is vereist om een spraakbladwijzer op te nemen."
+          }
+        }
+      }
+    },
+    "No active audiobook found.": {
+      "comment": "Error \u2014 widget tried to create bookmark but no audiobook is playing",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No active audiobook found."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen actief audioboek gevonden."
+          }
+        }
+      }
+    },
+    "Failed to load audiobook": {
+      "comment": "Error \u2014 failed to load an audiobook file or folder",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load audiobook"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kon audioboek niet laden"
+          }
+        }
+      }
+    },
+    "Unable to open app-group UserDefaults": {
+      "comment": "Error \u2014 shared UserDefaults suite unavailable",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to open app-group UserDefaults"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan app-groep UserDefaults niet openen"
+          }
+        }
+      }
+    },
+    "When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp.": {
+      "comment": "Settings footer \u2014 explanation of Play Bookmarks Inline feature",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wanneer ingeschakeld worden spraakmemo's bij bladwijzers automatisch afgespeeld wanneer het audioboek dat tijdstip bereikt."
+          }
+        }
+      }
+    },
+    "Playback": {
+      "comment": "macOS CommandMenu title for playback commands",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afspeelbediening"
+          }
+        }
+      }
+    },
+    "Search transcript...": {
+      "comment": "macOS text field placeholder for searching transcripts",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search transcript..."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoek transcript..."
+          }
+        }
+      }
+    },
+    "Select an audiobook file or folder containing audio files.": {
+      "comment": "macOS open panel message",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select an audiobook file or folder containing audio files."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecteer een audioboekbestand of map met audiobestanden."
+          }
+        }
+      }
+    },
+    "No Results": {
+      "comment": "Search empty state title \u2014 no results found",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Results"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen Resultaten"
+          }
+        }
+      }
+    },
+    "Status": {
+      "comment": "Label for Pro feature status indicator",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "Watch App": {
+      "comment": "Settings navigation link to Watch app configuration",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch App"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch App"
+          }
+        }
+      }
+    },
+    "Use minus and plus buttons to adjust": {
+      "comment": "Accessibility hint for stepper control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use minus and plus buttons to adjust"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gebruik min- en plusknoppen om aan te passen"
+          }
+        }
+      }
+    },
+    "On": {
+      "comment": "Accessibility value \u2014 toggle or switch is on",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aan"
+          }
+        }
+      }
+    },
+    "Recording new voice memo": {
+      "comment": "Recording indicator text",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording new voice memo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieuwe spraakmemo opnemen"
+          }
+        }
+      }
+    },
+    "Store": {
+      "comment": "Settings section header for in-app purchase and store settings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Store"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Winkel"
+          }
+        }
+      }
+    },
+    "Watch": {
+      "comment": "Settings section header for Apple Watch configuration",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch"
+          }
+        }
+      }
+    },
+    "Typography": {
+      "comment": "Appearance sub-section header for font/typography settings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typography"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typografie"
+          }
+        }
+      }
+    },
+    "No .mp3/.m4a/.m4b files found": {
+      "comment": "Error shown when selected directory contains no playable audio files",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No .mp3/.m4a/.m4b files found"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen .mp3/.m4a/.m4b bestanden gevonden"
+          }
+        }
+      }
+    },
+    "Bookmark %d": {
+      "comment": "Default bookmark title \u2014 'Bookmark 1', 'Bookmark 2', etc.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark %d"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bladwijzer %d"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -54,17 +54,30 @@ struct BottomToolbarView: View {
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
         }
-        .accessibilityLabel("Loop mode")
-        .accessibilityValue({
+        .accessibilityLabel(Text("Loop mode"))
+        .accessibilityValue(Text({
             switch model.loopMode {
-            case .off: return "Off"
-            case .chapter: return "Chapter"
-            case .bookmark: return "Bookmark"
+            case .off: return String(localized: "Off")
+            case .chapter: return String(localized: "Chapter")
+            case .bookmark: return String(localized: "Bookmark")
             }
-        }())
+        }()))
     }
 
     // MARK: - Speed
+
+    private var speedLabel: String {
+        switch model.speed {
+        case 0.75: return String(localized: "0.75×")
+        case 1.0:  return String(localized: "1.0×")
+        case 1.25: return String(localized: "1.25×")
+        case 1.5:  return String(localized: "1.5×")
+        case 1.75: return String(localized: "1.75×")
+        case 2.0:  return String(localized: "2.0×")
+        default:   return String(format: "%g×", model.speed)
+        }
+    }
+
 
     private var speedButton: some View {
         Button {
@@ -76,11 +89,11 @@ struct BottomToolbarView: View {
                 model.setSpeed(1.0)
             }
         } label: {
-            Text(String(format: "%gx", model.speed))
+            Text(speedLabel)
                 .customFont(.headline)
                 .frame(minWidth: 44, minHeight: 44)
         }
-        .accessibilityLabel("Playback speed, \(String(format: "%g", model.speed)) times")
+        .accessibilityLabel(Text(String(localized: "Playback speed, \(String(format: "%g", model.speed))×")))
     }
 
     // MARK: - Volume Boost
@@ -95,8 +108,8 @@ struct BottomToolbarView: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("Volume Boost")
-        .accessibilityValue(model.isVolumeBoostEnabled ? "On" : "Off")
+        .accessibilityLabel(Text("Volume Boost"))
+        .accessibilityValue(Text(model.isVolumeBoostEnabled ? "On" : "Off"))
     }
 
     // MARK: - Sleep Timer
@@ -150,14 +163,15 @@ struct BottomToolbarView: View {
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }
-        .accessibilityLabel("Sleep Timer")
-        .accessibilityValue({
+        .accessibilityLabel(Text("Sleep Timer"))
+        .accessibilityValue(Text({
             switch model.sleepTimerMode {
-            case .off: return "Off"
-            case .minutes(let m): return "\(m) minutes, \(model.sleepTimerRemainingSeconds) seconds remaining"
-            case .endOfChapter: return "End of chapter"
+            case .off: return String(localized: "Off")
+            case .minutes(let m):
+                return String(localized: "\(m) minutes, \(model.sleepTimerRemainingSeconds) seconds remaining")
+            case .endOfChapter: return String(localized: "End of Chapter")
             }
-        }())
+        }()))
     }
 
     // MARK: - Bookmark
@@ -174,7 +188,7 @@ struct BottomToolbarView: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("Add bookmark at current time")
+        .accessibilityLabel(Text("Add bookmark at current time"))
         .disabled(model.tracks.isEmpty)
     }
 
@@ -189,6 +203,6 @@ struct BottomToolbarView: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("Playlist")
+        .accessibilityLabel(Text("Playlist"))
     }
 }

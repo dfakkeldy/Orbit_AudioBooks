@@ -10,7 +10,7 @@ struct Orbit_Audiobooks_WidgetControl: ControlWidget {
             ControlWidgetButton(action: TogglePlaybackIntent()) {
                 let defaults = AppGroupDefaults.shared
                 let isPlaying = defaults.bool(forKey: "isPlaying")
-                Label(isPlaying ? "Pause" : "Play", systemImage: isPlaying ? "pause.fill" : "play.fill")
+                Label(isPlaying ? String(localized: "Pause") : String(localized: "Play"), systemImage: isPlaying ? "pause.fill" : "play.fill")
             }
         }
         .displayName("Orbit Audiobooks Playback")

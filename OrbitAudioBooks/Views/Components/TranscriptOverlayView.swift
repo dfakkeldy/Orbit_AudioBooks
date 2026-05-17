@@ -84,7 +84,7 @@ struct TranscriptOverlayView<Content: View>: View {
                         .padding(.vertical, 6)
 
                         if !searchText.isEmpty {
-                            Text("\(filteredSegments.count) of \(player.transcription.count) segments")
+                            Text(String(localized: "\(filteredSegments.count) of \(player.transcription.count) segments"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 12)
@@ -125,7 +125,7 @@ struct TranscriptOverlayView<Content: View>: View {
             ContentUnavailableView(
                 "No Results",
                 systemImage: "magnifyingglass",
-                description: Text("No transcript segments match \"\(searchText)\".")
+                description: Text(String(localized: "No transcript segments match \"\(searchText)\"."))
             )
             .padding()
         } else {

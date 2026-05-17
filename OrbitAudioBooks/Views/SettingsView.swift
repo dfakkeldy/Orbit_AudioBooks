@@ -15,13 +15,13 @@ struct SettingsView: View {
 
         NavigationStack {
             Form {
-                Section {
+                Section("Display") {
                     NavigationLink("Appearance") {
                         Form {
                             Section {
                                 Toggle("Dark Mode", isOn: $settings.isDarkMode)
                             }
-                            Section {
+                            Section("Typography") {
                                 Picker("Font", selection: $settings.appFont) {
                                     Text("Lexend (Default)").tag("Lexend")
                                     Text("OpenDyslexic").tag("OpenDyslexic")
@@ -32,7 +32,8 @@ struct SettingsView: View {
                         .navigationTitle("Appearance")
                     }
                 }
-                Section {
+
+                Section("Store") {
                     NavigationLink("Pro Transcripts") {
                         ProTranscriptsSettingsView(
                             isPurchasingPro: $isPurchasingPro,
@@ -41,18 +42,23 @@ struct SettingsView: View {
                         )
                     }
                 }
-                Section {
+
+                Section("Watch") {
                     NavigationLink("Watch App") {
                         WatchAppSettingsView()
                     }
                 }
-                Section {
+
+                Section("Playback") {
                     NavigationLink("Smart Rewind") {
                         SmartRewindSettingsView()
                     }
                 }
-                Section(footer: Text("When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp.")) {
+
+                Section {
                     Toggle("Play Bookmarks Inline", isOn: $settings.playBookmarksInline)
+                } footer: {
+                    Text("When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp.")
                 }
             }
             .navigationTitle("Settings")
@@ -77,7 +83,7 @@ private struct ProTranscriptsSettingsView: View {
         Form {
             Section {
                 LabeledContent("Status") {
-                    Text(storeManager.hasUnlockedPro ? "Unlocked" : "Locked")
+                    Text(storeManager.hasUnlockedPro ? String(localized: "Unlocked") : String(localized: "Locked"))
                         .foregroundStyle(storeManager.hasUnlockedPro ? .green : .secondary)
                 }
 
@@ -88,7 +94,7 @@ private struct ProTranscriptsSettingsView: View {
                         if isPurchasingPro {
                             ProgressView()
                         } else {
-                            Text("Unlock for \(product.displayPrice)")
+                            Text(String(localized: "Unlock for \(product.displayPrice)"))
                         }
                     }
                     .disabled(isPurchasingPro || isRestoringPurchases)

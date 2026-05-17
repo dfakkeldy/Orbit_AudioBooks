@@ -16,14 +16,14 @@ struct SmartRewindSettingsView: View {
             if settings.isRewindEnabled {
                 Section("Short Pauses") {
                     InlineStepperRow(
-                        title: "Trigger after:",
+                        title: String(localized: "Trigger after:"),
                         value: $settings.rewindPauseSecondsThreshold,
                         range: 5...300,
                         step: 5,
                         valueText: "\(settings.rewindPauseSecondsThreshold)s"
                     )
                     InlineStepperRow(
-                        title: "Rewind by:",
+                        title: String(localized: "Rewind by:"),
                         value: $settings.rewindAmountAfterSeconds,
                         range: 5...180,
                         step: 5,
@@ -33,14 +33,14 @@ struct SmartRewindSettingsView: View {
 
                 Section("Medium Pauses") {
                     InlineStepperRow(
-                        title: "Trigger after:",
+                        title: String(localized: "Trigger after:"),
                         value: $settings.rewindPauseMinutesThreshold,
                         range: 1...120,
                         step: 1,
                         valueText: "\(settings.rewindPauseMinutesThreshold)m"
                     )
                     InlineStepperRow(
-                        title: "Rewind by:",
+                        title: String(localized: "Rewind by:"),
                         value: $settings.rewindAmountAfterMinutes,
                         range: 10...600,
                         step: 5,
@@ -50,7 +50,7 @@ struct SmartRewindSettingsView: View {
 
                 Section("Long Pauses") {
                     InlineStepperRow(
-                        title: "Trigger after:",
+                        title: String(localized: "Trigger after:"),
                         value: $settings.rewindPauseHoursThreshold,
                         range: 1...24,
                         step: 1,
@@ -58,7 +58,7 @@ struct SmartRewindSettingsView: View {
                     )
                     if !settings.rewindHoursToChapterStart {
                         InlineStepperRow(
-                            title: "Rewind by:",
+                            title: String(localized: "Rewind by:"),
                             value: $settings.rewindAmountAfterHours,
                             range: 15...3600,
                             step: 15,
@@ -108,7 +108,7 @@ struct InlineStepperRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(title)
             .accessibilityValue(valueText)
-            .accessibilityHint("Use minus and plus buttons to adjust")
+            .accessibilityHint(Text("Use minus and plus buttons to adjust"))
         }
     }
 }

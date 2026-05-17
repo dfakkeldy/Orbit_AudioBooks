@@ -398,7 +398,7 @@ private struct WatchPreviewCanvas: View {
                 AppIconThumbnail(size: 64)
                     .padding(.top, 4)
 
-                Text("Chapter 1")
+                Text(String(localized: "Chapter 1"))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
