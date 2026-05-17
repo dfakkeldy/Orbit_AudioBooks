@@ -208,6 +208,52 @@
 
 ---
 
+## Task 9: Audio Cues at Chapter/Bookmark Boundaries
+
+**Files:**
+- New: `OrbitAudioBooks/Services/AudioCueService.swift`
+- New: `Shared/AudioCue.swift` (sound selection enum)
+- New: bundle audio assets (beep, horn — short `.wav` or `.m4a` files)
+- Modify: `OrbitAudioBooks/ViewModels/PlayerModel.swift` (trigger integration)
+- Modify: `OrbitAudioBooks/Views/SettingsView.swift` (toggle + sound picker)
+- Modify: `OrbitAudioBooks/Services/SettingsManager.swift` (persist preferences)
+
+**Summary:**
+Play a short audio cue (beep, horn, etc.) when playback crosses a chapter boundary or a bookmark timestamp. Fully opt-in via Settings — off by default.
+
+**Steps:**
+- [ ] Create `Shared/AudioCue.swift` — an enum of available sounds (`beep`, `horn`) with a `String` raw value for persistence.
+- [ ] Create `OrbitAudioBooks/Services/AudioCueService.swift`:
+  - Load bundled `.wav`/`.m4a` cue assets into `AVAudioPlayer` instances on init.
+  - Expose `func play(_ cue: AudioCue)` that ducks the main audio, plays the cue, then restores volume.
+  - Must not interrupt the main `AVPlayer` — use `.duckOthers` audio session category option or manual volume fade.
+- [ ] Add cue preferences to `SettingsManager`:
+  - `var chapterCueEnabled: Bool` (default `false`)
+  - `var bookmarkCueEnabled: Bool` (default `false`)
+  - `var selectedChapterCue: AudioCue` (default `.beep`)
+  - `var selectedBookmarkCue: AudioCue` (default `.horn`)
+- [ ] Integrate triggers in `PlayerModel`:
+  - When `currentChapterIndex` changes, fire `audioCueService.play(settings.selectedChapterCue)` if `chapterCueEnabled`.
+  - When `lastTriggeredBookmarkID` is set (bookmark triggered), fire `audioCueService.play(settings.selectedBookmarkCue)` if `bookmarkCueEnabled`.
+- [ ] Add Settings UI:
+  - Section: "Audio Cues" with toggles for chapter and bookmark cues.
+  - Per-toggle sound picker (beep, horn) — simple `Picker` since the enum is small.
+- [ ] Bundle two short audio files (`beep.wav`, `horn.wav`) — keep them under 0.5 seconds, royalty-free.
+
+**Acceptance Criteria:**
+- Audio cue plays at chapter boundaries when enabled in Settings.
+- Audio cue plays at bookmark triggers when enabled.
+- Main audiobook volume ducks during cue, then returns.
+- Toggling off in Settings disables cues entirely.
+- No audible glitch or gap when no cue is configured.
+
+**Design notes:**
+- `AudioCueService` owns its own `AVAudioPlayer` instance — separate from the main `AudioEngine`. This avoids state entanglement.
+- Volume ducking via `AVAudioPlayer.volume` ramp (fade main to 0.4, play cue, fade back) is simpler and more reliable than `AVAudioSession` category manipulation at runtime.
+- Cue files live in the iOS app bundle; watchOS and macOS can be added later if desired.
+
+---
+
 ## Post-Release: Spaced Repetition (Anki) Feature
 
 Five new plans add a complete spaced repetition flashcard system to Orbit Audiobooks. See `plan-cross-reference.md` for dependency details and execution order.
