@@ -1341,7 +1341,7 @@ final class PlayerModel {
         let trackURL = tracks[index].url
         Task { [weak self] in
             guard let self else { return }
-            await self.ensureItemIsAvailable(url: trackURL)
+            await ArtworkCache.ensureItemIsAvailable(url: trackURL)
         }
 
         // AudioEngine handles AVPlayerItem creation, observers, and duration loading.
@@ -1609,29 +1609,6 @@ final class PlayerModel {
     }
 
 
-    // MARK: iCloud / Files provider helpers
-
-    private func ensureItemIsAvailable(url: URL) async {
-        // Best-effort: if it’s an iCloud ubiquitous item, request download.
-        // If it’s already local, this is basically a no-op.
-        do {
-            let values = try url.resourceValues(forKeys: [
-                .isUbiquitousItemKey,
-                .ubiquitousItemDownloadingStatusKey
-            ])
-
-            guard values.isUbiquitousItem == true else { return }
-
-            let status = values.ubiquitousItemDownloadingStatus ?? URLUbiquitousItemDownloadingStatus.current
-            if status != URLUbiquitousItemDownloadingStatus.current {
-                try FileManager.default.startDownloadingUbiquitousItem(at: url)
-            }
-        } catch {
-            // Keep silent for a beginner skeleton; AVPlayer will surface failure if truly unreadable.
-            print("ensureItemIsAvailable error: \(error)")
-        }
-    }
-
     private func loadDurationForNowPlaying() async {
         guard let seconds = audioEngine.duration, seconds > 0 else { return }
         durationSeconds = seconds
@@ -1669,9 +1646,9 @@ final class PlayerModel {
 
     private func generateThumbnail(for url: URL) async {
         let sourceImage: UIImage?
-        if let embedded = await embeddedArtworkImage(for: url) {
+        if let embedded = await ArtworkCache.embeddedArtworkImage(for: url) {
             sourceImage = embedded
-        } else if let folderImage = await folderArtworkImage(near: url) {
+        } else if let folderImage = await ArtworkCache.folderArtworkImage(near: url) {
             sourceImage = folderImage
         } else {
             sourceImage = loadAppIconImage()
@@ -1719,67 +1696,6 @@ final class PlayerModel {
             baseWatchThumbnailData = result.1
             updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
         }
-    }
-
-    private func embeddedArtworkImage(for url: URL) async -> UIImage? {
-        await ArtworkCache.embeddedArtworkImage(for: url)
-    }
-
-    private func folderArtworkImage(near url: URL) async -> UIImage? {
-        let folderURL = url.deletingLastPathComponent()
-        let imageExtensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "gif", "bmp", "tiff"]
-        let imageExtensionSet = Set(imageExtensions)
-
-        let files = listFilesInFolder(folderURL)
-        let images = files.filter { fileURL in
-            imageExtensionSet.contains(fileURL.pathExtension.lowercased())
-        }
-
-        if !images.isEmpty {
-            let preferred = images.first { fileURL in
-                fileURL.deletingPathExtension().lastPathComponent.lowercased() == "cover"
-            }
-
-            let selected = preferred ?? images.sorted {
-                $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-            }.first
-
-            if let selected, let image = await loadImageFile(at: selected) {
-                return image
-            }
-        }
-
-        // If directory enumeration is blocked, still try direct cover.* paths.
-        for ext in imageExtensions {
-            let candidate = folderURL.appendingPathComponent("cover").appendingPathExtension(ext)
-            if let image = await loadImageFile(at: candidate) {
-                return image
-            }
-        }
-
-        return nil
-    }
-
-    private func listFilesInFolder(_ folderURL: URL) -> [URL] {
-        ArtworkCache.listFilesInFolder(folderURL)
-    }
-
-    private func loadImageFile(at imageURL: URL) async -> UIImage? {
-        await ensureItemIsAvailable(url: imageURL)
-
-        let didStart = imageURL.startAccessingSecurityScopedResource()
-        defer { if didStart { imageURL.stopAccessingSecurityScopedResource() } }
-
-        let maxPixelSize = 600
-        guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil) else { return nil }
-        let downsampleOptions: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else { return nil }
-        return UIImage(cgImage: cgImage)
     }
 
     private func loadChaptersForCurrentItem() async {

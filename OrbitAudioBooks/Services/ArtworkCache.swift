@@ -54,6 +54,74 @@ struct ArtworkCache {
         )) ?? []
     }
 
+    /// Requests iCloud download for a ubiquitous item if it is not yet local.
+    static func ensureItemIsAvailable(url: URL) async {
+        do {
+            let values = try url.resourceValues(forKeys: [
+                .isUbiquitousItemKey,
+                .ubiquitousItemDownloadingStatusKey
+            ])
+            guard values.isUbiquitousItem == true else { return }
+            let status = values.ubiquitousItemDownloadingStatus ?? URLUbiquitousItemDownloadingStatus.current
+            if status != URLUbiquitousItemDownloadingStatus.current {
+                try FileManager.default.startDownloadingUbiquitousItem(at: url)
+            }
+        } catch {
+            print("ensureItemIsAvailable error: \(error)")
+        }
+    }
+
+    /// Downscales an image file for display, with security-scoped access.
+    static func loadImageFile(at imageURL: URL) async -> UIImage? {
+        await ensureItemIsAvailable(url: imageURL)
+
+        let didStart = imageURL.startAccessingSecurityScopedResource()
+        defer { if didStart { imageURL.stopAccessingSecurityScopedResource() } }
+
+        let maxPixelSize = 600
+        guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil) else { return nil }
+        let downsampleOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+
+    /// Scans the folder containing an audio file for cover artwork images.
+    static func folderArtworkImage(near url: URL) async -> UIImage? {
+        let folderURL = url.deletingLastPathComponent()
+        let imageExtensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "gif", "bmp", "tiff"]
+        let imageExtensionSet = Set(imageExtensions)
+
+        let files = listFilesInFolder(folderURL)
+        let images = files.filter { fileURL in
+            imageExtensionSet.contains(fileURL.pathExtension.lowercased())
+        }
+
+        if !images.isEmpty {
+            let preferred = images.first { fileURL in
+                fileURL.deletingPathExtension().lastPathComponent.lowercased() == "cover"
+            }
+            let selected = preferred ?? images.sorted {
+                $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+            }.first
+            if let selected, let image = await loadImageFile(at: selected) {
+                return image
+            }
+        }
+
+        for ext in imageExtensions {
+            let candidate = folderURL.appendingPathComponent("cover").appendingPathExtension(ext)
+            if let image = await loadImageFile(at: candidate) {
+                return image
+            }
+        }
+        return nil
+    }
+
     /// Creates a 60×60 JPEG thumbnail suitable for Watch transfer.
     /// - Parameter image: The source image to downscale.
     /// - Returns: JPEG data, or nil on failure.
