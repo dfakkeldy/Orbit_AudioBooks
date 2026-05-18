@@ -52,6 +52,29 @@ struct ContentCard: Identifiable, Equatable {
 }
 
 extension ContentCard {
+    init(from item: TimelineItem) {
+        let cardType: ContentCardType = switch item.itemType {
+        case .track: .playbackSession
+        case .chapter: .chapterTransition
+        case .bookmark: .bookmark
+        case .flashcard: .flashcard
+        case .transcription: .transcription
+        case .note: .note
+        }
+        self.init(
+            id: item.id,
+            cardType: cardType,
+            title: item.title,
+            subtitle: item.subtitle,
+            mediaTimestamp: item.mediaTimestamp,
+            realTimestamp: Date(),
+            endedAt: nil,
+            sourceItemID: item.databaseID,
+            sourceItemType: item.itemType.rawValue,
+            isEditable: cardType == .note || cardType == .bookmark
+        )
+    }
+
     init(from event: RealTimeEvent) {
         let cardType: ContentCardType = switch event.eventType {
         case .playbackSession: .playbackSession

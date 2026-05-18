@@ -4,7 +4,7 @@ struct TimelineTab: View {
     @Environment(PlayerModel.self) private var model
     @State private var service: TimelineService?
     @State private var timeScale: TimeScale = .minutes
-    @State private var timelineMode: TimelineService.TimelineMode = .realTime
+    @State private var timelineMode: TimelineService.TimelineMode = .playlistTime
     @State private var isViewingMode: Bool = true
     @State private var recenterTrigger = 0
     @State private var dueCount: Int = 0

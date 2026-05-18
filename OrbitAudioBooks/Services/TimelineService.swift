@@ -85,9 +85,7 @@ final class TimelineService {
 
     func setCurrentAudiobookID(_ id: String?) {
         currentAudiobookID = id
-        if timelineMode == .playlistTime {
-            loadCurrentWindow(force: true)
-        }
+        loadCurrentWindow(force: true)
     }
 
     // MARK: - Infinite scroll
@@ -141,8 +139,14 @@ final class TimelineService {
     private func loadCurrentWindow(force: Bool = false) {
         Task {
             do {
-                let events = try loadEvents(in: viewportStart...viewportEnd)
-                let newGroups = groupEvents(events)
+                let newGroups: [TimelineGroup]
+                if timelineMode == .playlistTime {
+                    let items = try loadTimelineItems()
+                    newGroups = groupTimelineItems(items)
+                } else {
+                    let events = try loadEvents(in: viewportStart...viewportEnd)
+                    newGroups = groupEvents(events)
+                }
                 await MainActor.run {
                     self.groups = newGroups
                     self.loadedStart = self.viewportStart
@@ -163,8 +167,20 @@ final class TimelineService {
         return try dao.events(in: range)
     }
 
+    /// Loads static content from the unified timeline VIEW for playlist-time mode.
+    private func loadTimelineItems() throws -> [TimelineItem] {
+        guard let db, let audiobookID = currentAudiobookID else { return [] }
+        let dao = TimelineDAO(db: db.writer)
+        return try dao.items(for: audiobookID)
+    }
+
     private func groupEvents(_ records: [RealTimeEventRecord]) -> [TimelineGroup] {
         let cards = records.map { ContentCard(from: RealTimeEvent(from: $0)) }
+        return timeScale.group(cards, calendar: calendar)
+    }
+
+    private func groupTimelineItems(_ items: [TimelineItem]) -> [TimelineGroup] {
+        let cards = items.map { ContentCard(from: $0) }
         return timeScale.group(cards, calendar: calendar)
     }
 

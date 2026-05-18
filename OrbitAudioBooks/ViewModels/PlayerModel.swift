@@ -761,6 +761,47 @@ final class PlayerModel {
         if let db = databaseService {
             bookmarkStore.configureSQLPersistence(database: db)
         }
+
+        // Persist audiobook and track records to SQL for the timeline VIEW.
+        persistAudiobookToSQL(folderURL: url)
+    }
+
+    /// Restores the last selected folder or file from a security-scoped bookmark,
+
+    /// Saves the current audiobook and its tracks to SQL so the unified timeline
+    /// VIEW returns content. Safe to call on every folder load — uses INSERT OR REPLACE.
+    private func persistAudiobookToSQL(folderURL: URL) {
+        guard let db = databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+        let title = folderURL.deletingPathExtension().lastPathComponent
+        let totalDuration = state.durationSeconds ?? 0
+        let audiobook = AudiobookRecord(
+            id: audiobookID,
+            title: title,
+            author: nil,
+            duration: totalDuration,
+            fileCount: state.tracks.count,
+            addedAt: Date().ISO8601Format()
+        )
+        do {
+            try AudiobookDAO(db: db.writer).insert(audiobook)
+            let records = state.tracks.enumerated().map { (i, track) in
+                TrackRecord(
+                    id: track.id,
+                    audiobookID: audiobookID,
+                    title: track.title,
+                    duration: 0,
+                    filePath: track.url.absoluteString,
+                    isEnabled: true,
+                    sortOrder: i,
+                    playlistPosition: nil
+                )
+            }
+            try TrackDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
+        } catch {
+            Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
+                .error("Failed to persist audiobook to SQL: \(error.localizedDescription)")
+        }
     }
 
     /// Restores the last selected folder or file from a security-scoped bookmark,
