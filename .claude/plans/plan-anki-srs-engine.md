@@ -1,4 +1,4 @@
-# Plan ASRS: Spaced Repetition Engine & Data Model
+# Plan ASRS: Spaced Repetition Engine & Data Model ✅ DONE (2026-05-18)
 
 ## Summary
 

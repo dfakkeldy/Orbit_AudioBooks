@@ -313,8 +313,8 @@ M4B then adds the aggregation without changing the protocol signature.
 | BKMG — Bookmark Playlist Grouping | ✅ Done | 2026-05-17 |
 | HELP — Help Files | ✅ Done | 2026-05-17 |
 | RELEASE — Release Readiness Remediation | ✅ Done | 2026-05-17 |
-| ASRS — SRS Engine & Data Model | ⏳ Pending | — |
+| ASRS — SRS Engine & Data Model | ✅ Done | 2026-05-18 — built with SQL integration |
 | AIR — Inline Active Recall | ⏳ Pending | — |
-| ADR — Daily Review UI | ⏳ Pending | — |
+| ADR — Daily Review UI | ✅ Done | 2026-05-18 |
 | AWG — WatchOS Hands-Free Review | ⏳ Pending | — |
 | ADI — JSON Deck Import | ⏳ Pending | — |

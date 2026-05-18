@@ -1,4 +1,4 @@
-# Plan ADR: Daily Review UI (Traditional Anki Mode)
+# Plan ADR: Daily Review UI (Traditional Anki Mode) ✅ DONE (2026-05-18)
 
 ## Summary
 
