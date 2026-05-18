@@ -29,7 +29,8 @@ enum MigrationService {
                 let dao = BookmarkDAO(db: database.writer)
                 for bm in bookmarks {
                     let record = BookmarkRecord(from: bm)
-                    try? dao.insert(record)
+                    do { try dao.insert(record) }
+                    catch { logger.error("Failed to migrate bookmark: \(error.localizedDescription)") }
                 }
                 logger.debug("Migrated \(bookmarks.count) bookmarks for \(audiobookKey)")
             }
@@ -41,7 +42,7 @@ enum MigrationService {
                     guard let _ = item["trackId"] as? String,
                           let time = item["time"] as? Double
                     else { continue }
-                    try? database.write { db in
+                    try database.write { db in
                         try db.execute(
                             sql: """
                                 INSERT OR REPLACE INTO playback_state (audiobook_id, last_position, speed)
@@ -57,12 +58,12 @@ enum MigrationService {
             let speedKey = "OrbitAudiobooks.playback.speed.dictionary"
             if let speeds = defaults.dictionary(forKey: speedKey) as? [String: Double] {
                 for (audiobookID, speed) in speeds {
-                    try? database.write { db in
+                    do { try database.write { db in
                         try db.execute(
                             sql: "UPDATE playback_state SET speed = ? WHERE audiobook_id = ?",
                             arguments: [speed, audiobookID]
                         )
-                    }
+                    } } catch { logger.error("Failed to migrate speed for \(audiobookID): \(error.localizedDescription)") }
                 }
             }
 
@@ -75,7 +76,8 @@ enum MigrationService {
             let settingsDAO = SettingsDAO(db: database.writer)
             for key in settingsKeys {
                 if let value = defaults.string(forKey: key) {
-                    try? settingsDAO.set(key, value: value)
+                    do { try settingsDAO.set(key, value: value) }
+                    catch { logger.error("Failed to migrate setting \(key): \(error.localizedDescription)") }
                 }
             }
 
