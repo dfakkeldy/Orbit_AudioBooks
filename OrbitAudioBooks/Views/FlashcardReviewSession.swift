@@ -2,20 +2,20 @@ import SwiftUI
 
 struct FlashcardReviewSession: View {
     @Environment(\.dismiss) private var dismiss
-    let cards: [Flashcard]
-    let onGrade: (Flashcard, Int) -> Void
-
-    @State private var currentIndex = 0
+    @Bindable var viewModel: DailyReviewViewModel
 
     var body: some View {
         NavigationStack {
             VStack {
-                if currentIndex < cards.count {
-                    let card = cards[currentIndex]
-
-                    // Progress
+                if viewModel.isComplete {
+                    ContentUnavailableView(
+                        "All Done",
+                        systemImage: "checkmark.circle.fill",
+                        description: Text("You've reviewed all due flashcards.")
+                    )
+                } else if let card = viewModel.currentCard {
                     HStack {
-                        Text("Card \(currentIndex + 1) of \(cards.count)")
+                        Text("Card \(viewModel.progress.current) of \(viewModel.progress.total)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -23,7 +23,7 @@ struct FlashcardReviewSession: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
 
-                    ProgressView(value: Double(currentIndex), total: Double(cards.count))
+                    ProgressView(value: Double(viewModel.progress.current), total: Double(viewModel.progress.total))
                         .padding(.horizontal, 20)
 
                     Spacer()
@@ -32,31 +32,21 @@ struct FlashcardReviewSession: View {
                         frontText: card.frontText,
                         backText: card.backText,
                         onGrade: { grade in
-                            onGrade(cards[currentIndex], grade)
-                            if currentIndex < cards.count - 1 {
-                                withAnimation {
-                                    currentIndex += 1
-                                }
-                            } else {
-                                dismiss()
-                            }
+                            viewModel.gradeCard(grade)
                         }
                     )
 
                     Spacer()
-                } else {
-                    ContentUnavailableView(
-                        "All Done",
-                        systemImage: "checkmark.circle.fill",
-                        description: Text("You've reviewed all due flashcards.")
-                    )
                 }
             }
             .navigationTitle("Review")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        viewModel.snippetPlayer?.stop()
+                        dismiss()
+                    }
                 }
             }
         }

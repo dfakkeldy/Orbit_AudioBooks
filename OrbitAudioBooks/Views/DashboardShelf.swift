@@ -4,6 +4,7 @@ struct DashboardShelf: View {
     @Environment(PlayerModel.self) private var model
 
     @State private var isExpanded = true
+    var onReviewTap: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +34,7 @@ struct DashboardShelf: View {
                         StatsModuleView()
                         SpeedCardView()
                         SleepTimerCardView()
-                        UpcomingReviewsModuleView()
+                        UpcomingReviewsModuleView(onTap: onReviewTap)
                         ListeningProgressModuleView()
                         BookmarkCardView()
                     }

@@ -15,6 +15,9 @@ struct RootTabView: View {
     @State private var newBookmarkDraft: BookmarkDraft? = nil
     @State private var editingBookmarkID: UUID? = nil
     @State private var isTranscriptExpanded = false
+    @State private var showingReview = false
+    @State private var reviewViewModel: DailyReviewViewModel?
+    @State private var reviewDueCount = 0
 
     init(pendingDeepLink: Binding<PlayerDeepLink?> = .constant(nil)) {
         _pendingDeepLink = pendingDeepLink
@@ -34,7 +37,7 @@ struct RootTabView: View {
                 }
                 .tag(0)
 
-                TimelineTab()
+                TimelineTab(onReviewTap: { [weak model] in launchReview() })
                     .tabItem {
                         Label("Timeline", systemImage: "rectangle.split.2x1")
                     }
@@ -45,6 +48,15 @@ struct RootTabView: View {
                         Label("Library", systemImage: "books.vertical")
                     }
                     .tag(2)
+
+                if reviewDueCount > 0 {
+                    Color.clear
+                        .tabItem {
+                            Label("Review", systemImage: "rectangle.stack.fill")
+                        }
+                        .badge(reviewDueCount)
+                        .tag(3)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -106,11 +118,23 @@ struct RootTabView: View {
             .sheet(item: $newBookmarkDraft) { draft in
                 EditBookmarkView(bookmarkID: nil, draft: draft)
             }
+            .sheet(isPresented: $showingReview) {
+                if let vm = reviewViewModel {
+                    FlashcardReviewSession(viewModel: vm)
+                }
+            }
             .onAppear {
                 model.setSettingsManager(settings)
                 model.setDisplayScale(displayScale)
                 model.restoreLastSelectionIfPossible()
                 applyPendingDeepLinkIfNeeded()
+                refreshDueCount()
+            }
+            .onChange(of: selectedTab) { _, newTab in
+                if newTab == 3 {
+                    launchReview()
+                    selectedTab = 0
+                }
             }
             .onChange(of: pendingDeepLink) { _, _ in
                 applyPendingDeepLinkIfNeeded()
@@ -120,6 +144,22 @@ struct RootTabView: View {
             }
             .preferredColorScheme(settings.isDarkMode ? .dark : .light)
         }
+    }
+
+    private func launchReview() {
+        guard let db = model.databaseService else { return }
+        let vm = DailyReviewViewModel(db: db.writer, folderURL: model.folderURL, snippetPlayer: model.snippetPlayer)
+        vm.onRequestSnippetPlay = { [weak model] url, start, end in
+            model?.snippetPlayer.play(url: url, startTime: start, endTime: end)
+        }
+        vm.loadDueCards()
+        reviewViewModel = vm
+        showingReview = true
+    }
+
+    private func refreshDueCount() {
+        guard let db = model.databaseService else { return }
+        reviewDueCount = (try? FlashcardDAO(db: db.writer).allDueCards().count) ?? 0
     }
 
     private func applyPendingDeepLinkIfNeeded() {

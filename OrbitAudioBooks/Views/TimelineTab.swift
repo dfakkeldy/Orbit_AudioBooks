@@ -7,6 +7,8 @@ struct TimelineTab: View {
     @State private var timelineMode: TimelineService.TimelineMode = .realTime
     @State private var isViewingMode: Bool = true
     @State private var recenterTrigger = 0
+    @State private var dueCount: Int = 0
+    var onReviewTap: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,7 +26,26 @@ struct TimelineTab: View {
 
             SpeedSuggestionBanner()
 
-            DashboardShelf()
+            DashboardShelf(onReviewTap: onReviewTap)
+
+            if dueCount > 0 {
+                Button {
+                    onReviewTap?()
+                } label: {
+                    HStack {
+                        Label("\(dueCount) cards due for review", systemImage: "rectangle.stack.fill")
+                            .font(.caption)
+                            .foregroundStyle(.purple)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
 
             if let service {
                 TimelineContentView(service: service, isEditing: $isViewingMode.negated(), recenterTrigger: recenterTrigger)
@@ -43,6 +64,7 @@ struct TimelineTab: View {
                 service = ts
                 ts.recenterOnNow()
             }
+            refreshDueCount()
         }
         .onChange(of: timeScale) { _, new in
             service?.setTimeScale(new)
@@ -53,6 +75,11 @@ struct TimelineTab: View {
         .onChange(of: model.folderURL) { _, newURL in
             service?.setCurrentAudiobookID(newURL?.absoluteString)
         }
+    }
+
+    private func refreshDueCount() {
+        guard let db = model.databaseService else { return }
+        dueCount = (try? FlashcardDAO(db: db.writer).allDueCards().count) ?? 0
     }
 }
 

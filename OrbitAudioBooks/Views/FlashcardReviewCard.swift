@@ -47,13 +47,8 @@ struct FlashcardReviewCard: View {
                                 Text("\(grade)")
                                     .font(.caption)
                                     .fontWeight(.medium)
-                                if grade == 0 {
-                                    Text("Again")
+                                Text(gradeLabel(grade))
                                         .font(.caption2)
-                                } else if grade == 5 {
-                                    Text("Easy")
-                                        .font(.caption2)
-                                }
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
@@ -68,6 +63,16 @@ struct FlashcardReviewCard: View {
             }
         }
         .padding(16)
+    }
+
+    private func gradeLabel(_ grade: Int) -> String {
+        switch grade {
+        case 0: return "Again"
+        case 1, 2: return "Hard"
+        case 3, 4: return "Good"
+        case 5: return "Easy"
+        default: return ""
+        }
     }
 
     private func gradeColor(_ grade: Int) -> Color {

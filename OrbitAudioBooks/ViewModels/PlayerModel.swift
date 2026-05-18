@@ -143,6 +143,9 @@ final class PlayerModel {
     var aggregatedChapters: [AggregatedChapter] { state.aggregatedChapters }
     var totalBookDuration: TimeInterval { state.totalBookDuration }
 
+    let snippetPlayer = SnippetPlayer()
+    var isPlayingSnippet: Bool { snippetPlayer.isPlaying }
+
     var deepLinkHandler = DeepLinkHandler()
     let nowPlayingController = NowPlayingController()
     let bookmarkStore = BookmarkStore()
@@ -267,6 +270,21 @@ final class PlayerModel {
         bookmarkStore.onSwitchToMainPlayer = { [weak self] in
             guard let self else { return }
             self.bookmarkStore.stopVoiceMemo()
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .spokenAudio, options: [])
+            try? session.setActive(true)
+            if self.isPlaying {
+                self.audioEngine.playImmediately(atRate: self.speed)
+                self.playbackController.applySpeedToCurrentItem()
+                self.updateNowPlayingInfo(isPaused: false)
+            }
+        }
+
+        snippetPlayer.onPlaybackWillStart = { [weak self] in
+            self?.prepareAudioForVoiceMemo()
+        }
+        snippetPlayer.onPlaybackDidEnd = { [weak self] in
+            guard let self else { return }
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playback, mode: .spokenAudio, options: [])
             try? session.setActive(true)
