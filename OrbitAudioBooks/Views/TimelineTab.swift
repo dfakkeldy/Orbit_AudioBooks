@@ -22,6 +22,8 @@ struct TimelineTab: View {
 
             Divider()
 
+            SpeedSuggestionBanner()
+
             if let service {
                 TimelineContentView(service: service, isEditing: $isViewingMode.negated(), recenterTrigger: recenterTrigger)
             } else {

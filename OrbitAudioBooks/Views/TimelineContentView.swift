@@ -6,7 +6,9 @@ struct TimelineContentView: View {
     var recenterTrigger: Int = 0
 
     var body: some View {
-        if service.groups.isEmpty {
+        if service.timelineMode == .playlistTime {
+            PlaylistTimelineView(groups: service.groups)
+        } else if service.groups.isEmpty {
             ContentUnavailableView(
                 "No Events",
                 systemImage: "clock.badge.questionmark",
