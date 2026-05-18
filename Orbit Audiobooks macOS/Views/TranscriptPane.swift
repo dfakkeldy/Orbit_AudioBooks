@@ -14,6 +14,7 @@ struct TranscriptPane: View {
     @EnvironmentObject var transcriptionManager: TranscriptionManager
     @Binding var searchText: String
     @State private var displayMode: MacTranscriptDisplayMode = .transcript
+    @ScaledMetric(relativeTo: .body) private var wordCloudBaseSize: CGFloat = 10
 
     var currentHash: String {
         guard let path = player.currentURL?.path else { return "" }
@@ -165,7 +166,7 @@ struct TranscriptPane: View {
 
     private func fontSize(for count: Int) -> CGFloat {
         let fraction = CGFloat(count) / CGFloat(maxWordCount)
-        return 10 + fraction * 18
+        return wordCloudBaseSize + fraction * 18
     }
 
     private func fontWeight(for count: Int) -> Font.Weight {

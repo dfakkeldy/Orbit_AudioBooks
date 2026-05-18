@@ -39,6 +39,8 @@ struct AlbumArtHeroView: View {
                         .stroke(.quaternary, lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+                .accessibilityLabel(Text(mainText))
+                .accessibilityAddTraits(.isImage)
         } else {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.quaternary)
@@ -49,6 +51,8 @@ struct AlbumArtHeroView: View {
                         .foregroundStyle(.secondary)
                 )
                 .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+                .accessibilityLabel(Text(caption))
+                .accessibilityAddTraits(.isImage)
         }
     }
 }

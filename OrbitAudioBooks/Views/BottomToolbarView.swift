@@ -93,7 +93,11 @@ struct BottomToolbarView: View {
                 .customFont(.headline)
                 .frame(minWidth: 44, minHeight: 44)
         }
-        .accessibilityLabel(Text(String(localized: "Playback speed, \(String(format: "%g", model.speed))×")))
+        .accessibilityLabel(Text("Playback speed"))
+        .accessibilityValue(Text(speedLabel))
+        .onChange(of: model.speed) { _, newSpeed in
+            UIAccessibility.post(notification: .announcement, argument: String(localized: "Speed \(String(format: "%g", newSpeed))×"))
+        }
     }
 
     // MARK: - Volume Boost

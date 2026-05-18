@@ -105,12 +105,15 @@ struct ContentView: View {
                             .frame(width: blurredSide, height: blurredSide)
                             .blur(radius: 10)
                             .opacity(0.30)
+                            .accessibilityHidden(true)
 
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFit()
                             .frame(width: artworkSide, height: artworkSide)
                             .opacity(0.58)
+                            .accessibilityLabel(Text(viewModel.title))
+                            .accessibilityAddTraits(.isImage)
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height)
                 }
@@ -124,6 +127,7 @@ struct ContentView: View {
                     .ignoresSafeArea()
                     .blur(radius: 40)
                     .overlay(Color.black.opacity(0.6))
+                    .accessibilityHidden(true)
             }
         } else {
             Color.black.ignoresSafeArea()

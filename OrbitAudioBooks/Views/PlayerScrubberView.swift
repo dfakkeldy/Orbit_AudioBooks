@@ -27,6 +27,8 @@ struct PlayerScrubberView: View {
             )
             .frame(maxWidth: .infinity)
             .tint(.primary)
+            .accessibilityLabel(Text("Playback position"))
+            .accessibilityValue(model.elapsedText)
             .onChange(of: model.progressFraction) { _, newValue in
                 if !isScrubbing {
                     scrubFraction = newValue

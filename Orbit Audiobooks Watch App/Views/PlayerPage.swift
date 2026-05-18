@@ -137,6 +137,8 @@ struct PlayerPage: View {
                         .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
                 )
                 .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
+                .accessibilityLabel(Text(viewModel.title))
+                .accessibilityAddTraits(.isImage)
         } else {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)

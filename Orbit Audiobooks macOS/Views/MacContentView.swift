@@ -236,6 +236,8 @@ private struct PlayerPane: View {
                     in: 0...max(player.duration, 0.1)
                 )
                 .disabled(!player.hasMedia || player.duration <= 0)
+                .accessibilityLabel(Text("Playback position"))
+                .accessibilityValue(Text(formatHMS(player.currentTime)))
 
                 HStack {
                     Text(formatHMS(player.currentTime))
@@ -257,6 +259,7 @@ private struct PlayerPane: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!player.hasMultipleTracks)
+                .accessibilityLabel(Text("Previous track"))
 
                 Button {
                     player.skip(by: -30)
@@ -266,6 +269,7 @@ private struct PlayerPane: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!player.hasMedia)
+                .accessibilityLabel(Text("Skip back 30 seconds"))
 
                 Button {
                     player.togglePlayPause()
@@ -275,6 +279,7 @@ private struct PlayerPane: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!player.hasMedia)
+                .accessibilityLabel(Text(player.isPlaying ? "Pause" : "Play"))
 
                 Button {
                     player.skip(by: 30)
@@ -284,6 +289,7 @@ private struct PlayerPane: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!player.hasMedia)
+                .accessibilityLabel(Text("Skip forward 30 seconds"))
 
                 Button {
                     player.nextTrack()
@@ -293,6 +299,7 @@ private struct PlayerPane: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!player.hasMultipleTracks)
+                .accessibilityLabel(Text("Next track"))
             }
 
             // Speed picker

@@ -217,6 +217,9 @@ struct PlaylistView: View {
             }
             .foregroundStyle(bm.isEnabled ? .primary : .tertiary)
         }
+        .accessibilityHint(Text(bm.isEnabled
+            ? String(localized: "Swipe left to edit or delete, swipe right to disable")
+            : String(localized: "Swipe left to edit or delete, swipe right to enable")))
         .listRowBackground(Color.accentColor.opacity(bm.isEnabled ? 0.06 : 0.02))
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
