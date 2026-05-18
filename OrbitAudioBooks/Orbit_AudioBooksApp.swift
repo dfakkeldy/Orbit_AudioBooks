@@ -22,7 +22,7 @@ struct Orbit_AudioBooksApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(pendingDeepLink: $pendingDeepLink)
+            RootTabView(pendingDeepLink: $pendingDeepLink)
                 .environment(model)
                 .environment(settings)
                 .environment(storeManager)
