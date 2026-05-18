@@ -1,4 +1,4 @@
-# Plan: CarPlay Integration
+# Plan: CarPlay Integration ✅ DONE (2026-05-18)
 
 ## Summary
 

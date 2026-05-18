@@ -1011,7 +1011,10 @@ final class PlayerModel {
             pause: { [weak self] in self?.pause() },
             togglePlayPause: { [weak self] in self?.togglePlayPause() },
             nextTrack: { [weak self] in self?.skipForwardNavigation() },
-            skipBackward: { [weak self] in self?.skipBackward30() }
+            skipBackward: { [weak self] in self?.skipBackward30() },
+            skipForward: { [weak self] in self?.skipForward30() },
+            previousTrack: { [weak self] in self?.skipBackwardNavigation() },
+            seek: { [weak self] position in self?.seek(toSeconds: position) }
         )
     }
 
@@ -1478,6 +1481,22 @@ final class PlayerModel {
     /// Automatically disables bookmark loop mode if no bookmarks remain.
     func deleteBookmark(id: UUID) {
         bookmarkStore.deleteBookmark(id: id, folderURL: folderURL)
+    }
+
+    /// Seeks to an aggregated chapter position, switching books if necessary.
+    /// Used by CarPlay's browse template for multi-M4B chapter navigation.
+    func seekToAggregatedChapterPosition(bookIndex: Int, startSeconds: TimeInterval) {
+        guard state.m4bBooks.indices.contains(bookIndex) else { return }
+        if bookIndex != state.currentIndex {
+            state.pendingAggregatedChapter = state.aggregatedChapters.first {
+                $0.bookIndex == bookIndex && abs($0.startSeconds - startSeconds) < 1
+            }
+            skipToTrack(bookIndex)
+        } else {
+            let bookOffset = state.m4bBooks[bookIndex].cumulativeStartOffset
+            let intraBookTime = max(0, startSeconds - bookOffset) + 0.05
+            seek(toSeconds: intraBookTime)
+        }
     }
 
     /// Switches playback to a different track index, used by the multi-M4B

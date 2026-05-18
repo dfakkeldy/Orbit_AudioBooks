@@ -21,7 +21,10 @@ final class NowPlayingController {
         pause: @escaping () -> Void,
         togglePlayPause: @escaping () -> Void,
         nextTrack: @escaping () -> Void,
-        skipBackward: @escaping () -> Void
+        skipBackward: @escaping () -> Void,
+        skipForward: @escaping () -> Void = {},
+        previousTrack: @escaping () -> Void = {},
+        seek: @escaping (TimeInterval) -> Void = { _ in }
     ) {
         guard !didConfigureRemoteCommands else { return }
         didConfigureRemoteCommands = true
@@ -34,10 +37,10 @@ final class NowPlayingController {
         center.nextTrackCommand.isEnabled = true
         center.skipBackwardCommand.isEnabled = true
         center.skipBackwardCommand.preferredIntervals = [30]
-
-        center.previousTrackCommand.isEnabled = false
-        center.skipForwardCommand.isEnabled = false
-        center.changePlaybackPositionCommand.isEnabled = false
+        center.skipForwardCommand.isEnabled = true
+        center.skipForwardCommand.preferredIntervals = [30]
+        center.previousTrackCommand.isEnabled = true
+        center.changePlaybackPositionCommand.isEnabled = true
 
         remoteCommandTokens = [
             center.playCommand.addTarget { _ in
@@ -58,6 +61,21 @@ final class NowPlayingController {
             },
             center.skipBackwardCommand.addTarget { _ in
                 DispatchQueue.main.async { skipBackward() }
+                return .success
+            },
+            center.skipForwardCommand.addTarget { _ in
+                DispatchQueue.main.async { skipForward() }
+                return .success
+            },
+            center.previousTrackCommand.addTarget { _ in
+                DispatchQueue.main.async { previousTrack() }
+                return .success
+            },
+            center.changePlaybackPositionCommand.addTarget { event in
+                guard let evt = event as? MPChangePlaybackPositionCommandEvent else {
+                    return .commandFailed
+                }
+                DispatchQueue.main.async { seek(evt.positionTime) }
                 return .success
             }
         ]
@@ -111,6 +129,14 @@ final class NowPlayingController {
         }
 
         info[MPNowPlayingInfoPropertyPlaybackRate] = params.isPaused ? 0.0 : params.playbackRate
+
+        if let chapterIdx = params.chapterIndex {
+            info[MPNowPlayingInfoPropertyChapterNumber] = chapterIdx + 1
+        }
+        if params.duration.isFinite, params.duration > 0 {
+            info[MPNowPlayingInfoPropertyPlaybackProgress] = params.duration > 0
+                ? min(1, max(0, params.elapsed / params.duration)) : 0
+        }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }

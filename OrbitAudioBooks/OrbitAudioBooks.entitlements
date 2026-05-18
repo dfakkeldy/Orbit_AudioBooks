@@ -6,5 +6,13 @@
 	<array>
 		<string>group.com.orbitaudiobooks</string>
 	</array>
+	<!--
+	To enable CarPlay, uncomment the entitlement below. Requires:
+	1. Paid Apple Developer Program membership
+	2. CarPlay Audio capability enabled on the App ID at developer.apple.com
+	3. Regenerated provisioning profile
+	<key>com.apple.developer.carplay-audio</key>
+	<true/>
+	-->
 </dict>
 </plist>

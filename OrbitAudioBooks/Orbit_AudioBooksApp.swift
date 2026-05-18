@@ -14,6 +14,10 @@ struct Orbit_AudioBooksApp: App {
     @State private var storeManager = StoreManager()
     @State private var pendingDeepLink: PlayerDeepLink?
 
+    /// Static reference for CarPlay scene delegate and other non-SwiftUI contexts
+    /// that need access to the shared PlayerModel instance.
+    static weak var playerModel: PlayerModel?
+
     init() {
         #if DEBUG && targetEnvironment(simulator)
         MockMediaProvider.seedSampleAudiobookIfNeeded()
@@ -24,6 +28,7 @@ struct Orbit_AudioBooksApp: App {
         } catch {
             fatalError("DatabaseService initialization failed: \(error)")
         }
+        Self.playerModel = model
     }
 
     var body: some Scene {
