@@ -1,4 +1,4 @@
-# Plan: Bookmark List — Group by Track (Playlist Scope)
+# Plan: Bookmark List — Group by Track (Playlist Scope) ✅ DONE (2026-05-17)
 
 ## Summary
 

@@ -279,7 +279,7 @@ M4B then adds the aggregation without changing the protocol signature.
 
 | Metric | Count |
 |--------|-------|
-| Total plans | 22 (21 files, A6+B12 combined) |
+| Total plans | 24 (22 files, A6+B12 combined, 2 superseded) |
 | Independent (Phase 0) | 5 workstreams |
 | Bug fixes | 3 |
 | Architecture refactors | 7 |
@@ -311,6 +311,8 @@ M4B then adds the aggregation without changing the protocol signature.
 | SQL — SQL Database Integration | ✅ Done | 2026-05-18 |
 | PLIST — Playlist Packaging | ⏳ Pending | — |
 | BKMG — Bookmark Playlist Grouping | ✅ Done | 2026-05-17 |
+| HELP — Help Files | ✅ Done | 2026-05-17 |
+| RELEASE — Release Readiness Remediation | ✅ Done | 2026-05-17 |
 | ASRS — SRS Engine & Data Model | ⏳ Pending | — |
 | AIR — Inline Active Recall | ⏳ Pending | — |
 | ADR — Daily Review UI | ⏳ Pending | — |

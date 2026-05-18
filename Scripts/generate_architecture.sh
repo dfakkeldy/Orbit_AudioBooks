@@ -4,9 +4,9 @@ set -euo pipefail
 # =============================================================================
 # generate_architecture.sh
 # =============================================================================
-# Scans the project's three Xcode targets and writes a directory tree into
-# ARCHITECTURE.md. Build artifacts, asset catalogs, and media files are
-# excluded so the output focuses on source code and configuration.
+# Scans the project's Xcode targets and Shared/ module and writes a directory
+# tree into ARCHITECTURE.md. Build artifacts, asset catalogs, and media files
+# are excluded so the output focuses on source code and configuration.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -59,10 +59,11 @@ HEADER
 printf "**Last generated:** %s\n\n" "$TIMESTAMP" >> "$OUTPUT"
 
 cat >> "$OUTPUT" << 'INTRO'
-This document maps the source-tree layout of the three Xcode targets in the
-Orbit Audiobooks project. Folders are shown in the order returned by the
-filesystem; only source, configuration, and metadata files are included
-(build artifacts, asset catalogs, and media files are filtered out).
+This document maps the source-tree layout of the Xcode targets and Shared/
+module in the Orbit Audiobooks project. Folders are shown in the order
+returned by the filesystem; only source, configuration, and metadata files
+are included (build artifacts, asset catalogs, and media files are filtered
+out).
 
 ---
 
@@ -101,5 +102,7 @@ generate_tree() {
 generate_tree "OrbitAudioBooks (iOS)"       "$REPO_ROOT/OrbitAudioBooks"
 generate_tree "Orbit Audiobooks macOS"       "$REPO_ROOT/Orbit Audiobooks macOS"
 generate_tree "Orbit Audiobooks Watch App"   "$REPO_ROOT/Orbit Audiobooks Watch App"
+generate_tree "Shared (cross-target)"        "$REPO_ROOT/Shared"
+generate_tree "Widget Extension"             "$REPO_ROOT/Orbit Audiobooks Widget"
 
 echo "ARCHITECTURE.md generated at $OUTPUT"

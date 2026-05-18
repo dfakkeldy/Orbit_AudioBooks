@@ -1,4 +1,4 @@
-# Plan: Localization & Settings Cleanup
+# Plan: Localization & Settings Cleanup ✅ DONE (2026-05-17)
 
 ## Summary
 

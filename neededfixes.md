@@ -1,6 +1,7 @@
 # Orbit Audiobooks — Code Audit: Needed Fixes
 
 **Date:** 2026-05-16 | **Branch:** `main`
+**Updated:** 2026-05-18 — all 16 items resolved.
 
 ---
 
@@ -54,21 +55,21 @@
 **File:** `Orbit Audiobooks Watch App/Views/ContentView.swift`  
 **Category:** Error Handling Gap
 
-### B12 — MPVolumeView hidden slider hack (App Review risk)
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` lines 257-262  
+### B12 — MPVolumeView hidden slider hack (App Review risk) ✅ FIXED
+**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` (now in `Services/AudioEngine.swift` + `PlaybackController.swift`)  
 **Category:** Private API / App Review Risk
 
 Hidden `MPVolumeView` at offscreen coordinates retrieves internal `UISlider` to set system volume.
 
-**Fix:** Use standard `MPVolumeView` in view hierarchy or `AVAudioSession` output volume APIs.
+**Fix:** Replaced with `setGain(_:)` / `fadeGain(to:duration:)` API on AudioEngine (Plan A6). Volume slider removed. Done 2026-05-15.
 
-### B13 — Watch optimistic state updates inconsistent
-**Files:** Watch `ContentView.swift` lines 540-541, Widget `AppIntent.swift`  
+### B13 — Watch optimistic state updates inconsistent ✅ FIXED
+**Files:** Watch `ContentView.swift`, `WatchViewModel.swift`, Widget `AppIntent.swift`  
 **Category:** State Management
 
 Watch toggles `isPlaying` optimistically before command confirmation, but not for other state.
 
-**Fix:** Consistently wait for iPhone reply or apply optimistic updates uniformly with rollback.
+**Fix:** Consistent optimistic updates with rollback across all watch controls. Done 2026-05-16.
 
 ### B14 — Widget WCSession delegate overrides iOS app's delegate ✅ FIXED
 **File:** `Orbit Audiobooks Widget/Models/AppIntent.swift`  

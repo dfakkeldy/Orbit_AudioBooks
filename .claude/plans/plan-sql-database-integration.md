@@ -1,4 +1,4 @@
-# Plan: SQL Database Integration
+# Plan: SQL Database Integration — SUPERSEDED by 2026-05-17-sql-database-integration.md
 
 ## Summary
 

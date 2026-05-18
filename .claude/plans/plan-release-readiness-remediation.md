@@ -1,4 +1,4 @@
-# Release Readiness Remediation Plan
+# Release Readiness Remediation Plan ✅ DONE (2026-05-17)
 
 > **For agentic workers:** Implement this task-by-task. Keep commits small, run the listed verification after each task group, and do not revert unrelated uncommitted changes.
 
