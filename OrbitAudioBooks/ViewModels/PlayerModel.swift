@@ -471,7 +471,8 @@ final class PlayerModel {
                 case "gradeFlashcard":
                     if let cardID = message["cardID"] as? String,
                        let grade = message["grade"] as? Int {
-                        try? FlashcardDAO(db: self.databaseService!.writer).grade(cardID: cardID, grade: grade)
+                        guard let writer = self.databaseService?.writer else { return }
+                        try? FlashcardDAO(db: writer).grade(cardID: cardID, grade: grade)
                     }
                 case "requestState":
                     break
@@ -1637,7 +1638,7 @@ final class PlayerModel {
         let cards: [Flashcard]
         do {
             let trackKey = state.tracks.indices.contains(state.currentIndex)
-                ? state.tracks[state.currentIndex].url.absoluteString : ""
+                ? state.tracks[state.currentIndex].url.lastPathComponent : ""
             cards = try FlashcardDAO(db: db.writer).flashcards(for: trackKey)
         } catch {
             return
