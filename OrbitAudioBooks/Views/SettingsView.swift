@@ -1,5 +1,6 @@
 import SwiftUI
 import StoreKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(PlayerModel.self) private var model
@@ -9,6 +10,8 @@ struct SettingsView: View {
     @State private var isPurchasingPro = false
     @State private var isRestoringPurchases = false
     @State private var isRetryingProducts = false
+    @State private var showingDeckImporter = false
+    @State private var importAlert: (title: String, message: String)?
 
     var body: some View {
         @Bindable var settings = settings
@@ -61,6 +64,14 @@ struct SettingsView: View {
                     Text("When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp.")
                 }
 
+                Section("Flashcards") {
+                    Button {
+                        showingDeckImporter = true
+                    } label: {
+                        Label("Import Deck", systemImage: "square.and.arrow.down")
+                    }
+                }
+
                 Section {
                     NavigationLink("Help") {
                         HelpView()
@@ -76,6 +87,35 @@ struct SettingsView: View {
             }
         }
         .environment(\.font, settings.appFont == SettingsManager.systemFontName ? .body : .custom(settings.appFont, size: 17, relativeTo: .body))
+        .fileImporter(
+            isPresented: $showingDeckImporter,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first, let db = model.databaseService else { return }
+                let importer = DeckImportService()
+                do {
+                    let count = try importer.importDeck(from: url, db: db.writer)
+                    importAlert = ("Import Complete", "Imported \(count) cards successfully.")
+                } catch {
+                    importAlert = ("Import Failed", error.localizedDescription)
+                }
+            case .failure(let error):
+                importAlert = ("Import Failed", error.localizedDescription)
+            }
+        }
+        .alert(importAlert?.title ?? "", isPresented: Binding(
+            get: { importAlert != nil },
+            set: { if !$0 { importAlert = nil } }
+        )) {
+            Button("OK") { importAlert = nil }
+        } message: {
+            if let message = importAlert?.message {
+                Text(message)
+            }
+        }
         .preferredColorScheme(settings.isDarkMode ? .dark : .light)
     }
 }
