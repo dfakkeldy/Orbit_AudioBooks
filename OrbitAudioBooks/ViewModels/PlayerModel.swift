@@ -210,6 +210,11 @@ final class PlayerModel {
     /// from the system Now Playing slot.
     private var pauseBackgroundTask: UIBackgroundTaskIdentifier = .invalid
 
+    /// Cached flashcards for the current track, loaded once on track change
+    /// to avoid database queries on every playback time tick.
+    @ObservationIgnored private var cachedTrackFlashcards: [Flashcard] = []
+    @ObservationIgnored private var cachedTrackFlashcardKey: String = ""
+
     // MARK: - Security-scoped access (delegated to SecurityScopeManager)
 
     let persistence = Persistence()
@@ -641,11 +646,16 @@ final class PlayerModel {
     }
 
     deinit {
-        
-        
-        audioEngine.cleanup()
-        bookmarkStore.stopVoiceMemo()
-        endBackgroundTask()
+        let localEngine = audioEngine
+        let localBookmarkStore = bookmarkStore
+        let localBgTask = pauseBackgroundTask
+        Task { @MainActor in
+            localEngine.cleanup()
+            localBookmarkStore.stopVoiceMemo()
+        }
+        if localBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(localBgTask)
+        }
         stopAllSecurityScope()
     }
 
@@ -834,7 +844,15 @@ final class PlayerModel {
     }
 
     func pause() {
+        startPauseBackgroundTask()
         playbackController.pause()
+    }
+
+    private func startPauseBackgroundTask() {
+        guard pauseBackgroundTask == .invalid else { return }
+        pauseBackgroundTask = UIApplication.shared.beginBackgroundTask { [weak self] in
+            self?.endBackgroundTask()
+        }
     }
 
     private func endBackgroundTask() {
@@ -993,6 +1011,11 @@ final class PlayerModel {
         let trackURL = tracks[index].url
         Task {
             await ArtworkCache.ensureItemIsAvailable(url: trackURL)
+        }
+
+        cachedTrackFlashcardKey = trackURL.lastPathComponent
+        if let db = databaseService {
+            cachedTrackFlashcards = (try? FlashcardDAO(db: db.writer).flashcards(for: cachedTrackFlashcardKey)) ?? []
         }
 
         // AudioEngine handles AVPlayerItem creation, observers, and duration loading.
@@ -1630,19 +1653,18 @@ final class PlayerModel {
     /// pattern as voice memo triggers.
     private func checkInlineFlashcardTrigger(at currentSeconds: Double, previousSeconds: Double?) {
         guard activeInlineCard == nil, isPlaying, !state.isManualSeeking,
-              loopMode != .bookmark, let db = databaseService else { return }
+              loopMode != .bookmark else { return }
 
         let toleranceBefore: Double = 0.1
         let toleranceAfter: Double = 0.75
 
-        let cards: [Flashcard]
-        do {
-            let trackKey = state.tracks.indices.contains(state.currentIndex)
-                ? state.tracks[state.currentIndex].url.lastPathComponent : ""
-            cards = try FlashcardDAO(db: db.writer).flashcards(for: trackKey)
-        } catch {
-            return
+        let trackKey = state.tracks.indices.contains(state.currentIndex)
+            ? state.tracks[state.currentIndex].url.lastPathComponent : ""
+        if cachedTrackFlashcardKey != trackKey, let db = databaseService {
+            cachedTrackFlashcards = (try? FlashcardDAO(db: db.writer).flashcards(for: trackKey)) ?? []
+            cachedTrackFlashcardKey = trackKey
         }
+        let cards = cachedTrackFlashcards
 
         for card in cards {
             guard card.triggerTiming != "manualOnly" else { continue }
