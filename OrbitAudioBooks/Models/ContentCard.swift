@@ -11,7 +11,7 @@ enum ContentCardType: String, Codable {
     case chapterTransition
 }
 
-struct ContentCard: Identifiable, Equatable {
+struct ContentCard: Identifiable, Equatable, PlaybackTimelineItem {
     let id: String
     let cardType: ContentCardType
     let title: String

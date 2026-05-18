@@ -2,61 +2,72 @@ import SwiftUI
 
 struct PlaylistTimelineView: View {
     @Environment(PlayerModel.self) private var model
-    let chapterSections: [ChapterSection]
     let timeScale: TimeScale
-    let projectionContext: (position: TimeInterval, realTime: Date, speed: Double)
 
-    private let projectionService = RealTimeProjectionService()
+    @State private var service: PlaybackTimelineService?
 
     var body: some View {
-        if chapterSections.isEmpty {
-            ContentUnavailableView(
-                "No Content",
-                systemImage: "music.note.list",
-                description: Text("Open a folder or audiobook to see its chapters and content on the playlist timeline.")
-            )
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    bookHeader
+        Group {
+            if let service, !service.chapterSections.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        bookHeader
 
-                    ForEach(chapterSections) { section in
-                        Section {
-                            ChapterTimeBlockView(
-                                title: section.title,
-                                chapterIndex: section.index,
-                                chapterCount: chapterSections.count,
-                                startSeconds: section.startSeconds,
-                                durationSeconds: section.duration,
-                                totalBookDuration: section.totalBookDuration,
-                                isCurrentChapter: model.currentChapterIndex == section.index,
-                                isPlayed: section.endSeconds < model.currentPlaybackTime
-                            )
-                            .padding(.horizontal)
-                            .padding(.vertical, 4)
+                        ForEach(service.chapterSections) { section in
+                            Section {
+                                ChapterTimeBlockView(
+                                    title: section.title,
+                                    chapterIndex: section.index,
+                                    chapterCount: service.chapterSections.count,
+                                    startSeconds: section.startSeconds,
+                                    durationSeconds: section.duration,
+                                    totalBookDuration: section.totalBookDuration,
+                                    isCurrentChapter: model.currentChapterIndex == section.index,
+                                    isPlayed: section.endSeconds < model.currentPlaybackTime
+                                )
+                                .padding(.horizontal)
+                                .padding(.vertical, 4)
 
-                            if timeScale.showsEntries {
-                                let visibleCards = section.cards.filter { card in
-                                    timeScale == .seconds || card.cardType.isSummaryItem
+                                if timeScale.showsEntries {
+                                    let visibleCards = section.cards.filter { card in
+                                        timeScale == .seconds || card.cardType.isSummaryItem
+                                    }
+                                    ForEach(visibleCards) { card in
+                                        TimelineContentCard(
+                                            card: card,
+                                            isEditing: false
+                                        )
+                                        .padding(.leading, 32)
+                                        .padding(.horizontal)
+                                    }
                                 }
-                                ForEach(visibleCards) { card in
-                                    TimelineContentCard(
-                                        card: card,
-                                        isEditing: false,
-                                        projectedTime: projectedTime(for: card),
-                                        projectionSpeed: projectionContext.speed
-                                    )
-                                    .padding(.leading, 32)
-                                    .padding(.horizontal)
-                                }
+                            } header: {
+                                sectionHeader(for: section)
                             }
-                        } header: {
-                            sectionHeader(for: section)
                         }
                     }
+                    .padding(.vertical, 8)
                 }
-                .padding(.vertical, 8)
+            } else {
+                ContentUnavailableView(
+                    "No Content",
+                    systemImage: "music.note.list",
+                    description: Text("Open a folder or audiobook to see its chapters and content on the playlist timeline.")
+                )
             }
+        }
+        .onAppear {
+            if service == nil, let db = model.databaseService {
+                let ps = PlaybackTimelineService(databaseService: db)
+                ps.setCurrentAudiobookID(model.folderURL?.absoluteString)
+                service = ps
+            }
+        }
+        .onChange(of: timeScale) { _, new in
+            service?.setTimeScale(new)
+        }
+        .onChange(of: model.folderURL) { _, newURL in
+            service?.setCurrentAudiobookID(newURL?.absoluteString)
         }
     }
 
@@ -103,15 +114,4 @@ struct PlaylistTimelineView: View {
         .background(.bar)
     }
 
-    // MARK: - Projection
-
-    private func projectedTime(for card: ContentCard) -> Date? {
-        guard let mt = card.mediaTimestamp else { return nil }
-        return projectionService.projectedWallClock(
-            for: mt,
-            currentPosition: projectionContext.position,
-            currentRealTime: projectionContext.realTime,
-            speed: projectionContext.speed
-        )
-    }
 }

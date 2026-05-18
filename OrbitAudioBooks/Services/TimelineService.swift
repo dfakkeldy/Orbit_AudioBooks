@@ -19,29 +19,15 @@ final class TimelineService {
     // MARK: - Published state
 
     private(set) var groups: [TimelineGroup] = []
-    private(set) var chapterSections: [ChapterSection] = []
     private(set) var timeScale: TimeScale = .minutes
-    private(set) var timelineMode: TimelineMode = .realTime
     private(set) var isLoadingEarlier: Bool = false
     private(set) var isLoadingLater: Bool = false
     private(set) var isViewingMode: Bool = true
     private(set) var now: Date = Date()
 
-    enum TimelineMode {
-        case realTime
-        case playlistTime
-    }
-
     // MARK: - Dependencies
 
     private var hasDatabase: Bool { db != nil }
-    private var currentAudiobookID: String?
-
-    // MARK: - Projection state
-
-    private var currentSpeed: Double = 1.0
-    private var currentMediaPosition: TimeInterval = 0
-    private var currentRealTime: Date = Date()
 
     // MARK: - Push-forward timer
 
@@ -82,38 +68,6 @@ final class TimelineService {
         timeScale = scale
         adjustViewportForScale()
         loadCurrentWindow(force: true)
-    }
-
-    func setTimelineMode(_ mode: TimelineMode) {
-        guard mode != timelineMode else { return }
-        timelineMode = mode
-        recenterOnNow()
-    }
-
-    func setCurrentAudiobookID(_ id: String?) {
-        currentAudiobookID = id
-        loadCurrentWindow(force: true)
-    }
-
-    // MARK: - Projection updates
-
-    func updateSpeed(_ speed: Float) {
-        currentSpeed = Double(speed)
-        recalculateProjections()
-    }
-
-    func updatePlaybackPosition(position: TimeInterval, now: Date) {
-        currentMediaPosition = position
-        currentRealTime = now
-    }
-
-    var projectionContext: (position: TimeInterval, realTime: Date, speed: Double) {
-        (currentMediaPosition, currentRealTime, currentSpeed)
-    }
-
-    private func recalculateProjections() {
-        let current = chapterSections
-        chapterSections = current
     }
 
     // MARK: - Infinite scroll
@@ -167,17 +121,12 @@ final class TimelineService {
     private func loadCurrentWindow(force: Bool = false) {
         Task {
             do {
-                if timelineMode == .playlistTime {
-                    let sections = try loadChapterSections()
-                    await MainActor.run { self.chapterSections = sections }
-                } else {
-                    let events = try loadEvents(in: viewportStart...viewportEnd)
-                    let newGroups = groupEvents(events)
-                    await MainActor.run {
-                        self.groups = newGroups
-                        self.loadedStart = self.viewportStart
-                        self.loadedEnd = self.viewportEnd
-                    }
+                let events = try loadEvents(in: viewportStart...viewportEnd)
+                let newGroups = groupEvents(events)
+                await MainActor.run {
+                    self.groups = newGroups
+                    self.loadedStart = self.viewportStart
+                    self.loadedEnd = self.viewportEnd
                 }
             } catch {
                 logger.error("Failed to load timeline window: \(error.localizedDescription)")
@@ -188,75 +137,11 @@ final class TimelineService {
     private func loadEvents(in range: ClosedRange<Date>) throws -> [RealTimeEventRecord] {
         guard let db else { return [] }
         let dao = RealTimeEventDAO(db: db.writer)
-        if timelineMode == .playlistTime, let audiobookID = currentAudiobookID {
-            return try dao.events(for: audiobookID, in: range)
-        }
         return try dao.events(in: range)
-    }
-
-    /// Loads static content from the unified timeline VIEW for playlist-time mode.
-    private func loadTimelineItems() throws -> [TimelineItem] {
-        guard let db, let audiobookID = currentAudiobookID else { return [] }
-        let dao = TimelineDAO(db: db.writer)
-        return try dao.items(for: audiobookID)
-    }
-
-    /// Builds hierarchical chapter sections by partitioning timeline cards
-    /// by chapter time ranges.
-    private func loadChapterSections() throws -> [ChapterSection] {
-        guard let db, let audiobookID = currentAudiobookID else { return [] }
-        let items = try TimelineDAO(db: db.writer).items(for: audiobookID)
-        let cards = items.map { ContentCard(from: $0) }
-        let chapterRecords = try ChapterDAO(db: db.writer).chapters(for: audiobookID)
-        let totalDuration = chapterRecords.map(\.endSeconds).max() ?? 0
-
-        guard !chapterRecords.isEmpty else {
-            let fallbackDuration = cards.compactMap(\.mediaTimestamp).max() ?? 0
-            return [ChapterSection(index: 0, title: "Full Book", startSeconds: 0,
-                                    endSeconds: fallbackDuration, cards: cards,
-                                    totalBookDuration: fallbackDuration)]
-        }
-
-        var sections: [ChapterSection] = []
-        var matchedIDs = Set<String>()
-        for (i, rec) in chapterRecords.enumerated() {
-            let chapterCards = cards.filter { card in
-                guard let mt = card.mediaTimestamp else { return false }
-                return mt >= rec.startSeconds && mt < rec.endSeconds
-            }
-            matchedIDs.formUnion(chapterCards.map(\.id))
-            sections.append(ChapterSection(
-                index: i,
-                title: rec.title,
-                startSeconds: rec.startSeconds,
-                endSeconds: rec.endSeconds,
-                cards: chapterCards,
-                totalBookDuration: totalDuration
-            ))
-        }
-
-        let unmatched = cards.filter { !matchedIDs.contains($0.id) }
-        if !unmatched.isEmpty {
-            let unmatchedEnd = unmatched.compactMap(\.mediaTimestamp).max() ?? totalDuration
-            sections.append(ChapterSection(
-                index: sections.count,
-                title: "Other",
-                startSeconds: totalDuration,
-                endSeconds: max(unmatchedEnd, totalDuration + 1),
-                cards: unmatched,
-                totalBookDuration: totalDuration
-            ))
-        }
-        return sections
     }
 
     private func groupEvents(_ records: [RealTimeEventRecord]) -> [TimelineGroup] {
         let cards = records.map { ContentCard(from: RealTimeEvent(from: $0)) }
-        return timeScale.group(cards, calendar: calendar)
-    }
-
-    private func groupTimelineItems(_ items: [TimelineItem]) -> [TimelineGroup] {
-        let cards = items.map { ContentCard(from: $0) }
         return timeScale.group(cards, calendar: calendar)
     }
 

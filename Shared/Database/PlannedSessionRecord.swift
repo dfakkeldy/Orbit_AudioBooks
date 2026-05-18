@@ -1,6 +1,10 @@
 import Foundation
 import GRDB
 
+// MARK: - DailyPlanner (future home: DailyPlanner/ directory)
+// This record supports calendar-based listening session scheduling.
+// It is not part of the media player's playlist-time timeline.
+
 struct PlannedSessionRecord: Codable, FetchableRecord, MutablePersistableRecord {
     var id: String
     var audiobookID: String

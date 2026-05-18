@@ -139,15 +139,12 @@ struct TranscriptOverlayView<Content: View>: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(filteredSegments) { segment in
-                            Text(segment.text)
-                                .font(.body)
-                                .padding(8)
-                                .background(isActive(segment) ? Color.accentColor.opacity(0.3) : Color.clear)
-                                .cornerRadius(8)
-                                .onTapGesture {
-                                    player.seek(toSeconds: segment.startTime)
-                                }
-                                .id(segment.id)
+                            TranscriptRowView(
+                                segment: segment,
+                                isActive: isActive(segment),
+                                searchText: searchText
+                            )
+                            .id(segment.id)
                         }
                     }
                     .padding()

@@ -2,11 +2,7 @@ import SwiftUI
 
 struct TimelineTab: View {
     @Environment(PlayerModel.self) private var model
-    @State private var service: TimelineService?
     @State private var timeScale: TimeScale = .minutes
-    @State private var timelineMode: TimelineService.TimelineMode = .playlistTime
-    @State private var isViewingMode: Bool = true
-    @State private var recenterTrigger = 0
     @State private var dueCount: Int = 0
     var onReviewTap: (() -> Void)?
 
@@ -14,17 +10,10 @@ struct TimelineTab: View {
         VStack(spacing: 0) {
             TimelineHeaderView(
                 timeScale: $timeScale,
-                timelineMode: $timelineMode,
-                isViewingMode: $isViewingMode,
-                onRecenterNow: {
-                    service?.recenterOnNow()
-                    recenterTrigger += 1
-                }
+                onRecenterNow: {}
             )
 
             Divider()
-
-            SpeedSuggestionBanner()
 
             DashboardShelf(onReviewTap: onReviewTap)
 
@@ -47,36 +36,10 @@ struct TimelineTab: View {
                 .buttonStyle(.plain)
             }
 
-            if let service {
-                TimelineContentView(service: service, isEditing: $isViewingMode.negated(), timeScale: timeScale, recenterTrigger: recenterTrigger)
-            } else {
-                ContentUnavailableView(
-                    "Timeline",
-                    systemImage: "rectangle.split.2x1",
-                    description: Text("Your listening timeline and planning surface will appear here.")
-                )
-            }
+            PlaylistTimelineView(timeScale: timeScale)
         }
         .onAppear {
-            if service == nil, let db = model.databaseService {
-                let ts = TimelineService(databaseService: db)
-                ts.setCurrentAudiobookID(model.folderURL?.absoluteString)
-                service = ts
-                ts.recenterOnNow()
-            }
             refreshDueCount()
-        }
-        .onChange(of: timeScale) { _, new in
-            service?.setTimeScale(new)
-        }
-        .onChange(of: timelineMode) { _, new in
-            service?.setTimelineMode(new)
-        }
-        .onChange(of: model.folderURL) { _, newURL in
-            service?.setCurrentAudiobookID(newURL?.absoluteString)
-        }
-        .onChange(of: model.speed) { _, newSpeed in
-            service?.updateSpeed(newSpeed)
         }
     }
 

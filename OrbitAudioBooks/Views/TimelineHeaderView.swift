@@ -1,31 +1,16 @@
 import SwiftUI
 
+/// Header for the Timeline (playlist-time) tab — scale cycle and recenter only.
+/// Mode switching and editing toggles live in the Planner tab header.
 struct TimelineHeaderView: View {
     @Binding var timeScale: TimeScale
-    @Binding var timelineMode: TimelineService.TimelineMode
-    @Binding var isViewingMode: Bool
-
     let onRecenterNow: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             scaleCycleButton
 
-            Picker("Mode", selection: $timelineMode) {
-                Text("Real Time").tag(TimelineService.TimelineMode.realTime)
-                Text("Playlist").tag(TimelineService.TimelineMode.playlistTime)
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 160)
-
             Spacer()
-
-            Button {
-                isViewingMode.toggle()
-            } label: {
-                Image(systemName: isViewingMode ? "eye" : "pencil")
-            }
-            .accessibilityLabel(isViewingMode ? "Viewing mode" : "Editing mode")
 
             Button {
                 onRecenterNow()

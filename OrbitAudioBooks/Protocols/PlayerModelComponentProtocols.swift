@@ -1,5 +1,16 @@
 import Foundation
 
+// MARK: - PlaybackTimelineItem
+
+/// Items that appear on the playlist (relative-time) timeline.
+/// Exposes only relative-time fields — no Date or calendar concepts.
+/// Future video chapter markers conform to this for unified timeline rendering.
+protocol PlaybackTimelineItem: Identifiable {
+    var mediaTimestamp: TimeInterval? { get }
+    var title: String { get }
+    var cardType: ContentCardType { get }
+}
+
 // MARK: - BookmarkStoreProtocol
 
 protocol BookmarkStoreProtocol {

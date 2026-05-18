@@ -1,6 +1,10 @@
 import Foundation
 import GRDB
 
+// MARK: - DailyPlanner (future home: DailyPlanner/ directory)
+// This DAO supports calendar-based listening session scheduling.
+// It is not part of the media player's playlist-time timeline.
+
 struct PlannedSessionDAO {
     let db: DatabaseWriter
 

@@ -49,13 +49,19 @@ struct RootTabView: View {
                     }
                     .tag(2)
 
+                PlannerTab()
+                    .tabItem {
+                        Label("Planner", systemImage: "calendar")
+                    }
+                    .tag(3)
+
                 if reviewDueCount > 0 {
                     Color.clear
                         .tabItem {
                             Label("Review", systemImage: "rectangle.stack.fill")
                         }
                         .badge(reviewDueCount)
-                        .tag(3)
+                        .tag(4)
                 }
             }
             .toolbar {
@@ -131,7 +137,7 @@ struct RootTabView: View {
                 refreshDueCount()
             }
             .onChange(of: selectedTab) { _, newTab in
-                if newTab == 3 {
+                if newTab == 4 {
                     launchReview()
                     selectedTab = 0
                 }
