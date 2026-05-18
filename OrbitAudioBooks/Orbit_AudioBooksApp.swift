@@ -18,6 +18,12 @@ struct Orbit_AudioBooksApp: App {
         #if DEBUG && targetEnvironment(simulator)
         MockMediaProvider.seedSampleAudiobookIfNeeded()
         #endif
+        do {
+            let db = try DatabaseService()
+            model.databaseService = db
+        } catch {
+            fatalError("DatabaseService initialization failed: \(error)")
+        }
     }
 
     var body: some Scene {

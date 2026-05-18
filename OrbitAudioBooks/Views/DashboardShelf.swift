@@ -31,8 +31,11 @@ struct DashboardShelf: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         StatsModuleView()
+                        SpeedCardView()
+                        SleepTimerCardView()
                         UpcomingReviewsModuleView()
                         ListeningProgressModuleView()
+                        BookmarkCardView()
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)

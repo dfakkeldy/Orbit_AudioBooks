@@ -131,6 +131,10 @@ final class PlayerModel {
         guard let idx = state.currentChapterIndex else { return [] }
         return state.chapterWordClouds[idx] ?? []
     }
+    var isTranscriptProcessingEnabled: Bool {
+        get { state.isTranscriptProcessingEnabled }
+        set { state.isTranscriptProcessingEnabled = newValue }
+    }
 
     var deepLinkHandler = DeepLinkHandler()
     let nowPlayingController = NowPlayingController()

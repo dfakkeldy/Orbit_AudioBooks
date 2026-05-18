@@ -8,6 +8,7 @@ struct TranscriptService {
     /// Loads the transcript sidecar JSON for the given audio file.
     /// The transcript is expected at `<audio>.transcript.json` in the same directory.
     func loadTranscript(for url: URL) {
+        guard state.isTranscriptProcessingEnabled else { return }
         let fileName = url.deletingPathExtension().lastPathComponent + ".transcript.json"
         let transcriptURL = url.deletingLastPathComponent().appendingPathComponent(fileName)
 
@@ -29,7 +30,7 @@ struct TranscriptService {
     /// Computes word frequencies for the full track, per-chapter, and rolling windows.
     /// Called after both transcript and chapter data are available.
     func computeWordClouds() {
-        guard !state.transcription.isEmpty else { return }
+        guard state.isTranscriptProcessingEnabled, !state.transcription.isEmpty else { return }
 
         // Full-track word frequencies.
         let fullFrequencies = WordFrequencyComputer.compute(from: state.transcription)

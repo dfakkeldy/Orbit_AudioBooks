@@ -49,4 +49,5 @@ final class PlaybackState {
     var transcription: [TranscriptionSegment] = []
     var chapterWordClouds: [Int: [WordFrequency]] = [:]
     var rollingWordClouds: [(startTime: TimeInterval, frequencies: [WordFrequency])] = []
+    var isTranscriptProcessingEnabled: Bool = true
 }

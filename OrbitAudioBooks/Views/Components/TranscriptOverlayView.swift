@@ -105,6 +105,12 @@ struct TranscriptOverlayView<Content: View>: View {
         }
         .padding(.horizontal, 16)
         .animation(.easeInOut(duration: 0.25), value: player.currentDisplayArtworkVersion)
+        .onAppear {
+            player.isTranscriptProcessingEnabled = true
+        }
+        .onDisappear {
+            player.isTranscriptProcessingEnabled = false
+        }
     }
 
     @ViewBuilder
