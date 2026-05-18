@@ -6,6 +6,7 @@ final class SnippetPlayer {
     private var engine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
     private var didFinishPlayback = false
+    private var currentGeneration: Int = 0
 
     private(set) var isPlaying: Bool = false
     var onPlaybackWillStart: (() -> Void)?
@@ -13,6 +14,8 @@ final class SnippetPlayer {
 
     func play(url: URL, startTime: TimeInterval, endTime: TimeInterval) {
         stop()
+        currentGeneration += 1
+        let generation = currentGeneration
 
         guard let file = try? AVAudioFile(forReading: url) else { return }
         let sampleRate = file.processingFormat.sampleRate
@@ -35,7 +38,10 @@ final class SnippetPlayer {
         onPlaybackWillStart?()
 
         node.scheduleSegment(file, startingFrame: startFrame, frameCount: framesToPlay, at: nil) { [weak self] in
-            DispatchQueue.main.async { self?.handlePlaybackEnded() }
+            DispatchQueue.main.async {
+                guard let self, generation == self.currentGeneration else { return }
+                self.handlePlaybackEnded()
+            }
         }
         node.play()
 
