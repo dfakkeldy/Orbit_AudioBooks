@@ -48,7 +48,7 @@ struct TimelineTab: View {
             }
 
             if let service {
-                TimelineContentView(service: service, isEditing: $isViewingMode.negated(), recenterTrigger: recenterTrigger)
+                TimelineContentView(service: service, isEditing: $isViewingMode.negated(), timeScale: timeScale, recenterTrigger: recenterTrigger)
             } else {
                 ContentUnavailableView(
                     "Timeline",
@@ -74,6 +74,9 @@ struct TimelineTab: View {
         }
         .onChange(of: model.folderURL) { _, newURL in
             service?.setCurrentAudiobookID(newURL?.absoluteString)
+        }
+        .onChange(of: model.speed) { _, newSpeed in
+            service?.updateSpeed(newSpeed)
         }
     }
 

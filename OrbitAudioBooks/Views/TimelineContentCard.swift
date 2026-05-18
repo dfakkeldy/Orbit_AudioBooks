@@ -3,6 +3,8 @@ import SwiftUI
 struct TimelineContentCard: View {
     let card: ContentCard
     let isEditing: Bool
+    var projectedTime: Date? = nil
+    var projectionSpeed: Double = 1.0
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -38,6 +40,18 @@ struct TimelineContentCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+                }
+
+                if let projected = projectedTime {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(RealTimeProjectionService().formatProjectedTime(projected, speed: projectionSpeed))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
                 }
 
                 if card.cardType == .playbackSession, let endedAt = card.endedAt {

@@ -65,3 +65,14 @@ enum TimeScale: String, CaseIterable, Identifiable {
         return fmt.string(from: date)
     }
 }
+
+extension TimeScale {
+    /// Whether this zoom level should show individual entries (transcripts,
+    /// bookmarks, etc.) nested under chapter sections.
+    var showsEntries: Bool {
+        switch self {
+        case .seconds, .minutes: return true
+        case .hours, .days: return false
+        }
+    }
+}

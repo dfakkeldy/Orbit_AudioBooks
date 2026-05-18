@@ -1363,7 +1363,29 @@ final class PlayerModel {
         if built.count >= 2 {
             chapters = built
             updateCurrentChapterFromPlayerTime()
-            
+
+            // Persist to SQL so TimelineService can build chapter sections.
+            if let db = databaseService, let audiobookID = folderURL?.absoluteString {
+                let records = built.enumerated().map { (i, ch) in
+                    ChapterRecord(
+                        id: nil,
+                        audiobookID: audiobookID,
+                        title: ch.title ?? "Chapter \(i + 1)",
+                        startSeconds: ch.startSeconds,
+                        endSeconds: ch.endSeconds,
+                        isEnabled: ch.isEnabled,
+                        sortOrder: i,
+                        playlistPosition: nil
+                    )
+                }
+                do {
+                    try ChapterDAO(db: db.writer).deleteAll(for: audiobookID)
+                    try ChapterDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
+                } catch {
+                    Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
+                        .error("Failed to persist chapters: \(error.localizedDescription)")
+                }
+            }
         } else {
             state.chapters = []
             state.currentChapterIndex = nil

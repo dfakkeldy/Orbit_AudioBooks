@@ -3,11 +3,16 @@ import SwiftUI
 struct TimelineContentView: View {
     let service: TimelineService
     @Binding var isEditing: Bool
+    let timeScale: TimeScale
     var recenterTrigger: Int = 0
 
     var body: some View {
         if service.timelineMode == .playlistTime {
-            PlaylistTimelineView(groups: service.groups)
+            PlaylistTimelineView(
+                chapterSections: service.chapterSections,
+                timeScale: timeScale,
+                projectionContext: service.projectionContext
+            )
         } else if service.groups.isEmpty {
             ContentUnavailableView(
                 "No Events",

@@ -100,3 +100,13 @@ extension ContentCard {
         )
     }
 }
+
+extension ContentCardType {
+    /// Items that should appear at all zoom levels (chapters view + entries view).
+    var isSummaryItem: Bool {
+        switch self {
+        case .bookmark, .flashcard, .note: return true
+        default: return false
+        }
+    }
+}

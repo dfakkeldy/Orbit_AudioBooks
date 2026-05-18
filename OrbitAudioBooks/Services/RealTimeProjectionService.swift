@@ -83,4 +83,22 @@ final class RealTimeProjectionService {
         guard timeBlock > 0 else { return maxPlaybackSpeed }
         return min(maxPlaybackSpeed, contentDuration / timeBlock)
     }
+
+    /// Predicts the wall-clock time at which a given media timestamp will be reached,
+    /// based on the current playback position and speed.
+    func projectedWallClock(
+        for mediaTimestamp: TimeInterval,
+        currentPosition: TimeInterval,
+        currentRealTime: Date,
+        speed: Double
+    ) -> Date {
+        let remaining = mediaTimestamp - currentPosition
+        let realSeconds = remaining / max(speed, 0.01)
+        return currentRealTime.addingTimeInterval(realSeconds)
+    }
+
+    func formatProjectedTime(_ date: Date, speed: Double) -> String {
+        let timeStr = date.formatted(date: .omitted, time: .shortened)
+        return "\(timeStr) at \(String(format: "%.1f", speed))x"
+    }
 }
