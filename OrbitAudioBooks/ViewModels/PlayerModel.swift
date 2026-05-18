@@ -1030,25 +1030,23 @@ final class PlayerModel {
         updateProgressFromPlayer()
         syncToWatch()
 
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
             await self.loadChaptersForCurrentItem()
             await self.loadDurationForNowPlaying()
             await self.generateThumbnail(for: trackURL)
 
-            await MainActor.run {
-                // Handle pending aggregated chapter seek (cross-book navigation).
-                if let pending = state.pendingAggregatedChapter {
-                    state.pendingAggregatedChapter = nil
-                    let bookOffset = state.m4bBooks.indices.contains(pending.bookIndex)
-                        ? state.m4bBooks[pending.bookIndex].cumulativeStartOffset : 0
-                    let intraBookTime = max(0, pending.startSeconds - bookOffset) + 0.05
-                    audioEngine.seek(to: intraBookTime) { [weak self] _ in
-                        self?.playbackController.resumeAfterSeek()
-                    }
-                } else if autoplay {
-                    self.play()
+            // Handle pending aggregated chapter seek (cross-book navigation).
+            if let pending = state.pendingAggregatedChapter {
+                state.pendingAggregatedChapter = nil
+                let bookOffset = state.m4bBooks.indices.contains(pending.bookIndex)
+                    ? state.m4bBooks[pending.bookIndex].cumulativeStartOffset : 0
+                let intraBookTime = max(0, pending.startSeconds - bookOffset) + 0.05
+                audioEngine.seek(to: intraBookTime) { [weak self] _ in
+                    self?.playbackController.resumeAfterSeek()
                 }
+            } else if autoplay {
+                self.play()
             }
         }
     }
