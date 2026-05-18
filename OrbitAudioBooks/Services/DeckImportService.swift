@@ -53,7 +53,7 @@ struct DeckImportService {
                 mediaTimestamp: card.startTime,
                 endTimestamp: card.endTime,
                 triggerTiming: card.triggerTiming,
-                nextReviewDate: ISO8601DateFormatter().string(from: Date()),
+                nextReviewDate: Date().ISO8601Format(),
                 intervalDays: 0,
                 easeFactor: 2.5,
                 repetitions: 0,

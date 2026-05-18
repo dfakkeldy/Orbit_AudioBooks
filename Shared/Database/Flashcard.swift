@@ -62,11 +62,11 @@ enum SpacedRepetitionService {
         }
 
         updated.easeFactor = max(1.3, updated.easeFactor + (0.1 - Double(5 - grade) * (0.08 + Double(5 - grade) * 0.02)))
-        updated.lastReviewedAt = ISO8601DateFormatter().string(from: Date())
+        updated.lastReviewedAt = Date().ISO8601Format()
         updated.lastGrade = grade
 
         if let nextDate = Calendar.current.date(byAdding: .day, value: updated.intervalDays, to: Date()) {
-            updated.nextReviewDate = ISO8601DateFormatter().string(from: nextDate)
+            updated.nextReviewDate = nextDate.ISO8601Format()
         }
 
         return updated
