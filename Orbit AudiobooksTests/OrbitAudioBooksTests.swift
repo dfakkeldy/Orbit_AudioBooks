@@ -158,6 +158,9 @@ struct OrbitAudioBooksTests {
     @Test func databaseBookmarkDAOInsertAndRead() throws {
         let db = try DatabaseService(inMemory: ())
         let dao = BookmarkDAO(db: db.writer)
+        try db.write { db in
+            try db.execute(sql: "INSERT INTO audiobook (id, title, duration) VALUES ('book-1', 'Test', 3600)")
+        }
         let bm = BookmarkRecord(
             id: UUID().uuidString,
             audiobookID: "book-1",
@@ -182,6 +185,9 @@ struct OrbitAudioBooksTests {
     @Test func databaseBookmarkDAODelete() throws {
         let db = try DatabaseService(inMemory: ())
         let dao = BookmarkDAO(db: db.writer)
+        try db.write { db in
+            try db.execute(sql: "INSERT INTO audiobook (id, title, duration) VALUES ('book-1', 'Test', 3600)")
+        }
         let id = UUID().uuidString
         let bm = BookmarkRecord(
             id: id, audiobookID: "book-1", trackID: nil,

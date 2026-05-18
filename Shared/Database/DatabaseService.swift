@@ -2,11 +2,10 @@ import Foundation
 import GRDB
 import os.log
 
-/// Owns the GRDB DatabasePool in WAL mode. Lives in the App Group container
-/// so iOS, watchOS, macOS, and Widget targets all share the same database.
+/// Owns a GRDB database in WAL mode (DatabasePool for disk, DatabaseQueue for in-memory).
 @Observable
 final class DatabaseService {
-    private let pool: DatabasePool
+    let writer: DatabaseWriter
     let dbPath: String
     private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "DatabaseService")
 
@@ -32,7 +31,7 @@ final class DatabaseService {
             try db.execute(sql: "PRAGMA journal_mode=WAL")
             try db.execute(sql: "PRAGMA foreign_keys=ON")
         }
-        pool = try DatabasePool(path: path, configuration: config)
+        writer = try DatabasePool(path: path, configuration: config)
 
         try runMigrations()
         logger.info("Database opened at \(path)")
@@ -43,7 +42,7 @@ final class DatabaseService {
         config.prepareDatabase { db in
             try db.execute(sql: "PRAGMA foreign_keys=ON")
         }
-        self.pool = try DatabasePool(path: ":memory:", configuration: config)
+        self.writer = try DatabaseQueue(path: ":memory:", configuration: config)
         self.dbPath = ":memory:"
         try runMigrations()
     }
@@ -51,22 +50,20 @@ final class DatabaseService {
     // MARK: - Accessors
 
     func read<T>(_ block: @escaping (Database) throws -> T) throws -> T {
-        try pool.read(block)
+        try writer.read(block)
     }
 
     func readAsync<T>(_ block: @escaping @Sendable (Database) throws -> T) async throws -> T {
-        try await pool.read(block)
+        try await writer.read(block)
     }
 
     func write<T>(_ block: @escaping (Database) throws -> T) throws -> T {
-        try pool.write(block)
+        try writer.write(block)
     }
 
     func writeAsync<T>(_ block: @escaping @Sendable (Database) throws -> T) async throws -> T {
-        try await pool.write(block)
+        try await writer.write(block)
     }
-
-    var writer: DatabaseWriter { pool }
 
     // MARK: - Migrations
 
@@ -75,7 +72,7 @@ final class DatabaseService {
         migrator.registerMigration("v1_create_schema") { db in
             try Schema_V1.migrate(db)
         }
-        try migrator.migrate(pool)
+        try migrator.migrate(writer)
     }
 
     // MARK: - UserDefaults migration flag

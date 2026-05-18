@@ -10,7 +10,7 @@ enum Schema_V1 {
             t.column("author", .text)
             t.column("duration", .double).notNull()
             t.column("file_count", .integer)
-            t.column("added_at", .text).notNull().defaults(sql: "datetime('now')")
+            t.column("added_at", .text).notNull().defaults(sql: "(datetime('now'))")
         }
 
         // ── Five item types ──
@@ -47,8 +47,8 @@ enum Schema_V1 {
             t.column("image_path", .text)
             t.column("is_enabled", .boolean).notNull().defaults(to: true)
             t.column("playlist_position", .double)
-            t.column("created_at", .text).notNull().defaults(sql: "datetime('now')")
-            t.column("modified_at", .text).notNull().defaults(sql: "datetime('now')")
+            t.column("created_at", .text).notNull().defaults(sql: "(datetime('now'))")
+            t.column("modified_at", .text).notNull().defaults(sql: "(datetime('now'))")
         }
 
         try db.create(table: "flashcard") { t in
@@ -69,8 +69,8 @@ enum Schema_V1 {
             //
             t.column("is_enabled", .boolean).notNull().defaults(to: true)
             t.column("playlist_position", .double)
-            t.column("created_at", .text).notNull().defaults(sql: "datetime('now')")
-            t.column("modified_at", .text).notNull().defaults(sql: "datetime('now')")
+            t.column("created_at", .text).notNull().defaults(sql: "(datetime('now'))")
+            t.column("modified_at", .text).notNull().defaults(sql: "(datetime('now'))")
         }
 
         try db.create(table: "transcription_segment") { t in
