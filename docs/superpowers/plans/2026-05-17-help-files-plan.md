@@ -1,6 +1,6 @@
 # Help Files Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add an in-app help screen with 11 sections of user-facing documentation, accessible from both a "?" button on the main player and a "Help" row in Settings.
 
@@ -26,7 +26,7 @@
 **Files:**
 - Create: `OrbitAudioBooks/Views/HelpContent.swift`
 
-- [ ] **Step 1: Write the model and content file**
+- [x] **Step 1: Write the model and content file**
 
 ```swift
 import Foundation
@@ -198,7 +198,7 @@ enum HelpContent {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add OrbitAudioBooks/Views/HelpContent.swift
@@ -212,7 +212,7 @@ git commit -m "feat: add HelpContent model and static help sections"
 **Files:**
 - Create: `OrbitAudioBooks/Views/HelpView.swift`
 
-- [ ] **Step 1: Write the view**
+- [x] **Step 1: Write the view**
 
 ```swift
 import SwiftUI
@@ -243,7 +243,7 @@ struct HelpView: View {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add OrbitAudioBooks/Views/HelpView.swift
@@ -257,7 +257,7 @@ git commit -m "feat: add HelpView with scrollable help sections"
 **Files:**
 - Modify: `OrbitAudioBooks/Views/ContentView.swift`
 
-- [ ] **Step 1: Add the `showingHelp` state variable**
+- [x] **Step 1: Add the `showingHelp` state variable**
 
 Add after line 12 (`@State private var showingSettings = false`):
 
@@ -265,7 +265,7 @@ Add after line 12 (`@State private var showingSettings = false`):
 @State private var showingHelp = false
 ```
 
-- [ ] **Step 2: Add the "?" toolbar button**
+- [x] **Step 2: Add the "?" toolbar button**
 
 Add a new `ToolbarItem` after the folder button block (after line 89 `}`):
 
@@ -281,7 +281,7 @@ Add a new `ToolbarItem` after the folder button block (after line 89 `}`):
             }
 ```
 
-- [ ] **Step 3: Add the `.sheet` modifier for HelpView**
+- [x] **Step 3: Add the `.sheet` modifier for HelpView**
 
 Add after the `.sheet(isPresented: $showingSettings)` block (after line 112):
 
@@ -299,7 +299,7 @@ Add after the `.sheet(isPresented: $showingSettings)` block (after line 112):
         }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add OrbitAudioBooks/Views/ContentView.swift
@@ -313,7 +313,7 @@ git commit -m "feat: add help button and sheet to ContentView"
 **Files:**
 - Modify: `OrbitAudioBooks/Views/SettingsView.swift`
 
-- [ ] **Step 1: Add the Help section**
+- [x] **Step 1: Add the Help section**
 
 Add a new `Section` before the closing `}` of the `Form` (after line 62):
 
@@ -327,7 +327,7 @@ Add a new `Section` before the closing `}` of the `Form` (after line 62):
                 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add OrbitAudioBooks/Views/SettingsView.swift
@@ -338,17 +338,17 @@ git commit -m "feat: add Help row to Settings"
 
 ### Task 5: Build verification
 
-- [ ] **Step 1: Build the project**
+- [x] **Step 1: Build the project**
 
 Run: `xcodebuild -project OrbitAudioBooks.xcodeproj -scheme "Orbit AudioBooks" -destination "platform=iOS Simulator,name=iPhone 16" build 2>&1 | tail -20`
 Expected: `** BUILD SUCCEEDED **`
 
-- [ ] **Step 2: Verify all files are committed**
+- [x] **Step 2: Verify all files are committed**
 
 Run: `git status`
 Expected: `nothing to commit, working tree clean`
 
-- [ ] **Step 3: Verify final commit log**
+- [x] **Step 3: Verify final commit log**
 
 Run: `git log --oneline -4`
 Expected: 4 commits (HelpContent, HelpView, ContentView edit, SettingsView edit)
