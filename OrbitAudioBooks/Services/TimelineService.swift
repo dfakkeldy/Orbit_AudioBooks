@@ -211,9 +211,10 @@ final class TimelineService {
         let totalDuration = chapterRecords.map(\.endSeconds).max() ?? 0
 
         guard !chapterRecords.isEmpty else {
+            let fallbackDuration = cards.compactMap(\.mediaTimestamp).max() ?? 0
             return [ChapterSection(index: 0, title: "Full Book", startSeconds: 0,
-                                    endSeconds: .infinity, cards: cards,
-                                    totalBookDuration: totalDuration)]
+                                    endSeconds: fallbackDuration, cards: cards,
+                                    totalBookDuration: fallbackDuration)]
         }
 
         var sections: [ChapterSection] = []
@@ -236,11 +237,12 @@ final class TimelineService {
 
         let unmatched = cards.filter { !matchedIDs.contains($0.id) }
         if !unmatched.isEmpty {
+            let unmatchedEnd = unmatched.compactMap(\.mediaTimestamp).max() ?? totalDuration
             sections.append(ChapterSection(
                 index: sections.count,
                 title: "Other",
                 startSeconds: totalDuration,
-                endSeconds: .infinity,
+                endSeconds: max(unmatchedEnd, totalDuration + 1),
                 cards: unmatched,
                 totalBookDuration: totalDuration
             ))
