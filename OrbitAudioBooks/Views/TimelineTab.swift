@@ -1,6 +1,8 @@
 import SwiftUI
+import os.log
 
 struct TimelineTab: View {
+    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TimelineTab")
     @Environment(PlayerModel.self) private var model
     @State private var timeScale: TimeScale = .minutes
     @State private var dueCount: Int = 0
@@ -45,7 +47,12 @@ struct TimelineTab: View {
 
     private func refreshDueCount() {
         guard let db = model.databaseService else { return }
-        dueCount = (try? FlashcardDAO(db: db.writer).allDueCards().count) ?? 0
+        do {
+            dueCount = try FlashcardDAO(db: db.writer).allDueCards().count
+        } catch {
+            Self.logger.error("Failed to refresh due card count: \(error.localizedDescription)")
+            dueCount = 0
+        }
     }
 }
 

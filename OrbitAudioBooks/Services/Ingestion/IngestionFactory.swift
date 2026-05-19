@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 /// Detects available assets in a folder and selects the appropriate ingestion strategy.
 ///
@@ -7,6 +8,7 @@ import Foundation
 /// - Only M4B/M4A files → AudioOnlyIngestionStrategy (sparse feed)
 /// - No audio files → nil (cannot ingest)
 struct IngestionFactory {
+    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "IngestionFactory")
 
     /// Returns the best strategy for the given folder, or nil if no audio files exist.
     static func strategy(for folderURL: URL) -> IngestionStrategy? {
@@ -67,11 +69,15 @@ struct IngestionFactory {
     }
 
     private static func fileURLs(in folderURL: URL) -> [URL] {
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: folderURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: .skipsHiddenFiles
-        ) else { return [] }
-        return contents
+        do {
+            return try FileManager.default.contentsOfDirectory(
+                at: folderURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: .skipsHiddenFiles
+            )
+        } catch {
+            logger.error("Cannot list directory \(folderURL.path): \(error.localizedDescription)")
+            return []
+        }
     }
 }

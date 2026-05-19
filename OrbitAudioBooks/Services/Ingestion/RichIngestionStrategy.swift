@@ -74,7 +74,7 @@ struct RichIngestionStrategy: IngestionStrategy {
                     let imagePath = findImageAsset(named: imageName, in: folderURL)
                     if let path = imagePath {
                         imageAssetRecords.append(ImageAssetRecord(
-                            id: "\(audiobookID)-img-\(imageAssetRecords.count)",
+                            id: "\(audiobookID)-img-\(audioResult.imageCount + imageAssetRecords.count)",
                             audiobookID: audiobookID,
                             title: imageName,
                             imagePath: path,
@@ -89,9 +89,15 @@ struct RichIngestionStrategy: IngestionStrategy {
         }
 
         // ── Write to database ──
-        try await db.write { db in
-            for var segment in transcriptionRecords { try segment.insert(db) }
-            for var image in imageAssetRecords { try image.insert(db) }
+        do {
+            try await db.write { db in
+                for var segment in transcriptionRecords { try segment.insert(db) }
+                for var image in imageAssetRecords { try image.insert(db) }
+            }
+        } catch {
+            // Rollback the committed audio data to avoid partial state.
+            try? await clearExisting(audiobookID: audiobookID, in: db)
+            throw IngestionError.databaseError(error)
         }
 
         itemCounts[.track] = audioResult.trackCount
@@ -117,6 +123,7 @@ struct RichIngestionStrategy: IngestionStrategy {
         let totalDuration: TimeInterval
         let trackCount: Int
         let chapterCount: Int
+        let imageCount: Int
     }
 
     private func ingestAudioFiles(
@@ -136,7 +143,8 @@ struct RichIngestionStrategy: IngestionStrategy {
         return AudioIngestResult(
             totalDuration: result.duration,
             trackCount: result.fileCount,
-            chapterCount: result.itemCounts[.chapterMarker] ?? 0
+            chapterCount: result.itemCounts[.chapterMarker] ?? 0,
+            imageCount: result.itemCounts[.imageAsset] ?? 0
         )
     }
 
@@ -167,13 +175,19 @@ struct RichIngestionStrategy: IngestionStrategy {
 
     private func loadEnhancedSegments(from url: URL) throws -> [EnhancedSegmentJSON] {
         let data = try Data(contentsOf: url)
-        if let segments = try? JSONDecoder().decode([EnhancedSegmentJSON].self, from: data) {
-            return segments
+        do {
+            return try JSONDecoder().decode([EnhancedSegmentJSON].self, from: data)
+        } catch {
+            logger.debug("Direct array decode failed: \(error.localizedDescription)")
         }
         // Fallback: try decoding as a dictionary with a "segments" key.
-        if let wrapper = try? JSONDecoder().decode([String: [EnhancedSegmentJSON]].self, from: data),
-           let segments = wrapper["segments"] {
-            return segments
+        do {
+            let wrapper = try JSONDecoder().decode([String: [EnhancedSegmentJSON]].self, from: data)
+            if let segments = wrapper["segments"] {
+                return segments
+            }
+        } catch {
+            logger.debug("Dictionary wrapper decode failed: \(error.localizedDescription)")
         }
         throw IngestionError.missingRequiredAsset("Unable to parse EnhancedTranscript.json")
     }

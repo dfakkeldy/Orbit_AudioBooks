@@ -88,6 +88,13 @@ struct TimelineFeedView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 10)
                 .onChanged { _ in isUserScrolling = true }
+                .onEnded { _ in
+                    // Brief delay so deceleration finishes before we allow
+                    // programmatic scrolls via updateScrollTarget().
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        isUserScrolling = false
+                    }
+                }
         )
         .defaultScrollAnchor(.top)
     }
@@ -210,15 +217,23 @@ struct TimelineFeedView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        ContentUnavailableView(
-            "No Timeline Content",
-            systemImage: "text.justify.left",
-            description: Text(
-                viewModel.currentAudiobookID == nil
-                    ? "Open a folder or audiobook to see its timeline feed."
-                    : "This audiobook has no timeline content yet. Bookmarks, notes, and flashcards will appear here."
+        if let errorMessage = viewModel.loadError {
+            ContentUnavailableView(
+                "Timeline Unavailable",
+                systemImage: "exclamationmark.triangle",
+                description: Text(errorMessage)
             )
-        )
+        } else {
+            ContentUnavailableView(
+                "No Timeline Content",
+                systemImage: "text.justify.left",
+                description: Text(
+                    viewModel.currentAudiobookID == nil
+                        ? "Open a folder or audiobook to see its timeline feed."
+                        : "This audiobook has no timeline content yet. Bookmarks, notes, and flashcards will appear here."
+                )
+            )
+        }
     }
 
     // MARK: - Helpers

@@ -54,6 +54,7 @@ struct AudioOnlyIngestionStrategy: IngestionStrategy {
                 let cmDuration = try await asset.load(.duration)
                 fileDuration = cmDuration.seconds.isFinite ? cmDuration.seconds : 0
             } catch {
+                logger.error("Failed to load duration for \(audioURL.lastPathComponent): \(error.localizedDescription)")
                 fileDuration = 0
             }
 
@@ -89,19 +90,23 @@ struct AudioOnlyIngestionStrategy: IngestionStrategy {
             let chapterArtwork = await extractChapterArtwork(from: asset, baseOffset: cumulativeOffset)
             for artwork in chapterArtwork {
                 // Save image data to disk and get a local path.
-                let savedPath = try? saveArtwork(artwork.data, withName: artwork.name, in: folderURL)
-                if let path = savedPath {
-                    allImageAssetRecords.append(ImageAssetRecord(
-                        id: "\(audiobookID)-img-\(allImageAssetRecords.count)",
-                        audiobookID: audiobookID,
-                        title: artwork.name,
-                        imagePath: path,
-                        mediaTimestamp: artwork.timestamp,
-                        epubReference: nil,
-                        isEnabled: true,
-                        playlistPosition: artwork.timestamp
-                    ))
+                let path: String
+                do {
+                    path = try saveArtwork(artwork.data, withName: artwork.name, in: folderURL)
+                } catch {
+                    logger.error("Failed to save artwork '\(artwork.name)': \(error.localizedDescription)")
+                    continue
                 }
+                allImageAssetRecords.append(ImageAssetRecord(
+                    id: "\(audiobookID)-img-\(allImageAssetRecords.count)",
+                    audiobookID: audiobookID,
+                    title: artwork.name,
+                    imagePath: path,
+                    mediaTimestamp: artwork.timestamp,
+                    epubReference: nil,
+                    isEnabled: true,
+                    playlistPosition: artwork.timestamp
+                ))
             }
 
             cumulativeOffset += fileDuration
@@ -162,7 +167,10 @@ struct AudioOnlyIngestionStrategy: IngestionStrategy {
             guard timestamp.isFinite else { continue }
 
             for item in group.items where item.commonKey == .commonKeyArtwork {
-                guard let data = try? await item.load(.dataValue) else { continue }
+                guard let data = try? await item.load(.dataValue) else {
+                    logger.debug("Failed to load artwork data item at offset \(timestamp)")
+                    continue
+                }
                 let title = (try? await group.items.first?.load(.stringValue)) ?? "Artwork"
                 results.append(ChapterArtwork(name: title, data: data, timestamp: timestamp))
                 break // One artwork per chapter group.
@@ -181,6 +189,7 @@ struct AudioOnlyIngestionStrategy: IngestionStrategy {
                 containingItemsWithCommonKeys: []
             )
         } catch {
+            logger.error("Failed to load chapter metadata groups: \(error.localizedDescription)")
             return []
         }
     }

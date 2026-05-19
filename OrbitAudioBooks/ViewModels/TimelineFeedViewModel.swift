@@ -30,6 +30,10 @@ final class TimelineFeedViewModel {
 
     var isFollowingPlayback: Bool { followState == .following }
 
+    /// Populated when a database query fails, so the view can show an error
+    /// instead of the misleading "no content" empty state.
+    private(set) var loadError: String?
+
     /// Flattened view of all items across sections, for scroll target lookups.
     var allVisibleItems: [TimelineFeedItem] {
         visibleSections.flatMap { section in
@@ -56,11 +60,9 @@ final class TimelineFeedViewModel {
     /// Time window radius around current playback position.
     var windowRadius: TimeInterval = 300
 
-    /// Maximum number of items to hold in the rolling window.
+    /// Maximum number of text segments to hold in the rolling window.
+    /// Beyond this cap, the time window is narrowed to keep the feed responsive.
     var maxWindowSize = 200
-
-    /// How many items to load per page.
-    var pageSize = 50
 
     // MARK: - Dependencies
 
@@ -68,11 +70,25 @@ final class TimelineFeedViewModel {
     private var audiobookID: String?
 
     /// Seconds of idle scrolling before auto-follow resumes.
-    private let pauseResumeDelay: TimeInterval = 5.0
+    static let pauseResumeDelay: TimeInterval = 5.0
+
+    /// Duration to wait for the scroll animation before transitioning from
+    /// `.jumping` back to `.following`.
+    static let jumpAnimationDuration: TimeInterval = 0.5
+
     private var pauseTimeoutTask: Task<Void, Never>?
+
+    /// Stored so it can be cancelled when the audiobook changes mid-load.
+    private var reloadTask: Task<Void, Never>?
+
+    /// Stored so rapid "Go to Now" taps don't spawn competing animations.
+    private var jumpTask: Task<Void, Never>?
 
     /// Incremented each time items are rebuilt, used to debounce rapid calls.
     private var generation: Int = 0
+
+    /// Tracks the last playhead time that triggered a full DB window rebuild.
+    private var lastRebuiltPlayheadTime: TimeInterval?
 
     // MARK: - Follow State
 
@@ -96,19 +112,36 @@ final class TimelineFeedViewModel {
 
     func setAudiobookID(_ id: String?) {
         guard id != audiobookID else { return }
+        reloadTask?.cancel()
         audiobookID = id
         currentAudiobookID = id
         summaryItems = []
         windowedTextSegments = []
         visibleSections = []
+        loadError = nil
         reload()
     }
 
     /// Called by the playback engine each time the playhead moves.
+    ///
+    /// Skips the DB-backed window rebuild when the playhead hasn't moved enough
+    /// to warrant it. The `currentItemID` is still kept current so the scroll
+    /// target updates smoothly without re-querying.
     func updatePlaybackTime(_ time: TimeInterval) {
         guard followState == .following || followState.isJumping else { return }
+
+        if let last = lastRebuiltPlayheadTime, abs(time - last) < Self.rebuildThreshold {
+            // Playhead hasn't moved enough to justify a DB round-trip.
+            // currentItemID is updated by the caller via scrollTargetID.
+            return
+        }
         rebuildVisibleItems(at: time)
     }
+
+    /// Minimum playhead movement (seconds) before the window is re-queried from
+    /// the database. At 15 s and a 0.5 s polling interval, this cuts DB queries
+    /// by ~30× during continuous playback while keeping the window responsive.
+    private static let rebuildThreshold: TimeInterval = 15
 
     /// User manually scrolled the feed — pause auto-follow.
     func userDidScroll() {
@@ -124,10 +157,12 @@ final class TimelineFeedViewModel {
             followState = .jumping(to: id)
             rebuildVisibleItems(at: currentPlaybackTime)
             // Transition to following after the scroll animation completes.
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.5))
-                if case .jumping = followState {
-                    followState = .following
+            jumpTask?.cancel()
+            jumpTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(Self.jumpAnimationDuration))
+                guard let self, !Task.isCancelled else { return }
+                if case .jumping = self.followState {
+                    self.followState = .following
                 }
             }
         }
@@ -136,7 +171,9 @@ final class TimelineFeedViewModel {
 
     func reload() {
         guard let db, let audiobookID else { return }
-        Task {
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
+            guard let self else { return }
             do {
                 // Load all summary items (chapter markers, bookmarks, etc.) — they're few.
                 let summaryTypes: Set<TimelineItemType> = [
@@ -145,15 +182,21 @@ final class TimelineFeedViewModel {
                 let allSummary = try TimelineDAO(db: db.writer)
                     .filtered(audiobookID: audiobookID, types: summaryTypes)
 
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
                     self.summaryItems = allSummary
+                    self.loadError = nil
                     // Trigger initial window build.
                     if !allSummary.isEmpty {
-                        rebuildVisibleItems(at: 0)
+                        self.rebuildVisibleItems(at: 0)
                     }
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 logger.error("Failed to load summary items: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.loadError = error.localizedDescription
+                }
             }
         }
     }
@@ -184,11 +227,18 @@ final class TimelineFeedViewModel {
 
                 await MainActor.run {
                     guard generation == gen else { return }
-                    self.windowedTextSegments = segments
+                    if segments.count > self.maxWindowSize {
+                        self.logger.warning("Window returned \(segments.count) text segments; capping at \(self.maxWindowSize)")
+                    }
+                    self.windowedTextSegments = Array(segments.prefix(self.maxWindowSize))
+                    self.lastRebuiltPlayheadTime = time
                     self.buildSections(currentTime: time)
                 }
             } catch {
                 logger.error("Failed to load window: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.loadError = error.localizedDescription
+                }
             }
         }
     }
@@ -236,6 +286,8 @@ final class TimelineFeedViewModel {
         for (chapter, rangeStart, rangeEnd) in chapterRanges {
             let chapterItems = allItems.filter { item in
                 guard !processedIDs.contains(item.id) else { return false }
+                // Chapter markers render as sticky section headers, not as content cells.
+                guard item.id != chapter.id else { return false }
                 return item.audioStartTime >= rangeStart && item.audioStartTime < rangeEnd
             }
             processedIDs.formUnion(chapterItems.map(\.id))
@@ -300,7 +352,7 @@ final class TimelineFeedViewModel {
     private func scheduleAutoFollowResume() {
         pauseTimeoutTask?.cancel()
         pauseTimeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(self?.pauseResumeDelay ?? 5))
+            try? await Task.sleep(for: .seconds(Self.pauseResumeDelay))
             guard let self, !Task.isCancelled else { return }
             await MainActor.run {
                 if self.followState == .paused {

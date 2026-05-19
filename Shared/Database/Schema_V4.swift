@@ -39,7 +39,7 @@ enum Schema_V4 {
             CREATE VIEW timeline AS
             SELECT id, audiobook_id, 'track' AS item_type,
                    title, NULL AS subtitle,
-                   sort_order AS audio_start_time, NULL AS audio_end_time,
+                   playlist_position AS audio_start_time, NULL AS audio_end_time,
                    NULL AS text_payload, NULL AS epub_reference, NULL AS image_path,
                    NULL AS epub_sequence_index,
                    is_enabled, playlist_position,
