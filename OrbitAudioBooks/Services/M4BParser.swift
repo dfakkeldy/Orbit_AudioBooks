@@ -69,7 +69,7 @@ struct M4BParser {
     }
 
     private static func book(from url: URL) async -> M4BBook? {
-        let asset = AVAsset(url: url)
+        let asset = AVURLAsset(url: url)
         let chapters = await ChapterService.parseChapters(from: asset)
         let title = url.deletingPathExtension().lastPathComponent
 

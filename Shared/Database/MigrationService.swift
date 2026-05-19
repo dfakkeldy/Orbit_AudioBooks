@@ -4,7 +4,7 @@ import os.log
 
 /// One-shot migrator that reads existing UserDefaults/JSON-sidecar data
 /// and writes it into the SQL database.
-#if os(iOS) || os(macOS)
+#if os(iOS)
 enum MigrationService {
     private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "Migration")
 

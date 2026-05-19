@@ -54,7 +54,7 @@ struct TranscriptionDAO {
     }
 
     func deleteAll(for audiobookID: String) throws {
-        try db.write { db in
+        _ = try db.write { db in
             try TranscriptionRecord
                 .filter(Column("audiobook_id") == audiobookID)
                 .deleteAll(db)

@@ -76,7 +76,7 @@ public struct SlidingWindowAligner: TextAlignmentService {
                 let range = sentenceRanges[match.index]
                 results.append(AlignmentResult(
                     epubCharRange: range,
-                    transcriptTimeRange: segment.startTime...segment.endTime,
+                    transcriptTimeRange: (segment.startTime ?? 0)...(segment.endTime ?? 0),
                     confidence: match.confidence,
                     containedMarkers: []
                 ))

@@ -437,7 +437,7 @@ final class ChapterMarkerCell: UICollectionViewCell {
             divider.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             divider.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             divider.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            divider.heightAnchor.constraint(equalToConstant: 1.0 / UIScreen.main.scale),
+            divider.heightAnchor.constraint(equalToConstant: 1.0 / contentView.traitCollection.displayScale),
         ])
     }
 

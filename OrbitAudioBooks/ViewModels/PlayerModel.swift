@@ -1399,9 +1399,7 @@ final class PlayerModel {
         }
 
         let scale = displayScale
-        let result = await Task.detached(priority: .userInitiated) {
-            ArtworkCache.generateThumbnails(from: sourceImage, displayScale: scale)
-        }.value
+        let result = ArtworkCache.generateThumbnails(from: sourceImage, displayScale: scale)
 
         await MainActor.run {
             state.thumbnailImage = result.0
@@ -1805,7 +1803,6 @@ final class PlayerModel {
         guard activeInlineCard == nil, isPlaying, !state.isManualSeeking,
               loopMode != .bookmark else { return }
 
-        let toleranceBefore: Double = 0.1
         let toleranceAfter: Double = 0.75
 
         let trackKey = state.tracks.indices.contains(state.currentIndex)

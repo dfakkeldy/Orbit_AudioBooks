@@ -17,7 +17,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             createBrowseTemplate(),
             CPNowPlayingTemplate.shared
         ])
-        interfaceController.setRootTemplate(tabTemplate, animated: false)
+        interfaceController.setRootTemplate(tabTemplate, animated: false, completion: nil)
     }
 
     func templateApplicationScene(

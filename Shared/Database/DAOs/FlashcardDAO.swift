@@ -41,7 +41,7 @@ struct FlashcardDAO {
     }
 
     func update(_ card: Flashcard) throws {
-        var copy = card
+        let copy = card
         try db.write { db in
             try copy.update(db)
             try syncToTimeline(db, card: copy)
@@ -52,7 +52,7 @@ struct FlashcardDAO {
         try db.write { db in
             guard let card = try Flashcard.fetchOne(db, key: cardID) else { return }
             let result = SpacedRepetitionService.apply(grade: grade, to: card)
-            var updated = result
+            let updated = result
             try updated.update(db)
             try syncToTimeline(db, card: updated)
         }

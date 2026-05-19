@@ -172,7 +172,7 @@ struct TimelineDAO {
 
     /// Delete all timeline_item rows for an audiobook (re-ingestion prep).
     func deleteAll(for audiobookID: String) throws {
-        try db.write { db in
+        _ = try db.write { db in
             try TimelineItem
                 .filter(Column("audiobook_id") == audiobookID)
                 .deleteAll(db)
@@ -189,14 +189,14 @@ struct TimelineDAO {
     }
 
     func updateUserItem(_ item: TimelineItem) throws {
-        var mutable = item
+        let mutable = item
         try db.write { db in
             try mutable.update(db)
         }
     }
 
     func deleteUserItem(id: String, audiobookID: String) throws {
-        try db.write { db in
+        _ = try db.write { db in
             try TimelineItem
                 .filter(Column("id") == id)
                 .filter(Column("audiobook_id") == audiobookID)

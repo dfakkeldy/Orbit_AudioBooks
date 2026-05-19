@@ -22,7 +22,7 @@ struct AudiobookDAO {
     }
 
     func delete(_ id: String) throws {
-        try db.write { db in
+        _ = try db.write { db in
             try AudiobookRecord.deleteOne(db, key: id)
         }
     }

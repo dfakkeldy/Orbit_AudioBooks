@@ -22,7 +22,7 @@ struct ChapterDAO {
     }
 
     func deleteAll(for audiobookID: String) throws {
-        try db.write { db in
+        _ = try db.write { db in
             try ChapterRecord
                 .filter(Column("audiobook_id") == audiobookID)
                 .deleteAll(db)

@@ -38,11 +38,11 @@ struct NoteDAO {
     }
 
     func delete(id: String) throws {
-        try db.write { db in try NoteRecord.deleteOne(db, key: id) }
+        _ = try db.write { db in try NoteRecord.deleteOne(db, key: id) }
     }
 
     func deleteAll(for audiobookID: String) throws {
-        try db.write { db in
+        _ = try db.write { db in
             try NoteRecord
                 .filter(Column("audiobook_id") == audiobookID)
                 .deleteAll(db)

@@ -16,22 +16,22 @@ class TranscriptStore: ObservableObject {
     @Published var wordClouds: [String: [WordFrequency]] = [:]
 
     private let transcriptDir: URL
-    private var transcriptUpdateObserver: NSObjectProtocol?
 
     init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         transcriptDir = appSupport.appendingPathComponent("Transcripts", isDirectory: true)
         loadIndex()
 
-        transcriptUpdateObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name("TranscriptDidUpdate"), object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.reload() }
-        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleTranscriptUpdate),
+            name: NSNotification.Name("TranscriptDidUpdate"),
+            object: nil
+        )
     }
 
-    deinit {
-        if let observer = transcriptUpdateObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
+    @objc private func handleTranscriptUpdate() {
+        reload()
     }
 
     func loadIndex() {

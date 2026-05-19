@@ -70,16 +70,24 @@ final class DatabaseService {
     private func runMigrations() throws {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1_create_schema") { db in
-            try Schema_V1.migrate(db)
+            try MainActor.assumeIsolated {
+                try Schema_V1.migrate(db)
+            }
         }
         migrator.registerMigration("v2_timeline_support") { db in
-            try Schema_V2.migrate(db)
+            try MainActor.assumeIsolated {
+                try Schema_V2.migrate(db)
+            }
         }
         migrator.registerMigration("v3_missing_indexes") { db in
-            try Schema_V3.migrate(db)
+            try MainActor.assumeIsolated {
+                try Schema_V3.migrate(db)
+            }
         }
         migrator.registerMigration("v4_materialized_timeline") { db in
-            try Schema_V4.migrate(db)
+            try MainActor.assumeIsolated {
+                try Schema_V4.migrate(db)
+            }
         }
         try migrator.migrate(writer)
     }

@@ -157,8 +157,9 @@ final class TimelineFeedViewModel {
 
     private func scheduleTripwireReset() {
         tripwireTask?.cancel()
+        let delay = tripwireDelay
         tripwireTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(tripwireDelay * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
             await MainActor.run {
                 self.isFollowingPlayback = true
