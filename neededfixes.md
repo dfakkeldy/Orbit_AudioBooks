@@ -123,3 +123,25 @@ PlayerModel directly manipulates the AVPlayer instead of going through AudioEngi
 
 ### A7 — Stringly-typed watch layout configuration
 Watch layout stored as comma-separated strings parsed at runtime.
+
+---
+
+## 2026-05-19 — Post PR #12 Merge
+
+### B17 — TimelineFeedViewModel: silent catch blocks swallow DB errors
+**File:** `OrbitAudioBooks/ViewModels/TimelineFeedViewModel.swift`
+**Category:** Error Handling / Observability
+
+Four async methods (`loadNextPage`, `loadPreviousPage`, `reloadGranularity`, `loadInitialWindow`) use bare `catch {}` or `catch { items = [] }` — DB failures produce no diagnostic output and no user-visible feedback. If the feed goes blank the user sees whatever the empty state renders, with no clue that a query failed.
+
+**Fix (23 lines, deferred 2026-05-19):**
+
+1. Add `import os.log` and `private let logger = Logger(...)` to the class.
+2. Add `private(set) var loadError: String?` published property.
+3. Replace each silent catch with:
+   - `logger.error("Failed to load ...: \(error.localizedDescription)")`
+   - `loadError = error.localizedDescription` (for `loadInitialWindow` and `reloadGranularity` where items are fully replaced)
+   - Clear `loadError = nil` on each successful load.
+4. The feed view can bind `loadError` in its empty state to show a meaningful error instead of a generic "no content" message.
+
+**Diff reference:** commit `aa63d1c` on deleted branch `fix/timeline-feed-vm-error-handling`.
