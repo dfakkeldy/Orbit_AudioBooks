@@ -91,7 +91,7 @@ struct RichIngestionStrategy: IngestionStrategy {
         // ── Write to database ──
         try await db.write { db in
             for var segment in transcriptionRecords { try segment.insert(db) }
-            for image in imageAssetRecords { try image.insert(db) }
+            for var image in imageAssetRecords { try image.insert(db) }
         }
 
         itemCounts[.track] = audioResult.trackCount

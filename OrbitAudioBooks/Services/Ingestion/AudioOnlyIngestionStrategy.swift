@@ -112,18 +112,19 @@ struct AudioOnlyIngestionStrategy: IngestionStrategy {
 
         // ── Write to database ──
         try await db.write { db in
-            try AudiobookRecord(
+            var audiobookRecord = AudiobookRecord(
                 id: audiobookID,
                 title: title,
                 author: nil,
                 duration: totalDuration,
                 fileCount: fileCount,
                 addedAt: Date().ISO8601Format()
-            ).insert(db)
+            )
+            try audiobookRecord.insert(db)
 
-            for track in trackRecords { try track.insert(db) }
+            for var track in trackRecords { try track.insert(db) }
             for var chapter in allChapterRecords { try chapter.insert(db) }
-            for image in allImageAssetRecords { try image.insert(db) }
+            for var image in allImageAssetRecords { try image.insert(db) }
         }
 
         itemCounts[.track] = trackRecords.count

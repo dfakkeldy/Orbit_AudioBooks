@@ -5,7 +5,7 @@ enum TimelineItemType: String, Codable {
     case track, chapterMarker, bookmark, ankiCard, textSegment, note, imageAsset
 }
 
-struct TimelineItem: Identifiable, Equatable {
+struct TimelineItem: Identifiable, Equatable, MediaPlayable {
     let databaseID: String
     let audiobookID: String
     let itemType: TimelineItemType

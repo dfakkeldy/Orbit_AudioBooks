@@ -36,7 +36,7 @@ struct TimelineTab: View {
                 .buttonStyle(.plain)
             }
 
-            PlaylistTimelineView(timeScale: timeScale)
+            TimelineFeedView()
         }
         .onAppear {
             refreshDueCount()
