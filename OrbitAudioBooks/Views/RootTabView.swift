@@ -34,7 +34,7 @@ struct RootTabView: View {
                 }
                 .tag(0)
 
-                TimelineTab(onReviewTap: { [weak model] in launchReview() })
+                TimelineTab(onReviewTap: { launchReview() })
                     .tabItem {
                         Label("Timeline", systemImage: "rectangle.split.2x1")
                     }
