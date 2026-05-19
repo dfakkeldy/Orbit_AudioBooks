@@ -150,10 +150,9 @@ final class TimelineService {
             viewportEnd.timeIntervalSince(viewportStart) / 2
         )
         let span: TimeInterval = switch timeScale {
-        case .seconds: 300      // 5 min
-        case .minutes: 7200     // 2 hr
-        case .hours: 86400      // 24 hr
-        case .days: 604800      // 7 days
+        case .transcription: 300      // 5 min
+        case .chapter: 7200           // 2 hr
+        case .book: 604800            // 7 days
         }
         viewportStart = center.addingTimeInterval(-span / 2)
         viewportEnd = center.addingTimeInterval(span / 2)

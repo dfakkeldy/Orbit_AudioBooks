@@ -38,7 +38,7 @@ struct BookmarkRecord: Codable, FetchableRecord, MutablePersistableRecord {
 
 // MARK: - Conversion from app-level Bookmark model (iOS only)
 
-#if os(iOS) || os(macOS)
+#if os(iOS)
 extension BookmarkRecord {
     init(from model: Bookmark) {
         self.id = model.id.uuidString
