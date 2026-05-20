@@ -34,6 +34,10 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
     var sourceTable: String?
     var sourceRowid: String?
     var metadataJSON: String?
+    var epubBlockID: String?
+    var timestampSource: String?
+    var alignmentStatus: String?
+    var alignmentConfidence: Double?
     var createdAt: String?
     var modifiedAt: String?
 
@@ -55,6 +59,10 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
         case sourceTable = "source_table"
         case sourceRowid = "source_rowid"
         case metadataJSON = "metadata_json"
+        case epubBlockID = "epub_block_id"
+        case timestampSource = "timestamp_source"
+        case alignmentStatus = "alignment_status"
+        case alignmentConfidence = "alignment_confidence"
         case createdAt = "created_at"
         case modifiedAt = "modified_at"
     }
@@ -85,6 +93,26 @@ extension TimelineItem {
         case .bookmark:      return .bookmark
         case .ankiCard:      return .ankiCard
         }
+    }
+}
+
+// MARK: - Alignment Constants
+
+extension TimelineItem {
+    enum TimestampSource: String {
+        case none = "none"
+        case estimated = "estimated"
+        case interpolated = "interpolated"
+        case lockedAnchor = "lockedAnchor"
+        case transcript = "transcript"
+    }
+
+    enum AlignmentStatus: String {
+        case unaligned = "unaligned"
+        case estimated = "estimated"
+        case interpolated = "interpolated"
+        case lockedAnchor = "lockedAnchor"
+        case omitted = "omitted"
     }
 }
 
