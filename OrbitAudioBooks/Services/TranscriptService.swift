@@ -2,6 +2,9 @@ import Foundation
 
 /// Loads transcript sidecar JSON files and computes word frequency data.
 /// Uses direct injection of PlaybackState (same pattern as PlaylistManager).
+///
+/// Supports both plain transcript (`<audio>.transcript.json`) and enhanced
+/// transcript (`<audio>.enhanced.json`) sidecar files.
 struct TranscriptService {
     let state: PlaybackState
 
@@ -24,6 +27,26 @@ struct TranscriptService {
         } catch {
             print("Failed to load transcript: \(error)")
             state.transcription = []
+        }
+    }
+
+    /// Attempts to load an enhanced transcript sidecar for the given audio file.
+    /// The enhanced transcript is expected at `<audio>.enhanced.json` in the same
+    /// directory. Returns `nil` if no enhanced transcript exists or parsing fails.
+    static func loadEnhancedTranscript(for url: URL) -> [EnhancedTranscriptionSegment]? {
+        let fileName = url.deletingPathExtension().lastPathComponent + ".enhanced.json"
+        let enhancedURL = url.deletingLastPathComponent().appendingPathComponent(fileName)
+
+        guard FileManager.default.fileExists(atPath: enhancedURL.path) else {
+            return nil
+        }
+
+        do {
+            let data = try Data(contentsOf: enhancedURL)
+            return try JSONDecoder().decode([EnhancedTranscriptionSegment].self, from: data)
+        } catch {
+            print("Failed to load enhanced transcript: \(error)")
+            return nil
         }
     }
 
