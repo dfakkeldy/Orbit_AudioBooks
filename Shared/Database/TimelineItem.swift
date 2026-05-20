@@ -37,6 +37,12 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
     var createdAt: String?
     var modifiedAt: String?
 
+    // V5: EPUB/audio alignment tracking
+    var epubBlockID: String?
+    var timestampSource: String?
+    var alignmentStatus: String?
+    var alignmentConfidence: Double?
+
     static let databaseTableName = "timeline_item"
 
     enum CodingKeys: String, CodingKey {
@@ -57,6 +63,10 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
         case metadataJSON = "metadata_json"
         case createdAt = "created_at"
         case modifiedAt = "modified_at"
+        case epubBlockID = "epub_block_id"
+        case timestampSource = "timestamp_source"
+        case alignmentStatus = "alignment_status"
+        case alignmentConfidence = "alignment_confidence"
     }
 }
 
