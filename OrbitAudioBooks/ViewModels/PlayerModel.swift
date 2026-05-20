@@ -122,6 +122,10 @@ final class PlayerModel {
         get { state.transcription }
         set { state.transcription = newValue }
     }
+    var enhancedTranscription: [EnhancedTranscriptionSegment] {
+        get { state.enhancedTranscription }
+        set { state.enhancedTranscription = newValue }
+    }
     var currentChapterIndex: Int? { state.currentChapterIndex }
     var chapterWordClouds: [Int: [WordFrequency]] {
         get { state.chapterWordClouds }
@@ -905,11 +909,12 @@ final class PlayerModel {
         guard let db = databaseService else { return }
 
         let hasTranscript = !state.transcription.isEmpty
+        let hasEnhancedTranscript = !state.enhancedTranscription.isEmpty
         let hasEPUB = (try? EPubBlockDAO(db: db.writer).visible(for: audiobookID).isEmpty) == false
 
         let strategy = TimelineIngestionFactory.strategy(
             hasTranscript: hasTranscript,
-            hasEnhancedTranscript: false,
+            hasEnhancedTranscript: hasEnhancedTranscript,
             hasEPUB: hasEPUB
         )
 
@@ -923,7 +928,7 @@ final class PlayerModel {
                     audioURL: audioURL,
                     chapters: chapters,
                     transcript: hasTranscript ? state.transcription : nil,
-                    enhancedTranscript: nil,
+                    enhancedTranscript: hasEnhancedTranscript ? state.enhancedTranscription : nil,
                     epubBlocks: blocks,
                     anchors: anchors
                 )
@@ -933,7 +938,7 @@ final class PlayerModel {
                     audioURL: audioURL,
                     chapters: chapters,
                     transcript: hasTranscript ? state.transcription : nil,
-                    enhancedTranscript: nil
+                    enhancedTranscript: hasEnhancedTranscript ? state.enhancedTranscription : nil
                 )
             }
             guard !items.isEmpty else { return }
