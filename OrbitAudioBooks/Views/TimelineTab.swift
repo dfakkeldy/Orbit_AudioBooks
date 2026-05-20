@@ -54,6 +54,9 @@ struct TimelineTab: View {
                         },
                         onDeleteBookmark: { timelineItem in
                             handleDeleteBookmark(timelineItem)
+                        },
+                        onEPUBBlockAction: { item, action in
+                            handleEPUBBlockAction(item, action)
                         }
                     )
 
@@ -114,6 +117,68 @@ struct TimelineTab: View {
                 await viewModel.loadInitialWindow(around: model.currentPlaybackTime)
             }
         }
+        .overlay(alignment: .top) {
+            if feedViewModel?.feedMode == .searchingToAnchor {
+                searchOverlay
+            }
+        }
+    }
+
+    // MARK: - Search Overlay
+
+    private var searchOverlay: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search EPUB text...", text: Binding(
+                    get: { feedViewModel?.searchQuery ?? "" },
+                    set: { feedViewModel?.search($0) }
+                ))
+                .textFieldStyle(.plain)
+
+                Button("Cancel") {
+                    feedViewModel?.cancelSearch()
+                }
+                .font(.caption)
+            }
+            .padding(12)
+            .background(.ultraThinMaterial)
+
+            if let results = feedViewModel?.searchResults, !results.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(results) { result in
+                            Button {
+                                feedViewModel?.anchorSearchResult(
+                                    result, at: model.currentPlaybackTime
+                                )
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(result.text)
+                                        .font(.caption)
+                                        .lineLimit(2)
+                                        .foregroundStyle(.primary)
+                                    Text("Seq: \(result.sequenceIndex)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 200)
+                .background(.regularMaterial)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
     }
 
     // MARK: - Item Tap Handling
@@ -169,6 +234,28 @@ struct TimelineTab: View {
             break
         case .nowLine, .scrubberGap:
             break
+        }
+    }
+
+    /// Handle EPUB block context menu actions.
+    private func handleEPUBBlockAction(_ item: TimelineItem, _ action: TimelineFeedCollectionView.EPUBBlockAction) {
+        guard let viewModel = feedViewModel else { return }
+        switch action {
+        case .playFromHere:
+            model.seek(toSeconds: item.audioStartTime)
+        case .moveToNow:
+            guard let blockID = item.epubBlockID else { return }
+            viewModel.moveBlockToNow(blockID: blockID, time: model.currentPlaybackTime)
+        case .searchSimilar:
+            guard let text = item.textPayload else { return }
+            viewModel.beginSearch()
+            viewModel.search(text)
+        case .hide:
+            guard let blockID = item.epubBlockID else { return }
+            viewModel.hideBlock(blockID: blockID, reason: "user_hidden")
+        case .unhide:
+            guard let blockID = item.epubBlockID else { return }
+            viewModel.unhideBlock(blockID: blockID)
         }
     }
 
