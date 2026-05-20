@@ -2,6 +2,18 @@ import Foundation
 import Observation
 import UIKit
 
+/// The current interaction mode of the timeline feed.
+enum TimelineFeedMode: Equatable {
+    /// Feed auto-scrolls to follow playback position.
+    case followingPlayback
+    /// User has manually scrolled; auto-follow is suspended.
+    case browsing
+    /// User is searching for a block to create an anchor.
+    case searchingToAnchor
+    /// User is editing alignment for a specific block.
+    case editingAlignment(selectedBlockID: String)
+}
+
 /// Push-driven feed view model. Audio engine pushes position →
 /// feed scrolls reactively with a rolling window of TimelineDisplayItems.
 ///
@@ -18,6 +30,7 @@ final class TimelineFeedViewModel {
     private(set) var isFollowingPlayback = true
     private(set) var isLoading = false
     private(set) var lastError: Error?
+    private(set) var feedMode: TimelineFeedMode = .followingPlayback
 
     /// The active structural zoom level. Setting this triggers a data reload.
     var scope: TimelineScope = .chapter {
@@ -67,24 +80,49 @@ final class TimelineFeedViewModel {
     /// Called by the audio engine on every tick (0.25s interval).
     func updatePosition(_ position: TimeInterval) {
         currentPosition = position
-        guard isFollowingPlayback, !isVoiceOverRunning else { return }
+        guard feedMode == .followingPlayback, isFollowingPlayback, !isVoiceOverRunning else { return }
         onScrollToPosition?(position)
     }
 
     /// Called when the user manually scrolls the feed.
     func userDidScroll() {
-        guard isFollowingPlayback else { return }
+        guard feedMode == .followingPlayback else { return }
+        feedMode = .browsing
         isFollowingPlayback = false
         scheduleTripwireReset()
     }
 
     /// "Go to Now" — re-enable follow mode and scroll to current position.
     func goToNow() {
+        feedMode = .followingPlayback
         isFollowingPlayback = true
         tripwireTask?.cancel()
         if !isVoiceOverRunning {
             onScrollToPosition?(currentPosition)
         }
+    }
+
+    /// Enter search-to-anchor mode.
+    func enterSearchMode() {
+        feedMode = .searchingToAnchor
+        isFollowingPlayback = false
+    }
+
+    /// Exit search mode and return to browsing.
+    func exitSearchMode() {
+        feedMode = .browsing
+    }
+
+    /// Enter alignment editing mode for a specific block.
+    func enterEditAlignment(blockID: String) {
+        feedMode = .editingAlignment(selectedBlockID: blockID)
+        isFollowingPlayback = false
+    }
+
+    /// Exit alignment editing mode.
+    func exitEditAlignment() {
+        feedMode = .followingPlayback
+        isFollowingPlayback = true
     }
 
     /// Load the initial window around the given position.
@@ -285,6 +323,7 @@ final class TimelineFeedViewModel {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
             await MainActor.run {
+                self.feedMode = .followingPlayback
                 self.isFollowingPlayback = true
                 if !self.isVoiceOverRunning {
                     self.onScrollToPosition?(self.currentPosition)
