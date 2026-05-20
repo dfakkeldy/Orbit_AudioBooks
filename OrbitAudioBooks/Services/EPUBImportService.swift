@@ -1,431 +1,366 @@
 import Foundation
+import os.log
 
-// MARK: - Import Error
-
-enum EPUBImportError: Error, LocalizedError {
-    case notAnEPUB(path: String)
-    case missingOPF
-    case missingSpineItem(String)
-    case parseError(String)
-    case fileWriteError(Error)
-    case databaseError(Error)
-
-    var errorDescription: String? {
-        switch self {
-        case .notAnEPUB(let path): return "Not a valid EPUB: \(path)"
-        case .missingOPF: return "content.opf not found in EPUB"
-        case .missingSpineItem(let href): return "Spine item not found: \(href)"
-        case .parseError(let detail): return "Parse error: \(detail)"
-        case .fileWriteError(let e): return "File write failed: \(e.localizedDescription)"
-        case .databaseError(let e): return "Database error: \(e.localizedDescription)"
-        }
-    }
-}
-
-// MARK: - Import Result
-
-struct EPUBImportResult {
-    let audiobookID: String
-    let blockCount: Int
-    let imageCount: Int
-}
-
-// MARK: - EPUB Import Service
-
-/// Imports an EPUB into the app's storage, parsing XHTML spine items into
-/// ordered blocks and copying images to local asset paths.
+/// Imports EPUB structure into the application's SQL database and local asset storage.
 ///
-/// The import expects an already-extracted EPUB directory. Use ZIPFoundation
-/// or a similar library to extract the EPUB ZIP archive before calling this
-/// service. The extracted directory should contain:
-/// - META-INF/container.xml (points to the OPF)
-/// - The OPF file (usually OEBPS/content.opf)
-/// - XHTML spine items referenced by the OPF
+/// Responsibilities:
+/// - Parse OPF spine order and XHTML content into ordered blocks
+/// - Split text into paragraph-level blocks (sentence-level optional for later)
+/// - Copy referenced images to app-controlled storage
+/// - Write `epub_block` records to the database
+/// - Post `timelineItemsIngested` notification to trigger feed reload
+///
+/// For V1, the EPUB is expected to be provided as an expanded directory.
+/// ZIP extraction support requires the ZIPFoundation package.
 struct EPUBImportService {
+    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "EPUBImport")
 
-    /// Application Support subdirectory for EPUB assets.
-    static func epubAssetsRoot() throws -> URL {
-        let appSupport = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil, create: true
-        )
-        return appSupport.appendingPathComponent("EPUBAssets", isDirectory: true)
+    /// Destination for EPUB asset files.
+    let assetStorage: EPUBAssetStorage
+
+    init(assetStorage: EPUBAssetStorage = EPUBAssetStorage()) {
+        self.assetStorage = assetStorage
     }
 
-    static func epubAssetsDir(audiobookID: String) throws -> URL {
-        let safeID = SafeFileName.fromAudiobookID(audiobookID)
-        let dir = try epubAssetsRoot().appendingPathComponent(safeID, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
-    let db: DatabaseWriter
-
-    // MARK: - Public API
-
-    func `import`(epubDir: URL, audiobookID: String) async throws -> EPUBImportResult {
-        // 1. Locate and parse OPF
-        let opfURL = try locateOPF(in: epubDir)
-        let opf = try parseOPF(at: opfURL)
-
-        // 2. Walk spine, parsing XHTML into ordered blocks
-        let opfBase = opfURL.deletingLastPathComponent()
-        var blocks: [EPubBlockRecord] = []
-        var sequenceIndex = 0
-        var imageCount = 0
-
-        let assetsDir = try Self.epubAssetsDir(audiobookID: audiobookID)
-
-        for (spineIndex, itemref) in opf.items.enumerated() {
-            guard let manifestItem = opf.manifest[itemref.idref] else {
-                throw EPUBImportError.missingSpineItem(itemref.idref)
-            }
-            let xhtmlURL = opfBase.appendingPathComponent(manifestItem.href)
-            let xhtmlBlocks = try parseXHTML(
-                at: xhtmlURL,
-                audiobookID: audiobookID,
-                spineHref: manifestItem.href,
-                spineIndex: spineIndex,
-                startSequence: &sequenceIndex,
-                assetsDir: assetsDir,
-                opfBase: opfBase
-            )
-            blocks.append(contentsOf: xhtmlBlocks)
-            imageCount += xhtmlBlocks.filter { $0.blockKind == "image" }.count
-        }
-
-        // 3. Persist blocks to SQL
-        let dao = EPubBlockDAO(db: db)
-        try dao.deleteAll(for: audiobookID)
-        try dao.insertAll(blocks, audiobookID: audiobookID)
-
-        return EPUBImportResult(
-            audiobookID: audiobookID,
-            blockCount: blocks.count,
-            imageCount: imageCount
-        )
-    }
-
-    // MARK: - OPF Location
-
-    private func locateOPF(in epubDir: URL) throws -> URL {
-        let containerURL = epubDir.appendingPathComponent("META-INF/container.xml")
-        guard FileManager.default.fileExists(atPath: containerURL.path) else {
-            throw EPUBImportError.missingOPF
-        }
-        let data = try Data(contentsOf: containerURL)
-        let parser = ContainerXMLParser()
-        let opfPath = try parser.parseOPFPath(from: data)
-
-        let opfURL = epubDir.appendingPathComponent(opfPath)
-        guard FileManager.default.fileExists(atPath: opfURL.path) else {
-            throw EPUBImportError.missingOPF
-        }
-        return opfURL
-    }
-
-    // MARK: - OPF Parsing
-
-    fileprivate struct OPFManifestItem {
-        let id: String
-        let href: String
-        let mediaType: String
-    }
-
-    fileprivate struct OPFSpineItem {
-        let idref: String
-    }
-
-    fileprivate struct OPF {
-        let manifest: [String: OPFManifestItem]
-        let items: [OPFSpineItem]
-    }
-
-    private func parseOPF(at url: URL) throws -> OPF {
-        let data = try Data(contentsOf: url)
-        let parser = OPFContentParser()
-        return try parser.parse(data: data)
-    }
-
-    // MARK: - XHTML Parsing
-
-    private func parseXHTML(
-        at url: URL,
+    /// Import EPUB structure for an audiobook.
+    ///
+    /// - Parameters:
+    ///   - audiobookID: The audiobook identifier (typically `folderURL.absoluteString`).
+    ///   - epubURL: Path to the expanded EPUB directory (or .epub file if ZIPFoundation is available).
+    ///   - chapters: Parsed chapter list for chapter-index assignment.
+    ///   - bookDuration: Total audiobook duration for timestamp estimation.
+    ///
+    /// - Returns: Array of inserted `EPubBlockRecord` values.
+    func `import`(
         audiobookID: String,
-        spineHref: String,
-        spineIndex: Int,
-        startSequence: inout Int,
-        assetsDir: URL,
-        opfBase: URL
-    ) throws -> [EPubBlockRecord] {
-        let data = try Data(contentsOf: url)
-        let parser = XHTMLBlockParser(
-            audiobookID: audiobookID,
-            spineHref: spineHref,
-            spineIndex: spineIndex,
-            startSequence: &startSequence,
-            assetsDir: assetsDir,
-            opfBase: opfBase
-        )
-        return try parser.parse(data: data)
+        epubURL: URL,
+        chapters: [Chapter],
+        bookDuration: TimeInterval?
+    ) async throws -> [EPubBlockRecord] {
+        // 1. Locate container.xml and find the OPF path.
+        let containerURL = epubURL.appendingPathComponent("META-INF/container.xml")
+        guard FileManager.default.fileExists(atPath: containerURL.path) else {
+            throw EPUBImportError.notAnEPUB(url: epubURL)
+        }
+
+        let opfRelativePath = try parseContainerXML(at: containerURL)
+        let opfURL = epubURL.appendingPathComponent(opfRelativePath)
+        let opfDir = opfURL.deletingLastPathComponent()
+
+        // 2. Parse OPF for spine order.
+        let spine = try parseOPF(at: opfURL)
+
+        // 3. Prepare asset storage directory.
+        try assetStorage.prepare(for: audiobookID)
+
+        // 4. Parse XHTML spine items into blocks.
+        var allBlocks: [EPubBlockRecord] = []
+        var sequenceIndex = 0
+
+        for (spineIdx, item) in spine.enumerated() {
+            let href = item.href
+            let xhtmlURL: URL
+            if href.hasPrefix("/") || href.contains("://") {
+                xhtmlURL = epubURL.appendingPathComponent(href)
+            } else {
+                xhtmlURL = opfDir.appendingPathComponent(href)
+            }
+
+            guard FileManager.default.fileExists(atPath: xhtmlURL.path) else {
+                logger.warning("Spine item not found: \(href)")
+                continue
+            }
+
+            let xhtmlData = try Data(contentsOf: xhtmlURL)
+            let blocks = try parseXHTML(
+                data: xhtmlData,
+                baseURL: xhtmlURL.deletingLastPathComponent(),
+                audiobookID: audiobookID,
+                spineHref: href,
+                spineIndex: spineIdx,
+                startingSequence: &sequenceIndex,
+                chapters: chapters,
+                bookDuration: bookDuration
+            )
+
+            // 5. Copy images referenced in blocks to local asset storage.
+            for var block in blocks {
+                if block.blockKind == EPubBlockRecord.Kind.image.rawValue,
+                   let imagePath = block.imagePath {
+                    let sourceURL = resolveImageURL(href: imagePath, baseURL: xhtmlURL.deletingLastPathComponent(), epubRoot: epubURL, opfDir: opfDir)
+                    if let localPath = assetStorage.copyImage(from: sourceURL, audiobookID: audiobookID, filename: URL(fileURLWithPath: imagePath).lastPathComponent) {
+                        block.imagePath = localPath
+                    }
+                }
+                allBlocks.append(block)
+            }
+        }
+
+        // 6. Write blocks to database.
+        guard let db = assetStorage.databaseService else {
+            throw EPUBImportError.databaseNotAvailable
+        }
+        let dao = EPubBlockDAO(db: db.writer)
+        try dao.deleteAll(for: audiobookID)
+        try dao.insertAll(allBlocks)
+
+        logger.info("Imported \(allBlocks.count) EPUB blocks for \(audiobookID)")
+        return allBlocks
     }
-}
 
-// MARK: - Container XML Parser
+    // MARK: - Container XML
 
-private final class ContainerXMLParser: NSObject, XMLParserDelegate {
-    private var opfPath: String?
-    private var isInRootfile = false
-    private var error: Error?
-
-    func parseOPFPath(from data: Data) throws -> String {
-        let parser = XMLParser(data: data)
-        parser.delegate = self
-        parser.parse()
-        if let error { throw error }
-        guard let path = opfPath else { throw EPUBImportError.missingOPF }
+    private func parseContainerXML(at url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        let parser = ContainerXMLParser()
+        parser.parse(data)
+        guard let path = parser.rootfilePath else {
+            throw EPUBImportError.missingOPF
+        }
         return path
     }
 
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
-        if elementName == "rootfile" {
-            opfPath = attributes["full-path"]
+    // MARK: - OPF
+
+    private func parseOPF(at url: URL) throws -> [SpineItemDescriptor] {
+        let data = try Data(contentsOf: url)
+        let parser = OPFParserDelegate()
+        parser.parse(data)
+        guard !parser.spineItems.isEmpty else {
+            throw EPUBImportError.spineEmpty
         }
+        return parser.spineItems
     }
 
-    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-        error = parseError
+    // MARK: - XHTML
+
+    private func parseXHTML(
+        data: Data,
+        baseURL: URL,
+        audiobookID: String,
+        spineHref: String,
+        spineIndex: Int,
+        startingSequence: inout Int,
+        chapters: [Chapter],
+        bookDuration: TimeInterval?
+    ) throws -> [EPubBlockRecord] {
+        let parser = XHTMLBlockDelegate()
+        parser.parse(data)
+
+        var blocks: [EPubBlockRecord] = []
+
+        // Chapter index assignment: match block position to closest chapter by
+        // estimated timestamp (if available), otherwise sequential.
+        var chapterIndex: Int?
+        if let duration = bookDuration, !chapters.isEmpty {
+            let estimatedFraction = Double(startingSequence) / Double(max(1, parser.textBlocks.count))
+            let estimatedTime = estimatedFraction * duration
+            chapterIndex = chapters.firstIndex { ch in
+                estimatedTime >= ch.startSeconds && estimatedTime < ch.endSeconds
+            }
+        }
+
+        for (blockIdx, textBlock) in parser.textBlocks.enumerated() {
+            let block = EPubBlockRecord(
+                id: "epub-\(audiobookID)-s\(spineIndex)-b\(blockIdx)",
+                audiobookID: audiobookID,
+                spineHref: spineHref,
+                spineIndex: spineIndex,
+                blockIndex: blockIdx,
+                sequenceIndex: startingSequence,
+                blockKind: textBlock.kind.rawValue,
+                text: textBlock.text,
+                imagePath: textBlock.imagePath,
+                chapterIndex: chapterIndex,
+                isHidden: false,
+                hiddenReason: nil,
+                createdAt: ISO8601DateFormatter().string(from: Date()),
+                modifiedAt: nil
+            )
+            blocks.append(block)
+            startingSequence += 1
+        }
+
+        return blocks
+    }
+
+    // MARK: - Image resolution
+
+    private func resolveImageURL(href: String, baseURL: URL, epubRoot: URL, opfDir: URL) -> URL {
+        if href.hasPrefix("/") {
+            return epubRoot.appendingPathComponent(String(href.dropFirst()))
+        }
+        if href.contains("://") {
+            return URL(fileURLWithPath: href)
+        }
+        return baseURL.appendingPathComponent(href)
     }
 }
 
-// MARK: - OPF Content Parser
+// MARK: - Errors
 
-private final class OPFContentParser: NSObject, XMLParserDelegate {
-    private enum Element: String {
-        case item, itemref
+enum EPUBImportError: LocalizedError, Equatable {
+    case notAnEPUB(url: URL)
+    case missingOPF
+    case spineEmpty
+    case databaseNotAvailable
+
+    var errorDescription: String? {
+        switch self {
+        case .notAnEPUB(let url):
+            return "Not a valid EPUB: \(url.lastPathComponent)"
+        case .missingOPF:
+            return "container.xml does not reference a content.opf"
+        case .spineEmpty:
+            return "EPUB spine is empty — no content to import"
+        case .databaseNotAvailable:
+            return "Database service not available for EPUB import"
+        }
     }
+}
 
-    private var manifest: [String: EPUBImportService.OPFManifestItem] = [:]
-    private var spineItems: [EPUBImportService.OPFSpineItem] = []
-    private var error: Error?
+// MARK: - Models
 
-    func parse(data: Data) throws -> EPUBImportService.OPF {
+struct SpineItemDescriptor {
+    let id: String
+    let href: String
+    let mediaType: String
+}
+
+struct TextBlockDescriptor {
+    let kind: EPubBlockRecord.Kind
+    let text: String?
+    let imagePath: String?
+}
+
+// MARK: - XML Parser Delegates
+
+private final class ContainerXMLParser: NSObject, XMLParserDelegate {
+    var rootfilePath: String?
+
+    func parse(_ data: Data) {
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.parse()
-        if let error { throw error }
-        return EPUBImportService.OPF(manifest: manifest, items: spineItems)
     }
 
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
-        switch elementName {
-        case "item":
-            if let id = attributes["id"],
-               let href = attributes["href"] {
-                let mediaType = attributes["media-type"] ?? ""
-                manifest[id] = EPUBImportService.OPFManifestItem(id: id, href: href, mediaType: mediaType)
-            }
-        case "itemref":
-            if let idref = attributes["idref"] {
-                spineItems.append(EPUBImportService.OPFSpineItem(idref: idref))
-            }
-        default:
-            break
+    func parser(_ parser: XMLParser, didStartElement elementName: String,
+                namespaceURI: String?, qualifiedName qName: String?,
+                attributes attributeDict: [String: String] = [:]) {
+        if elementName == "rootfile", let path = attributeDict["full-path"] {
+            rootfilePath = path
         }
-    }
-
-    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-        error = parseError
     }
 }
 
-// MARK: - XHTML Block Parser
+private final class OPFParserDelegate: NSObject, XMLParserDelegate {
+    var spineItems: [SpineItemDescriptor] = []
+    private var manifestItems: [String: SpineItemDescriptor] = [:]
+    private var spineIDRefs: [String] = []
+    private var currentAttributes: [String: String] = [:]
 
-private final class XHTMLBlockParser: NSObject, XMLParserDelegate {
-    let audiobookID: String
-    let spineHref: String
-    let spineIndex: Int
-    var startSequence: UnsafeMutablePointer<Int>
-    let assetsDir: URL
-    let opfBase: URL
-
-    private var blocks: [EPubBlockRecord] = []
-    private var currentText = ""
-    private var currentElement = ""
-    private var blockIndex = 0
-    private var currentImageSrc: String?
-    private var error: Error?
-    private var isInBody = false
-    private var depth = 0
-
-    private let headingTags: Set<String> = ["h1", "h2", "h3", "h4", "h5", "h6"]
-    private let blockTags: Set<String> = ["p", "div", "li", "td", "th", "blockquote", "pre"]
-    private let imageTags: Set<String> = ["img", "image"]
-
-    init(audiobookID: String, spineHref: String, spineIndex: Int, startSequence: UnsafeMutablePointer<Int>, assetsDir: URL, opfBase: URL) {
-        self.audiobookID = audiobookID
-        self.spineHref = spineHref
-        self.spineIndex = spineIndex
-        self.startSequence = startSequence
-        self.assetsDir = assetsDir
-        self.opfBase = opfBase
-    }
-
-    func parse(data: Data) throws -> [EPubBlockRecord] {
+    func parse(_ data: Data) {
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.shouldProcessNamespaces = true
         parser.parse()
-        flushTextBlock()
-        if let error { throw error }
-        return blocks
     }
 
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
-        depth += 1
-        let tag = elementName.lowercased()
-
-        if tag == "body" { isInBody = true }
-        guard isInBody else { return }
-
-        // Flush accumulated text before starting a new block element
-        if headingTags.contains(tag) || blockTags.contains(tag) || imageTags.contains(tag) {
-            flushTextBlock()
-        }
-
-        if headingTags.contains(tag) {
-            currentElement = tag
-        } else if blockTags.contains(tag) {
-            currentElement = tag
-        } else if imageTags.contains(tag) {
-            currentImageSrc = attributes["src"] ?? attributes["xlink:href"]
-            if let src = currentImageSrc {
-                let localPath = copyImage(src: src)
-                let seq = startSequence.pointee
-                startSequence.pointee += 1
-                let block = EPubBlockRecord(
-                    id: "epub-\(audiobookID)-\(seq)",
-                    audiobookID: audiobookID,
-                    spineHref: spineHref,
-                    spineIndex: spineIndex,
-                    blockIndex: blockIndex,
-                    sequenceIndex: seq,
-                    blockKind: "image",
-                    text: nil,
-                    imagePath: localPath,
-                    chapterIndex: nil,
-                    isHidden: false,
-                    hiddenReason: nil,
-                    createdAt: Date().ISO8601Format(),
-                    modifiedAt: nil
-                )
-                blocks.append(block)
-                blockIndex += 1
-            }
-            currentImageSrc = nil
+    func parser(_ parser: XMLParser, didStartElement elementName: String,
+                namespaceURI: String?, qualifiedName qName: String?,
+                attributes attributeDict: [String: String] = [:]) {
+        currentAttributes = attributeDict
+        if elementName == "itemref", let idref = attributeDict["idref"] {
+            spineIDRefs.append(idref)
         }
     }
 
-    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName: String?) {
-        depth -= 1
-        let tag = elementName.lowercased()
-        guard isInBody else {
-            if tag == "body" { isInBody = false }
-            return
+    func parser(_ parser: XMLParser, didEndElement elementName: String,
+                namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "item",
+           let id = currentAttributes["id"],
+           let href = currentAttributes["href"],
+           let mediaType = currentAttributes["media-type"] {
+            manifestItems[id] = SpineItemDescriptor(id: id, href: href, mediaType: mediaType)
         }
+    }
 
-        if headingTags.contains(tag) || blockTags.contains(tag) {
-            flushTextBlock()
-            currentElement = ""
+    func parserDidEndDocument(_ parser: XMLParser) {
+        spineItems = spineIDRefs.compactMap { manifestItems[$0] }
+    }
+}
+
+private final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
+    var textBlocks: [TextBlockDescriptor] = []
+    private var currentText = ""
+    private var currentHeading = ""
+    private var isInHeading = false
+    private var skipDepth = 0
+    private var pendingImagePath: String?
+    private let skipTags: Set<String> = ["script", "style", "head"]
+    private let blockTags: Set<String> = ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li", "section"]
+
+    func parse(_ data: Data) {
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        parser.parse()
+        flushBlock()
+    }
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String,
+                namespaceURI: String?, qualifiedName: String?,
+                attributes attributeDict: [String: String] = [:]) {
+        if skipTags.contains(elementName) { skipDepth += 1; return }
+        guard skipDepth == 0 else { return }
+
+        if ["h1", "h2", "h3", "h4", "h5", "h6"].contains(elementName) {
+            isInHeading = true
+            currentHeading = ""
+        } else if elementName == "img", let src = attributeDict["src"] {
+            flushBlock()
+            textBlocks.append(TextBlockDescriptor(
+                kind: .image,
+                text: attributeDict["alt"],
+                imagePath: src
+            ))
+        } else if blockTags.contains(elementName) {
+            flushBlock()
         }
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
-        guard isInBody else { return }
+        guard skipDepth == 0 else { return }
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            // Preserve space between words
-            if currentText.last != " " { currentText += " " }
-            return
-        }
-        currentText += trimmed + " "
+        if isInHeading { currentHeading += trimmed + " " }
+        if !trimmed.isEmpty { currentText += trimmed + " " }
     }
 
-    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-        let nsErr = parseError as NSError
-        // XMLParser reports non-fatal errors for common HTML quirks;
-        // only treat truly fatal codes as errors.
-        if nsErr.domain == "NSXMLParserErrorDomain" && nsErr.code <= 2 {
-            error = parseError
+    func parser(_ parser: XMLParser, didEndElement elementName: String,
+                namespaceURI: String?, qualifiedName: String?) {
+        if skipTags.contains(elementName) { skipDepth = max(0, skipDepth - 1); return }
+        guard skipDepth == 0 else { return }
+
+        if ["h1", "h2", "h3", "h4", "h5", "h6"].contains(elementName) {
+            isInHeading = false
+            let heading = currentHeading.trimmingCharacters(in: .whitespaces)
+            if !heading.isEmpty {
+                textBlocks.append(TextBlockDescriptor(
+                    kind: .heading,
+                    text: heading,
+                    imagePath: nil
+                ))
+            }
         }
     }
 
-    private func flushTextBlock() {
-        let text = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func flushBlock() {
+        let text = currentText.trimmingCharacters(in: .whitespaces)
         currentText = ""
         guard !text.isEmpty else { return }
-
-        let seq = startSequence.pointee
-        startSequence.pointee += 1
-
-        let kind: String
-        if headingTags.contains(currentElement) {
-            kind = "heading"
-        } else {
-            kind = "paragraph"
-        }
-
-        let block = EPubBlockRecord(
-            id: "epub-\(audiobookID)-\(seq)",
-            audiobookID: audiobookID,
-            spineHref: spineHref,
-            spineIndex: spineIndex,
-            blockIndex: blockIndex,
-            sequenceIndex: seq,
-            blockKind: kind,
+        textBlocks.append(TextBlockDescriptor(
+            kind: .paragraph,
             text: text,
-            imagePath: nil,
-            chapterIndex: nil,
-            isHidden: false,
-            hiddenReason: nil,
-            createdAt: Date().ISO8601Format(),
-            modifiedAt: nil
-        )
-        blocks.append(block)
-        blockIndex += 1
-    }
-
-    // MARK: - Image Copying
-
-    /// Copies an EPUB image to the local assets directory.
-    /// Returns the destination file path usable by UIImage(contentsOfFile:).
-    private func copyImage(src: String) -> String? {
-        // Resolve relative paths against the OPF base
-        let imageURL: URL
-        if src.hasPrefix("/") {
-            imageURL = URL(fileURLWithPath: src)
-        } else {
-            imageURL = opfBase.appendingPathComponent(src)
-        }
-
-        guard FileManager.default.fileExists(atPath: imageURL.path) else { return nil }
-
-        let safeFilename = SafeFileName.fromAudiobookID(src)
-        let ext = imageURL.pathExtension.isEmpty ? "jpg" : imageURL.pathExtension
-        let destURL = assetsDir.appendingPathComponent("\(safeFilename).\(ext)")
-
-        // Skip if already copied
-        if FileManager.default.fileExists(atPath: destURL.path) {
-            return destURL.path
-        }
-
-        do {
-            try FileManager.default.copyItem(at: imageURL, to: destURL)
-            return destURL.path
-        } catch {
-            // Best-effort image copying — return nil on failure
-            return nil
-        }
+            imagePath: nil
+        ))
     }
 }

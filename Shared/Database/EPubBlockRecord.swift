@@ -1,9 +1,8 @@
 import Foundation
 import GRDB
 
-/// A single structural block extracted from an EPUB spine item.
-/// Blocks are ordered by `sequence_index` across all spine items,
-/// preserving the author's intended reading order.
+/// A parsed EPUB block — heading, paragraph, sentence, or image — extracted
+/// from XHTML spine items and stored in structural reading order.
 struct EPubBlockRecord: Identifiable, Equatable, Codable, FetchableRecord, MutablePersistableRecord {
     var id: String
     var audiobookID: String
@@ -40,13 +39,12 @@ struct EPubBlockRecord: Identifiable, Equatable, Codable, FetchableRecord, Mutab
     }
 }
 
-// MARK: - Block Kind Constants
-
 extension EPubBlockRecord {
-    enum BlockKind: String {
-        case heading = "heading"
-        case paragraph = "paragraph"
-        case sentence = "sentence"
-        case image = "image"
+    /// Block kind constants used in the `block_kind` column.
+    enum Kind: String {
+        case heading
+        case paragraph
+        case sentence
+        case image
     }
 }
