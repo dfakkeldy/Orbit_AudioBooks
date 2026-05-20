@@ -127,17 +127,17 @@ struct EPUBImportService {
 
     // MARK: - OPF Parsing
 
-    private struct OPFManifestItem {
+    fileprivate struct OPFManifestItem {
         let id: String
         let href: String
         let mediaType: String
     }
 
-    private struct OPFSpineItem {
+    fileprivate struct OPFSpineItem {
         let idref: String
     }
 
-    private struct OPF {
+    fileprivate struct OPF {
         let manifest: [String: OPFManifestItem]
         let items: [OPFSpineItem]
     }
