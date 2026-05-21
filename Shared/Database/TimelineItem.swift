@@ -34,7 +34,6 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
     var sourceTable: String?
     var sourceRowid: String?
     var metadataJSON: String?
-
     // MARK: - V5 EPUB Alignment Fields
 
     /// FK to `epub_block.id` when this timeline item was materialized from an EPUB block.
@@ -45,7 +44,6 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
     var alignmentStatus: String?
     /// Confidence score (0.0–1.0) for the current timestamp; nil when not applicable.
     var alignmentConfidence: Double?
-
     var createdAt: String?
     var modifiedAt: String?
 
@@ -67,6 +65,10 @@ struct TimelineItem: Identifiable, Equatable, Codable, FetchableRecord, MutableP
         case sourceTable = "source_table"
         case sourceRowid = "source_rowid"
         case metadataJSON = "metadata_json"
+        case epubBlockID = "epub_block_id"
+        case timestampSource = "timestamp_source"
+        case alignmentStatus = "alignment_status"
+        case alignmentConfidence = "alignment_confidence"
         case createdAt = "created_at"
         case modifiedAt = "modified_at"
         case epubBlockID = "epub_block_id"
@@ -102,6 +104,24 @@ extension TimelineItem {
         case .ankiCard:      return .ankiCard
         }
     }
+}
+
+// MARK: - Alignment Constants
+
+enum TimestampSource: String {
+    case none
+    case estimated
+    case interpolated
+    case lockedAnchor
+    case transcript
+}
+
+enum AlignmentStatus: String {
+    case unaligned
+    case estimated
+    case interpolated
+    case lockedAnchor
+    case omitted
 }
 
 // MARK: - MediaPlayable

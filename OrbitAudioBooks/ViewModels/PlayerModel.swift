@@ -122,6 +122,10 @@ final class PlayerModel {
         get { state.transcription }
         set { state.transcription = newValue }
     }
+    var enhancedTranscription: [EnhancedTranscriptionSegment] {
+        get { state.enhancedTranscription }
+        set { state.enhancedTranscription = newValue }
+    }
     var currentChapterIndex: Int? { state.currentChapterIndex }
     var chapterWordClouds: [Int: [WordFrequency]] {
         get { state.chapterWordClouds }
@@ -905,12 +909,8 @@ final class PlayerModel {
         guard let db = databaseService else { return }
 
         let hasTranscript = !state.transcription.isEmpty
-        let enhancedTranscript = transcriptService.loadEnhancedTranscript(for: audioURL)
-        let hasEnhancedTranscript = enhancedTranscript != nil
-        let hasEPUB: Bool = {
-            guard let db = databaseService, let audiobookID = folderURL?.absoluteString else { return false }
-            return (try? !EPubBlockDAO(db: db.writer).blocks(for: audiobookID).isEmpty) ?? false
-        }()
+        let hasEnhancedTranscript = !state.enhancedTranscription.isEmpty
+        let hasEPUB = (try? EPubBlockDAO(db: db.writer).visibleBlocks(for: audiobookID).isEmpty) == false
         let strategy = TimelineIngestionFactory.strategy(
             hasTranscript: hasTranscript,
             hasEnhancedTranscript: hasEnhancedTranscript,
@@ -933,7 +933,7 @@ final class PlayerModel {
                 audioURL: audioURL,
                 chapters: chapters,
                 transcript: hasTranscript ? state.transcription : nil,
-                enhancedTranscript: enhancedTranscript,
+                enhancedTranscript: hasEnhancedTranscript ? state.enhancedTranscription : nil,
                 epubBlocks: epubBlocks,
                 alignmentAnchors: alignmentAnchors,
                 bookmarks: nil,
@@ -953,6 +953,22 @@ final class PlayerModel {
             Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
                 .error("Failed to ingest timeline items: \(error.localizedDescription)")
         }
+    }
+
+    /// Re-ingests timeline items for the current audiobook, reloading EPUB blocks
+    /// and anchors from the database. Call after EPUB import or anchor changes.
+    func reingestTimelineFromEPUB() async {
+        guard let db = databaseService,
+              let audiobookID = folderURL?.absoluteString else { return }
+        let allChapters = state.chapters
+        let audioURL = state.tracks.indices.contains(currentIndex)
+            ? state.tracks[currentIndex].url
+            : folderURL
+        await ingestTimelineItems(
+            chapters: allChapters,
+            audiobookID: audiobookID,
+            audioURL: audioURL ?? URL(fileURLWithPath: "/")
+        )
     }
 
     /// Restores the last selected folder or file from a security-scoped bookmark,
