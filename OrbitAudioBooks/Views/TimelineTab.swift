@@ -11,6 +11,9 @@ struct TimelineTab: View {
     @State private var feedItems: [TimelineDisplayItem] = []
     @State private var currentPosition: TimeInterval = 0
     @State private var scrollTargetPosition: TimeInterval?
+    @State private var isZoomedIn: Bool = false
+    @State private var hasEPUB = false
+    @State private var hasTranscript = false
 
     var onReviewTap: (() -> Void)?
     /// Callback to present the bookmark editor sheet in the parent view.
@@ -20,81 +23,118 @@ struct TimelineTab: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.hasEPUB || model.hasTranscript {
-                TimelineHeaderView(
-                    scope: $timelineScope,
-                    onRecenterNow: {
-                        feedViewModel?.goToNow()
-                    }
-                )
-
-                Divider()
-
-                DashboardShelf(onReviewTap: onReviewTap)
-
-                SpeedSuggestionBanner()
-
-                if dueCount > 0 {
-                    dueReviewBanner
-                }
-
-                if let viewModel = feedViewModel {
-                    ZStack {
-                        TimelineFeedCollectionView(
-                            items: $feedItems,
-                            currentPosition: $currentPosition,
-                            scrollTargetPosition: $scrollTargetPosition,
-                            isFollowingPlayback: isFollowingPlayback,
-                            onUserScrolled: {
-                                viewModel.userDidScroll()
-                            },
-                            onItemTapped: { displayItem in
-                                handleItemTap(displayItem)
-                            },
-                            onContextMenuAction: { displayItem in
-                                handleContextMenu(displayItem)
-                            },
-                            onDeleteBookmark: { timelineItem in
-                                handleDeleteBookmark(timelineItem)
-                            },
-                            onEPUBBlockAction: { item, action in
-                                handleEPUBBlockAction(item, action)
+            if hasEPUB || hasTranscript {
+                if isZoomedIn {
+                    TimelineHeaderView(
+                        scope: $timelineScope,
+                        onZoomOut: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                isZoomedIn = false
                             }
-                        )
+                        },
+                        onRecenterNow: {
+                            feedViewModel?.goToNow()
+                        }
+                    )
 
-                        // "Go to Now" floating button (visible when not following)
-                        if !isFollowingPlayback {
-                            VStack {
-                                Spacer()
-                                Button {
-                                    viewModel.goToNow()
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "arrow.down.to.line")
-                                        Text("Go to Now")
-                                            .font(.caption)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Capsule())
-                                    .shadow(radius: 4)
+                    Divider()
+
+                    DashboardShelf(onReviewTap: onReviewTap)
+
+                    SpeedSuggestionBanner()
+
+                    if dueCount > 0 {
+                        dueReviewBanner
+                    }
+
+                    if let viewModel = feedViewModel {
+                        ZStack {
+                            TimelineFeedCollectionView(
+                                items: $feedItems,
+                                currentPosition: $currentPosition,
+                                scrollTargetPosition: $scrollTargetPosition,
+                                isFollowingPlayback: isFollowingPlayback,
+                                onUserScrolled: {
+                                    viewModel.userDidScroll()
+                                },
+                                onItemTapped: { displayItem in
+                                    handleItemTap(displayItem)
+                                },
+                                onContextMenuAction: { displayItem in
+                                    handleContextMenu(displayItem)
+                                },
+                                onDeleteBookmark: { timelineItem in
+                                    handleDeleteBookmark(timelineItem)
+                                },
+                                onEPUBBlockAction: { item, action in
+                                    handleEPUBBlockAction(item, action)
                                 }
-                                .padding(.bottom, 12)
+                            )
+
+                            // "Go to Now" floating button (visible when not following)
+                            if !isFollowingPlayback {
+                                VStack {
+                                    Spacer()
+                                    Button {
+                                        viewModel.goToNow()
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "arrow.down.to.line")
+                                            Text("Go to Now")
+                                                .font(.caption)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(Capsule())
+                                        .shadow(radius: 4)
+                                    }
+                                    .padding(.bottom, 12)
+                                }
                             }
                         }
+                    } else {
+                        ProgressView()
+                            .padding(.top, 40)
                     }
                 } else {
-                    ProgressView()
-                        .padding(.top, 40)
+                    PlaylistView(
+                        isEmbedded: true,
+                        onRowTapped: { timestamp in
+                            model.seek(toSeconds: timestamp)
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                isZoomedIn = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                feedViewModel?.goToNow()
+                            }
+                        },
+                        onZoomIn: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                isZoomedIn = true
+                            }
+                        }
+                    )
                 }
             } else {
                 PlaylistView(isEmbedded: true)
             }
         }
         .onAppear {
+            hasEPUB = model.hasEPUB
+            hasTranscript = model.hasTranscript
             refreshDueCount()
             setupFeed()
+        }
+        .onChange(of: model.folderURL) { _, _ in
+            hasEPUB = model.hasEPUB
+            hasTranscript = model.hasTranscript
+            setupFeed()
+        }
+        .onChange(of: isZoomedIn) { _, newZoom in
+            if newZoom {
+                feedViewModel?.goToNow()
+            }
         }
         .onChange(of: model.currentPlaybackTime) { _, newPosition in
             currentPosition = newPosition
@@ -109,11 +149,14 @@ struct TimelineTab: View {
         .onReceive(NotificationCenter.default.publisher(for: .timelineItemsIngested)) { notification in
             guard let ingestedID = notification.userInfo?["audiobookID"] as? String,
                   let audiobookID = model.folderURL?.absoluteString,
-                  ingestedID == audiobookID,
-                  let viewModel = feedViewModel
+                  ingestedID == audiobookID
             else { return }
-            Task {
-                await viewModel.loadInitialWindow(around: model.currentPlaybackTime)
+            hasEPUB = model.hasEPUB
+            hasTranscript = model.hasTranscript
+            if let viewModel = feedViewModel {
+                Task {
+                    await viewModel.loadInitialWindow(around: model.currentPlaybackTime)
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .bookmarksDidChange)) { _ in

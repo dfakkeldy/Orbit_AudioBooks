@@ -95,6 +95,9 @@ struct TimelineFeedCollectionView: UIViewRepresentable {
         context.coordinator.collectionView = collectionView
         context.coordinator.parent = self
 
+        collectionView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 95, right: 0)
+        collectionView.verticalScrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 95, right: 0)
+
         return collectionView
     }
 

@@ -3,11 +3,24 @@ import SwiftUI
 /// Header for the Timeline (playlist-time) tab — scale cycle and recenter only.
 /// Mode switching and editing toggles live in the Planner tab header.
 struct TimelineHeaderView: View {
+    @Environment(PlayerModel.self) private var model
+    @Environment(SettingsManager.self) private var settings
     @Binding var scope: TimelineScope
+    var onZoomOut: (() -> Void)? = nil
     let onRecenterNow: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
+            if let onZoomOut = onZoomOut {
+                Button {
+                    onZoomOut()
+                } label: {
+                    Label("Overview", systemImage: "minus.magnifyingglass")
+                        .customFont(.caption, weight: .medium, appFont: model.resolvedAppFont)
+                }
+                .buttonStyle(.bordered)
+            }
+
             scaleCycleButton
 
             Spacer()
@@ -16,6 +29,7 @@ struct TimelineHeaderView: View {
                 onRecenterNow()
             } label: {
                 Label("Now", systemImage: "arrow.down.to.line")
+                    .customFont(.caption, weight: .medium, appFont: model.resolvedAppFont)
             }
             .buttonStyle(.bordered)
         }
@@ -31,8 +45,7 @@ struct TimelineHeaderView: View {
             cycleScale()
         } label: {
             Label(scope.label, systemImage: "clock.arrow.2.circlepath")
-                .font(.caption)
-                .fontWeight(.medium)
+                .customFont(.caption, weight: .medium, appFont: model.resolvedAppFont)
         }
         .buttonStyle(.bordered)
         .contextMenu {

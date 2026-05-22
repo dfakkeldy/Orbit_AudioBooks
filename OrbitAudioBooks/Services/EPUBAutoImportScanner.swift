@@ -43,18 +43,35 @@ enum EPUBAutoImportScanner {
 
         logger.info("Found EPUB file: \(sanitizedPath(epubURL.lastPathComponent))")
 
-        // 2. Check if EPUB blocks are already imported for this audiobook.
-        let alreadyImported: Bool = {
-            guard let db = databaseService as DatabaseService? else { return false }
-            return (try? EPubBlockDAO(db: db.writer).visibleBlocks(for: audiobookID).isEmpty) == false
-        }()
+        await importEPUBFile(
+            epubURL: epubURL,
+            audiobookID: audiobookID,
+            databaseService: databaseService,
+            chapters: chapters,
+            duration: duration,
+            force: false
+        )
+    }
 
-        if alreadyImported {
-            logger.debug("EPUB blocks already exist for \(sanitizedPath(audiobookID)); skipping auto-import.")
-            return
+    /// Imports a specific EPUB file for an audiobook, extracting and parsing its blocks.
+    static func importEPUBFile(
+        epubURL: URL,
+        audiobookID: String,
+        databaseService: DatabaseService,
+        chapters: [Chapter],
+        duration: TimeInterval?,
+        force: Bool = false
+    ) async {
+        // Check if EPUB blocks are already imported for this audiobook.
+        if !force {
+            let alreadyImported = (try? EPubBlockDAO(db: databaseService.writer).visibleBlocks(for: audiobookID).isEmpty) == false
+            if alreadyImported {
+                logger.debug("EPUB blocks already exist for \(sanitizedPath(audiobookID)); skipping auto-import.")
+                return
+            }
         }
 
-        // 3. Extract the EPUB archive to a cache directory.
+        // Extract the EPUB archive to a cache directory.
         let safeID = SafeFileName.fromAudiobookID(audiobookID)
         let cacheDir: URL
         do {
@@ -72,7 +89,7 @@ enum EPUBAutoImportScanner {
             return
         }
 
-        // 4. Import extracted EPUB blocks.
+        // Import extracted EPUB blocks.
         do {
             let importer = EPUBImportService()
             let blocks = try await importer.import(
@@ -83,7 +100,7 @@ enum EPUBAutoImportScanner {
             )
             logger.info("Auto-imported \(blocks.count) EPUB blocks for \(sanitizedPath(epubURL.lastPathComponent))")
 
-            // 5. Post notification to trigger UI refresh.
+            // Post notification to trigger UI refresh.
             await MainActor.run {
                 NotificationCenter.default.post(
                     name: .timelineItemsIngested,

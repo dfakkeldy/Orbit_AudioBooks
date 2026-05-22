@@ -10,11 +10,11 @@ struct BottomToolbarView: View {
             Spacer()
             speedButton
             Spacer()
-            volumeBoostButton
-            Spacer()
             sleepTimerMenu
             Spacer()
             addBookmarkButton
+            Spacer()
+            timelineToggleButton
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -23,7 +23,7 @@ struct BottomToolbarView: View {
         .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1))
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
         .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .padding(.bottom, -12)
     }
 
     // MARK: - Loop Mode
@@ -99,21 +99,6 @@ struct BottomToolbarView: View {
         }
     }
 
-    // MARK: - Volume Boost
-
-    private var volumeBoostButton: some View {
-        Button {
-            model.setVolumeBoost(enabled: !model.isVolumeBoostEnabled)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        } label: {
-            Image(systemName: model.isVolumeBoostEnabled ? "speaker.wave.3.fill" : "speaker.wave.3")
-                .font(.title2)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(Text("Volume Boost"))
-        .accessibilityValue(Text(model.isVolumeBoostEnabled ? "On" : "Off"))
-    }
 
     // MARK: - Sleep Timer
 
@@ -193,5 +178,20 @@ struct BottomToolbarView: View {
         }
         .accessibilityLabel(Text("Add bookmark at current time"))
         .disabled(model.tracks.isEmpty)
+    }
+
+    // MARK: - Timeline Toggle
+
+    private var timelineToggleButton: some View {
+        Button {
+            model.showingTimeline.toggle()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } label: {
+            Image(systemName: model.showingTimeline ? "play.fill" : "list.bullet.circle")
+                .font(.title2)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text(model.showingTimeline ? "Show Now Playing" : "Show Timeline"))
     }
 }

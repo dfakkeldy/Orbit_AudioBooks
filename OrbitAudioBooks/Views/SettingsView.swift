@@ -53,6 +53,10 @@ struct SettingsView: View {
                 }
 
                 Section("Playback") {
+                    Toggle("Volume Boost", isOn: Binding(
+                        get: { model.isVolumeBoostEnabled },
+                        set: { model.setVolumeBoost(enabled: $0) }
+                    ))
                     NavigationLink("Smart Rewind") {
                         SmartRewindSettingsView()
                     }

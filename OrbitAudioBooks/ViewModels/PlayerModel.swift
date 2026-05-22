@@ -66,6 +66,11 @@ final class PlayerModel {
     @ObservationIgnored let playlistManager: PlaylistManager
     let transcriptService: TranscriptService
 
+    // MARK: - UI state (local to PlayerModel)
+
+    /// Tracks whether the app is currently displaying the Timeline Tab (true) or the Now Playing Tab (false).
+    var showingTimeline: Bool = false
+
     // MARK: - UI state (pass-through to PlaybackController)
 
     var loopMode: LoopMode {
@@ -77,8 +82,75 @@ final class PlayerModel {
         set { playbackController.speed = newValue }
     }
     var isVolumeBoostEnabled: Bool {
-        get { playbackController.isVolumeBoostEnabled }
-        set { playbackController.isVolumeBoostEnabled = newValue }
+        get {
+            UserDefaults.standard.bool(forKey: "global_volumeBoostEnabled")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "global_volumeBoostEnabled")
+            playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
+        }
+    }
+
+    // MARK: - Per-Book Settings Overrides
+    var bookFontOverride: String? = nil
+    var bookPlayBookmarksInlineOverride: String? = nil // "alwaysOn", "alwaysOff", "inherit"
+    var bookVolumeBoostOverride: String? = nil // "alwaysOn", "alwaysOff", "inherit"
+
+    var resolvedAppFont: String {
+        if let override = bookFontOverride, override != "inherit" {
+            return override
+        }
+        return settingsManager?.appFont ?? SettingsManager.Defaults.appFont
+    }
+
+    var resolvedPlayBookmarksInline: Bool {
+        if let override = bookPlayBookmarksInlineOverride {
+            if override == "alwaysOn" { return true }
+            if override == "alwaysOff" { return false }
+        }
+        return settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline
+    }
+
+    var resolvedVolumeBoostEnabled: Bool {
+        if let override = bookVolumeBoostOverride {
+            if override == "alwaysOn" { return true }
+            if override == "alwaysOff" { return false }
+        }
+        return isVolumeBoostEnabled
+    }
+
+    func updateBookFontOverride(_ value: String?) {
+        bookFontOverride = value
+        if let key = folderURL?.absoluteString {
+            if let val = value {
+                UserDefaults.standard.set(val, forKey: "book_appFont_\(key)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "book_appFont_\(key)")
+            }
+        }
+    }
+
+    func updateBookPlayBookmarksInlineOverride(_ value: String?) {
+        bookPlayBookmarksInlineOverride = value
+        if let key = folderURL?.absoluteString {
+            if let val = value {
+                UserDefaults.standard.set(val, forKey: "book_bookmarksInline_\(key)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "book_bookmarksInline_\(key)")
+            }
+        }
+    }
+
+    func updateBookVolumeBoostOverride(_ value: String?) {
+        bookVolumeBoostOverride = value
+        if let key = folderURL?.absoluteString {
+            if let val = value {
+                UserDefaults.standard.set(val, forKey: "book_volumeBoost_\(key)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "book_volumeBoost_\(key)")
+            }
+        }
+        playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
     }
 
     // MARK: - Sleep timer state (pass-through to SleepTimerManager)
@@ -88,7 +160,10 @@ final class PlayerModel {
 
     // MARK: - Playlist state (pass-through to PlaybackState)
 
-    var folderURL: URL? { state.folderURL }
+    var folderURL: URL? {
+        get { state.folderURL }
+        set { state.folderURL = newValue }
+    }
     var tracks: [Track] {
         get { state.tracks }
         set { state.tracks = newValue }
@@ -634,6 +709,13 @@ final class PlayerModel {
 
         state.folderURL = url
 
+        // Load per-book settings overrides
+        let key = url.absoluteString
+        bookFontOverride = UserDefaults.standard.string(forKey: "book_appFont_\(key)")
+        bookPlayBookmarksInlineOverride = UserDefaults.standard.string(forKey: "book_bookmarksInline_\(key)")
+        bookVolumeBoostOverride = UserDefaults.standard.string(forKey: "book_volumeBoost_\(key)")
+        playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
+
         // Persist to SQL after tracks are loaded so the DB has accurate track data.
         persistAudiobookToSQL(folderURL: url)
 
@@ -788,7 +870,7 @@ final class PlayerModel {
             addedAt: Date().ISO8601Format()
         )
         do {
-            try AudiobookDAO(db: db.writer).insert(audiobook)
+            try AudiobookDAO(db: db.writer).save(audiobook)
             let records = state.tracks.enumerated().map { (i, track) in
                 TrackRecord(
                     id: track.id,
@@ -801,6 +883,7 @@ final class PlayerModel {
                     playlistPosition: nil
                 )
             }
+            try TrackDAO(db: db.writer).deleteAll(for: audiobookID)
             try TrackDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
         } catch {
             Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
@@ -867,7 +950,7 @@ final class PlayerModel {
     /// Re-ingests timeline items for the current audiobook, reloading EPUB blocks
     /// and anchors from the database. Call after EPUB import or anchor changes.
     func reingestTimelineFromEPUB() async {
-        guard let db = databaseService,
+        guard databaseService != nil,
               let audiobookID = folderURL?.absoluteString else { return }
         let allChapters = state.chapters
         let audioURL = state.tracks.indices.contains(currentIndex)
@@ -1038,7 +1121,7 @@ final class PlayerModel {
     }
 
     func setVolumeBoost(enabled: Bool) {
-        playbackController.setVolumeBoost(enabled: enabled)
+        isVolumeBoostEnabled = enabled
     }
 
     func setLoopMode(_ mode: LoopMode) {
@@ -1669,6 +1752,63 @@ final class PlayerModel {
         )
     }
 
+    /// Copies the selected EPUB file into the current audiobook folder, cleans up previous blocks, and triggers auto-import.
+    func importEPUB(from sourceURL: URL) {
+        guard let folderURL = folderURL, let db = databaseService else { return }
+        
+        let didStartSource = sourceURL.startAccessingSecurityScopedResource()
+        defer { if didStartSource { sourceURL.stopAccessingSecurityScopedResource() } }
+        
+        let didStartDest = folderURL.startAccessingSecurityScopedResource()
+        defer { if didStartDest { folderURL.stopAccessingSecurityScopedResource() } }
+        
+        let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
+        
+        do {
+            let destinationURL = folderURL.appendingPathComponent(sourceURL.lastPathComponent)
+            
+            let standardizedSource = sourceURL.resolvingSymlinksInPath().standardized
+            let standardizedDest = destinationURL.resolvingSymlinksInPath().standardized
+            
+            // Copy new EPUB if destination is not the same as source
+            if standardizedDest.path != standardizedSource.path {
+                let tempDir = FileManager.default.temporaryDirectory
+                let tempURL = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension("epub")
+                
+                try FileManager.default.copyItem(at: sourceURL, to: tempURL)
+                
+                // Safely overwrite the destination file
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    _ = try FileManager.default.replaceItemAt(destinationURL, withItemAt: tempURL, backupItemName: nil, options: [])
+                } else {
+                    try FileManager.default.moveItem(at: tempURL, to: destinationURL)
+                }
+            }
+            
+            // Clear existing database blocks so that new blocks can be imported
+            let audiobookID = folderURL.absoluteString
+            try EPubBlockDAO(db: db.writer).deleteAll(for: audiobookID)
+            
+            // Re-run the scan and import process directly for this EPUB file
+            let currentChapters = state.chapters
+            let currentDuration = state.durationSeconds
+            
+            Task {
+                await EPUBAutoImportScanner.importEPUBFile(
+                    epubURL: destinationURL,
+                    audiobookID: audiobookID,
+                    databaseService: db,
+                    chapters: currentChapters,
+                    duration: currentDuration,
+                    force: true
+                )
+            }
+        } catch {
+            logger.error("Failed to copy and import EPUB: \(error.localizedDescription)")
+            print("Failed to copy and import EPUB: \(error.localizedDescription)")
+        }
+    }
+
     func addWatchBookmark(from payload: [String: Any]) {
         guard let storageKey = payload["bookmarkStorageKey"] as? String else { return }
 
@@ -1797,7 +1937,7 @@ final class PlayerModel {
             isPlaying: isPlaying,
             isManualSeeking: state.isManualSeeking,
             loopMode: loopMode,
-            playBookmarksInline: settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline,
+            playBookmarksInline: resolvedPlayBookmarksInline,
             trackId: trackId,
             folderURL: folderURL,
             lastTriggeredBookmarkID: &lastTriggeredBookmarkID,
@@ -1903,7 +2043,7 @@ extension PlayerModel: PlaybackControllerDelegate {
             playbackController.enforceEnabledState()
             playbackController.applyChapterLoopIfNeeded()
             playbackController.applyBookmarkLoopIfNeeded()
-            if settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline,
+            if resolvedPlayBookmarksInline,
                currentTime.isFinite {
                 checkVoiceMemoTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
                 checkInlineFlashcardTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)

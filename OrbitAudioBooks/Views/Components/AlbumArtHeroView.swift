@@ -12,9 +12,11 @@ struct AlbumArtHeroView: View {
             artworkView
 
             VStack(alignment: .center, spacing: 6) {
-                Text(caption)
-                    .customFont(.caption, appFont: appFont)
-                    .foregroundStyle(.secondary)
+                if !caption.isEmpty {
+                    Text(caption)
+                        .customFont(.caption, appFont: appFont)
+                        .foregroundStyle(.secondary)
+                }
                 Text(mainText)
                     .customFont(.title2, weight: .semibold, appFont: appFont)
                     .multilineTextAlignment(.center)

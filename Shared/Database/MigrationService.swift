@@ -26,6 +26,9 @@ enum MigrationService {
                       let bookmarks = try? JSONDecoder().decode([Bookmark].self, from: data)
                 else { continue }
 
+                // Ensure parent audiobook exists to satisfy FOREIGN KEY constraints
+                try? ensureAudiobookExists(id: audiobookKey, database: database)
+
                 let dao = BookmarkDAO(db: database.writer)
                 for bm in bookmarks {
                     let record = BookmarkRecord(from: bm)
@@ -42,6 +45,10 @@ enum MigrationService {
                     guard let _ = item["trackId"] as? String,
                           let time = item["time"] as? Double
                     else { continue }
+                    
+                    // Ensure parent audiobook exists to satisfy FOREIGN KEY constraints
+                    try? ensureAudiobookExists(id: audiobookID, database: database)
+                    
                     try database.write { db in
                         try db.execute(
                             sql: """
@@ -58,6 +65,9 @@ enum MigrationService {
             let speedKey = "OrbitAudiobooks.playback.speed.dictionary"
             if let speeds = defaults.dictionary(forKey: speedKey) as? [String: Double] {
                 for (audiobookID, speed) in speeds {
+                    // Ensure parent audiobook exists to satisfy FOREIGN KEY constraints
+                    try? ensureAudiobookExists(id: audiobookID, database: database)
+                    
                     do { try database.write { db in
                         try db.execute(
                             sql: "UPDATE playback_state SET speed = ? WHERE audiobook_id = ?",
@@ -87,6 +97,20 @@ enum MigrationService {
         } catch {
             logger.error("Migration failed: \(error.localizedDescription)")
             // Leave isMigrationDone false so it retries next launch.
+        }
+    }
+
+    /// Inserts a skeleton audiobook record if it does not already exist, preventing foreign key constraint violations.
+    private static func ensureAudiobookExists(id: String, database: DatabaseService) throws {
+        let title = URL(string: id)?.deletingPathExtension().lastPathComponent ?? "Migrated Audiobook"
+        try database.write { db in
+            try db.execute(
+                sql: """
+                    INSERT OR IGNORE INTO audiobook (id, title, duration, added_at)
+                    VALUES (?, ?, 0, ?)
+                    """,
+                arguments: [id, title, Date().ISO8601Format()]
+            )
         }
     }
 }

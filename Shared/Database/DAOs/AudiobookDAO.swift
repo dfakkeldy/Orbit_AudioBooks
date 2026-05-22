@@ -9,6 +9,11 @@ struct AudiobookDAO {
         try db.write { db in try copy.insert(db) }
     }
 
+    func save(_ audiobook: AudiobookRecord) throws {
+        var copy = audiobook
+        try db.write { db in try copy.save(db) }
+    }
+
     func get(_ id: String) throws -> AudiobookRecord? {
         try db.read { db in try AudiobookRecord.fetchOne(db, key: id) }
     }

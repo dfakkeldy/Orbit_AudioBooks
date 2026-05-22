@@ -7,9 +7,9 @@ struct RootTabView: View {
     @Environment(StoreManager.self) private var storeManager
     @Environment(\.displayScale) private var displayScale
 
-    @State private var selectedTab = 0
     @State private var showingFolderPicker = false
     @State private var showingSettings = false
+    @State private var showingBookSettings = false
     @State private var showingHelp = false
     @State private var newBookmarkDraft: BookmarkDraft? = nil
     @State private var editingBookmarkID: UUID? = nil
@@ -22,23 +22,27 @@ struct RootTabView: View {
 
     var body: some View {
         NavigationStack {
-            TabView(selection: $selectedTab) {
-                NowPlayingTab(onCreateBookmark: { draft in newBookmarkDraft = draft })
-                .tabItem {
-                    Label("Now Playing", systemImage: "play.circle")
-                }
-                .tag(0)
-
-                TimelineTab(
-                    onReviewTap: { launchReview() },
-                    onEditBookmark: { id in editingBookmarkID = id },
-                    onCreateBookmark: { draft in newBookmarkDraft = draft }
-                )
-                    .tabItem {
-                        Label("Timeline", systemImage: "rectangle.split.2x1")
+            ZStack(alignment: .bottom) {
+                Group {
+                    if model.showingTimeline {
+                        TimelineTab(
+                            onReviewTap: { launchReview() },
+                            onEditBookmark: { id in editingBookmarkID = id },
+                            onCreateBookmark: { draft in newBookmarkDraft = draft }
+                        )
+                    } else {
+                        NowPlayingTab()
                     }
-                    .tag(1)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if !model.isPlayingVoiceMemo {
+                    BottomToolbarView(onCreateBookmark: { draft in newBookmarkDraft = draft })
+                }
             }
+            .ignoresSafeArea(edges: model.showingTimeline ? [] : .top)
+            .toolbarBackground(model.showingTimeline ? .automatic : .hidden, for: .navigationBar)
+            .toolbarBackgroundVisibility(model.showingTimeline ? .automatic : .hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -59,12 +63,23 @@ struct RootTabView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                    HStack(spacing: 12) {
+                        if model.folderURL != nil {
+                            Button {
+                                showingBookSettings = true
+                            } label: {
+                                Image(systemName: "document.badge.gearshape")
+                            }
+                            .accessibilityLabel(Text("Book Settings"))
+                        }
+                        
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel(Text("Global Settings"))
                     }
-                    .accessibilityLabel(Text("Settings"))
                 }
             }
             .sheet(isPresented: $showingFolderPicker) {
@@ -75,6 +90,9 @@ struct RootTabView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showingBookSettings) {
+                BookSettingsView(model: model)
             }
             .sheet(isPresented: $showingHelp) {
                 NavigationStack {
