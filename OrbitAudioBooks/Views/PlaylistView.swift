@@ -104,28 +104,41 @@ struct PlaylistView: View {
         var rows: [PlaylistRow] = []
         
         if model.chapters.count >= 2 {
-            // Chapter Mode: combine chapters & bookmarks globally by timeline position
+            // Chapter Mode: respect custom chapter ordering if reordered.
+            // If showChapters is true, we iterate over the chapters in their current array order.
             if showChapters {
-                for (index, chapter) in model.chapters.enumerated() {
-                    rows.append(.chapter(index: index, chapter: chapter))
-                }
-            }
-            if showBookmarks {
-                for bookmark in model.bookmarks {
-                    rows.append(.bookmark(bookmark))
-                }
-            }
-            return rows.sorted { a, b in
-                let timeA = a.sortKey
-                let timeB = b.sortKey
-                if timeA == timeB {
-                    switch (a, b) {
-                    case (.chapter, .bookmark): return true
-                    case (.bookmark, .chapter): return false
-                    default: return false
+                let minStartSeconds = model.chapters.map { $0.startSeconds }.min() ?? 0.0
+                
+                // Show bookmarks that appear before any chapter first
+                if showBookmarks {
+                    let preBookmarks = model.bookmarks
+                        .filter { $0.timestamp < minStartSeconds }
+                        .sorted { $0.timestamp < $1.timestamp }
+                    for bookmark in preBookmarks {
+                        rows.append(.bookmark(bookmark))
                     }
                 }
-                return timeA < timeB
+                
+                for (index, chapter) in model.chapters.enumerated() {
+                    rows.append(.chapter(index: index, chapter: chapter))
+                    
+                    if showBookmarks {
+                        let chapterBookmarks = model.bookmarks
+                            .filter { $0.timestamp >= chapter.startSeconds && $0.timestamp < chapter.endSeconds }
+                            .sorted { $0.timestamp < $1.timestamp }
+                        for bookmark in chapterBookmarks {
+                            rows.append(.bookmark(bookmark))
+                        }
+                    }
+                }
+                return rows
+            } else if showBookmarks {
+                // If only bookmarks are shown, display them chronologically
+                return model.bookmarks
+                    .sorted { $0.timestamp < $1.timestamp }
+                    .map { .bookmark($0) }
+            } else {
+                return []
             }
         } else {
             // Track Mode: group bookmarks inline right under their parent tracks
@@ -157,22 +170,25 @@ struct PlaylistView: View {
             // Horizontal Filter Chips Row
             HStack(spacing: 12) {
                 Toggle(isOn: $showChapters) {
-                    Text(model.chapters.count >= 2 ? "Chapters" : "Tracks")
+                    Image(systemName: showChapters ? (model.chapters.count >= 2 ? "book.fill" : "music.note") : (model.chapters.count >= 2 ? "book" : "music.note"))
                 }
                 .toggleStyle(.button)
+                .accessibilityLabel(model.chapters.count >= 2 ? String(localized: "Chapters") : String(localized: "Tracks"))
                 
                 Toggle(isOn: $showBookmarks) {
-                    Text("Bookmarks")
+                    Image(systemName: showBookmarks ? "bookmark.fill" : "bookmark")
                 }
                 .toggleStyle(.button)
+                .accessibilityLabel(String(localized: "Bookmarks"))
 
                 if isEmbedded && (model.chapters.count >= 2 || model.tracks.count > 1) {
-                    Button(isEditing ? "Done" : "Reorder") {
+                    Button {
                         withAnimation { isEditing.toggle() }
+                    } label: {
+                        Image(systemName: isEditing ? "checkmark.circle.fill" : "arrow.up.and.down")
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .customFont(.caption, weight: .semibold, appFont: model.resolvedAppFont)
+                    .accessibilityLabel(isEditing ? String(localized: "Done") : String(localized: "Reorder"))
                 }
 
                 Spacer()
@@ -182,20 +198,20 @@ struct PlaylistView: View {
                         Button {
                             onZoomIn?()
                         } label: {
-                            Label("Read", systemImage: "doc.text.magnifyingglass")
-                                .customFont(.subheadline, weight: .semibold, appFont: model.resolvedAppFont)
+                            Image(systemName: "doc.text.magnifyingglass")
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.accentColor)
+                        .accessibilityLabel(String(localized: "Read companion EPUB"))
                     }
                 } else {
                     Button {
                         showingEPUBImporter = true
                     } label: {
-                        Label("Import EPUB", systemImage: "doc.badge.plus")
-                            .customFont(.subheadline, weight: .semibold, appFont: model.resolvedAppFont)
+                        Image(systemName: "doc.badge.plus")
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel(String(localized: "Import EPUB"))
                 }
             }
             .padding(.horizontal)
@@ -240,7 +256,8 @@ struct PlaylistView: View {
         .fileImporter(
             isPresented: $showingEPUBImporter,
             allowedContentTypes: [UTType(filenameExtension: "epub")].compactMap { $0 },
-            allowsMultipleSelection: false
+            allowsMultipleSelection: false,
+            asCopy: true
         ) { result in
             switch result {
             case .success(let urls):
@@ -276,43 +293,31 @@ struct PlaylistView: View {
 
     @ViewBuilder
     private func chapterRow(index: Int, chapter: Chapter) -> some View {
-        HStack(spacing: 0) {
-            Button {
-                model.seek(toSeconds: chapter.startSeconds + 0.05)
-                onRowTapped?(chapter.startSeconds)
-            } label: {
-                HStack {
-                    Image(systemName: "list.bullet")
+        Button {
+            model.seek(toSeconds: chapter.startSeconds + 0.05)
+            onRowTapped?(chapter.startSeconds)
+        } label: {
+            HStack {
+                Image(systemName: "list.bullet")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
+                        .foregroundStyle(.primary)
+                    Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
+                        .customFont(.caption, appFont: model.resolvedAppFont)
                         .foregroundStyle(.secondary)
-                        .frame(width: 22)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
-                            .foregroundStyle(.primary)
-                        Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
-                            .customFont(.caption, appFont: model.resolvedAppFont)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if model.currentChapterIndex == index {
-                        Image(systemName: "play.circle.fill")
-                            .foregroundStyle(.tint)
-                    }
+                }
+                Spacer()
+                if model.currentChapterIndex == index {
+                    Image(systemName: "play.circle.fill")
+                        .foregroundStyle(.tint)
                 }
             }
-            .buttonStyle(.plain)
-
-            Button {
-                model.toggleChapterEnabled(at: index)
-            } label: {
-                Image(systemName: chapter.isEnabled ? "eye" : "eye.slash")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(chapter.isEnabled ? String(localized: "Disable chapter") : String(localized: "Enable chapter"))
         }
+        .buttonStyle(.plain)
         .foregroundStyle(chapter.isEnabled ? .primary : .tertiary)
+        .opacity(chapter.isEnabled ? 1.0 : 0.35)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
                 model.toggleChapterEnabled(at: index)
@@ -325,37 +330,25 @@ struct PlaylistView: View {
 
     @ViewBuilder
     private func trackRow(index: Int, track: Track) -> some View {
-        HStack(spacing: 0) {
-            Button {
-                model.skipToTrack(index)
-                onRowTapped?(0)
-            } label: {
-                HStack {
-                    Image(systemName: "music.note")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22)
-                    Text(track.title)
-                    Spacer()
-                    if model.currentIndex == index {
-                        Image(systemName: "play.circle.fill")
-                            .foregroundStyle(.tint)
-                    }
+        Button {
+            model.skipToTrack(index)
+            onRowTapped?(0)
+        } label: {
+            HStack {
+                Image(systemName: "music.note")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22)
+                Text(track.title)
+                Spacer()
+                if model.currentIndex == index {
+                    Image(systemName: "play.circle.fill")
+                        .foregroundStyle(.tint)
                 }
             }
-            .buttonStyle(.plain)
-
-            Button {
-                model.toggleTrackEnabled(at: index)
-            } label: {
-                Image(systemName: track.isEnabled ? "eye" : "eye.slash")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(track.isEnabled ? String(localized: "Disable track") : String(localized: "Enable track"))
         }
+        .buttonStyle(.plain)
         .foregroundStyle(track.isEnabled ? .primary : .tertiary)
+        .opacity(track.isEnabled ? 1.0 : 0.35)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
                 model.toggleTrackEnabled(at: index)
@@ -453,9 +446,6 @@ struct PlaylistView: View {
     @ViewBuilder
     private func editingChapterRow(index: Int, chapter: Chapter) -> some View {
         HStack {
-            Image(systemName: "list.bullet")
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
                 Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
                 Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
@@ -467,43 +457,22 @@ struct PlaylistView: View {
                 Image(systemName: "play.circle.fill")
                     .foregroundStyle(.tint)
             }
-            Button {
-                model.toggleChapterEnabled(at: index)
-            } label: {
-                Image(systemName: chapter.isEnabled ? "eye" : "eye.slash")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(chapter.isEnabled ? String(localized: "Disable chapter") : String(localized: "Enable chapter"))
         }
         .foregroundStyle(chapter.isEnabled ? .primary : .tertiary)
+        .opacity(chapter.isEnabled ? 1.0 : 0.35)
     }
 
     @ViewBuilder
     private func editingTrackRow(index: Int, track: Track) -> some View {
         HStack {
-            Image(systemName: "music.note")
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
             Text(track.title)
             Spacer()
             if model.currentIndex == index {
                 Image(systemName: "play.circle.fill")
                     .foregroundStyle(.tint)
+                }
             }
-            Button {
-                model.toggleTrackEnabled(at: index)
-            } label: {
-                Image(systemName: track.isEnabled ? "eye" : "eye.slash")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(track.isEnabled ? String(localized: "Disable track") : String(localized: "Enable track"))
-        }
         .foregroundStyle(track.isEnabled ? .primary : .tertiary)
+        .opacity(track.isEnabled ? 1.0 : 0.35)
     }
 }

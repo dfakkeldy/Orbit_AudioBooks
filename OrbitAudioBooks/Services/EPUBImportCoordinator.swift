@@ -23,20 +23,14 @@ enum EPUBImportCoordinator {
         let standardizedSource = sourceURL.resolvingSymlinksInPath().standardized
         let standardizedDest = destinationURL.resolvingSymlinksInPath().standardized
 
-        // Copy new EPUB if destination differs from source (same-folder imports
-        // skip the copy to avoid replacing a file with itself).
+        // Copy the EPUB into the folder when the source is outside of it.
+        // Same-folder imports skip the copy to avoid replacing a file with itself.
         if standardizedDest.path != standardizedSource.path {
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("epub")
-
             do {
-                try FileManager.default.copyItem(at: sourceURL, to: tempURL)
                 if FileManager.default.fileExists(atPath: destinationURL.path) {
-                    _ = try FileManager.default.replaceItemAt(destinationURL, withItemAt: tempURL, backupItemName: nil, options: [])
-                } else {
-                    try FileManager.default.moveItem(at: tempURL, to: destinationURL)
+                    try FileManager.default.removeItem(at: destinationURL)
                 }
+                try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
             } catch {
                 logger.error("Failed to copy EPUB into folder: \(error.localizedDescription)")
                 return
