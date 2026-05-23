@@ -2,6 +2,8 @@
 
 ## Summary
 
+**Status:** ✅ MERGED 2026-05-23 (PR #20). All phases 1-9e complete.
+
 Decompose the 2918-line `PlayerModel` god class into focused, testable components, each with a single responsibility. The refactored `PlayerModel` becomes a thin coordinator that owns and wires together the extracted components.
 
 ## Current State

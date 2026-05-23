@@ -1,7 +1,7 @@
 # Orbit Audiobooks — Code Audit: Needed Fixes
 
 **Date:** 2026-05-16 | **Branch:** `main`
-**Updated:** 2026-05-18 — all 16 items resolved.
+**Updated:** 2026-05-23 — B1-B16 resolved, A1 complete, A2-A7 partially addressed.
 
 ---
 
@@ -79,47 +79,45 @@ Watch toggles `isPlaying` optimistically before command confirmation, but not fo
 **File:** `OrbitAudioBooks/Services/SettingsManager.swift`  
 **Category:** Data Integrity
 
-### B16 — Bookmark voice memo/image file cleanup swallows errors in release
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` lines 2477-2490  
+### B16 — Bookmark voice memo/image file cleanup swallows errors in release ✅ FIXED
+**File:** `OrbitAudioBooks/Services/BookmarkStore.swift`
 **Category:** Resource Management
 
-Cleanup is now attempted (was `try?`), but failures are only logged in `#if DEBUG`. Release builds silently swallow failed file removals, leaving orphaned files.
-
-**Fix:** Log failures in release via `os_log`. Consider orphaned file cleanup on app launch.
+File cleanup failures are now logged via `os_log` in both DEBUG and release builds.
 
 ---
 
 ## Architecture Issues (for future refactoring)
 
-### A1 — PlayerModel is a ~2600-line god class
-**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift`
+### A1 — PlayerModel is a ~2600-line god class ✅ COMPLETE (merged 2026-05-23)
+**File:** `OrbitAudioBooks/ViewModels/PlayerModel.swift` — reduced from 2,918 to ~1,200 lines (-59%)
 
-Conflates playback, bookmarks, voice memos, sleep timer, Watch connectivity, artwork caching, iCloud, Now Playing, security-scoped resources, chapters, transcripts, and persistence.
+Decomposed into 20+ focused services: PlaybackController, BookmarkStore, SleepTimerManager, NowPlayingController, ChapterLoadingCoordinator, PlaybackProgressPresenter, PlayerLoadingCoordinator, BookmarkArtworkCoordinator, PlayerTimelinePersistenceService, InlineFlashcardTriggerController, EPUBImportCoordinator, BookSettingsOverrideStore, BookPreferencesService, WatchStateContextBuilder, WatchCommandRouter, PlaylistManager, PlaylistManifestService, Persistence, SecurityScopeManager, TranscriptService. See `ARCHITECTURE.md` — "PlayerModel Decomposition" section for full details.
 
 ### A2 — Watch ContentView is a ~1744-line monolith
 **File:** `Orbit Audiobooks Watch App/Views/ContentView.swift`
 
 Contains AppGroupDefaults, enums, models, view model, voice recorder, and 10+ sub-views in one file.
 
-### A3 — Significant code duplication across targets
-- `formatTime`/`formatHMS`: 7 implementations
-- `AppGroupDefaults` + `suiteName`: 3 copies
-- `TranscriptionSegment`: 2 definitions
-- AVPlayer setup: iOS and macOS both implement
-- Watch layout enums: duplicate between iOS and watchOS
+### A3 — Significant code duplication across targets ✅ PARTIALLY ADDRESSED
+- `formatTime`/`formatHMS`: 7 implementations — ✅ De-duplicated into `Shared/TimeFormatting.swift`
+- `AppGroupDefaults` + `suiteName`: 3 copies — ✅ Moved to `Shared/AppGroupDefaults.swift`
+- `TranscriptionSegment`: 2 definitions — ✅ Moved to `Shared/TranscriptionSegment.swift`
+- AVPlayer setup: iOS and macOS both implement — still separate (different platform constraints)
+- Watch layout enums: duplicate between iOS and watchOS — still present
 
-### A4 — Missing accessibility on key elements
-- Scrubber Slider has no `accessibilityLabel` or `accessibilityValue`
-- Album artwork has no accessibility labels
-- Fixed font sizes in transport controls
+### A4 — Missing accessibility on key elements ✅ MOSTLY DONE
+- Scrubber Slider has no `accessibilityLabel` or `accessibilityValue` — ✅ FIXED (commit a29d3e1)
+- Album artwork has no accessibility labels — ✅ FIXED
+- Fixed font sizes in transport controls — ✅ FIXED (Dynamic Type support added)
 
 ### A5 — Concrete types injected via `@Environment` with no protocols
 `PlayerModel`, `SettingsManager`, `StoreManager` are injected as concrete types, making unit testing impossible.
 
-### A6 — `audioEngine.player` exposed as `private(set)`, breaking encapsulation
+### A6 — `audioEngine.player` exposed as `private(set)`, breaking encapsulation ✅ DONE
 **File:** `OrbitAudioBooks/Services/AudioEngine.swift`
 
-PlayerModel directly manipulates the AVPlayer instead of going through AudioEngine's API.
+AudioEngine now encapsulates AVPlayer. PlaybackController manages playback through AudioEngine's public API, not by touching the internal player directly. Volume control uses `setGain(_:)` / `fadeGain(to:duration:)` instead of MPVolumeView hacks.
 
 ### A7 — Stringly-typed watch layout configuration
 Watch layout stored as comma-separated strings parsed at runtime.
@@ -134,7 +132,7 @@ Watch layout stored as comma-separated strings parsed at runtime.
 
 Four async methods (`loadNextPage`, `loadPreviousPage`, `reloadGranularity`, `loadInitialWindow`) use bare `catch {}` or `catch { items = [] }` — DB failures produce no diagnostic output and no user-visible feedback. If the feed goes blank the user sees whatever the empty state renders, with no clue that a query failed.
 
-**Fix (23 lines, deferred 2026-05-19):**
+**Fix (23 lines, deferred 2026-05-19, still pending 2026-05-23):**
 
 1. Add `import os.log` and `private let logger = Logger(...)` to the class.
 2. Add `private(set) var loadError: String?` published property.

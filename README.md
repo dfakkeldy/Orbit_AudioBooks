@@ -23,14 +23,14 @@ The workspace is composed of four targets, each with its own entry point and vie
 
 | Target | Bundle Identifier / Entry Point | Purpose |
 |---|---|---|
-| **OrbitAudioBooks** (`iOS/iPadOS`) | `Orbit_AudioBooksApp.swift` → `ContentView.swift` | Primary audiobook player. Manages playback via the `@Observable PlayerModel`, handles file/folder selection, bookmarks, voice memos, WatchConnectivity, and Now Playing integration. |
+| **OrbitAudioBooks** (`iOS/iPadOS`) | `Orbit_AudioBooksApp.swift` → `RootTabView.swift` | Primary audiobook player. Uses a 2-tab layout (NowPlayingTab + TimelineTab). PlayerModel acts as a thin coordinator over 20+ single-responsibility services. Handles file/folder selection, bookmarks, voice memos, WatchConnectivity, and Now Playing integration. |
 | **Orbit Audiobooks macOS** (`macOS`) | `Orbit_Audiobooks_macOSApp.swift` → `MacContentView.swift` | Native macOS desktop companion. Uses `MacPlayerModel` (`ObservableObject`-based) with a `NavigationSplitView` layout: a bookmarks sidebar and a player pane with transport controls and a speed picker. |
 | **Orbit Audiobooks Watch App** (`watchOS`) | `OrbitAudioBooksWatchApp.swift` → `ContentView.swift` | Wearable remote for the iOS player. Communicates with the phone via `WCSession` to send play/pause, skip, scrub, volume, loop mode, sleep timer, and bookmark commands. |
 | **Orbit Audiobooks Widget** (`Widgets`) | `Orbit_Audiobooks_WidgetBundle.swift` → `Orbit_Audiobooks_Widget.swift` | A `WidgetBundle` exposing a `StaticConfiguration` widget (`.accessoryCircular`) that shows the current track title, progress ring, and thumbnail via `AppGroupDefaults` communication. Also includes a `TogglePlaybackIntent` (App Intent) for Control Center / widget interactions. |
 
 Shared models and utilities used across targets include:
 
-- **`PlayerModel`** — Central iOS/iPadOS playback model (Swift Observable), responsible for AVPlayer management, chapter parsing, bookmark persistence, WatchConnectivity delegation, and sleep timer logic.
+- **`PlayerModel`** — Central iOS/iPadOS coordinator (`@Observable`), wires together 20+ focused services (PlaybackController, BookmarkStore, SleepTimerManager, ChapterLoadingCoordinator, PlaybackProgressPresenter, PlayerLoadingCoordinator, BookmarkArtworkCoordinator, PlayerTimelinePersistenceService, PlaylistManager, etc.) via closure injection in `init()`. Each service owns a single responsibility; PlayerModel provides thin pass-through computed properties for SwiftUI view binding.
 - **`MacPlayerModel`** — macOS-specific playback model wrapping AVPlayer with its own bookmark format (`MacBookmark`), security-scoped bookmarks, and UserDefaults persistence.
 - **`Bookmark.swift`** — The `Bookmark` struct (Codable, Equatable, Hashable) representing a saved position, with optional text note and voice memo filename. Includes `VoiceMemoRecorder` and `EditBookmarkView` for recording/editing.
 - **`AppIntent.swift`** — Shared `AppGroupDefaults` suite and `SessionDelegator` for WCSession activation, enabling the widget and app intents to toggle playback.

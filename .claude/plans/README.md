@@ -298,7 +298,7 @@ M4B then adds the aggregation without changing the protocol signature.
 | A6 — AudioEngine Gain API | ✅ Done | 2026-05-15 |
 | B12 — Volume Control Cleanup | ✅ Done | 2026-05-15 |
 | B13 — Watch State Consistency | ✅ Done | 2026-05-16 |
-| A1 — PlayerModel Decomposition | ✅ Done | 2026-05-17 |
+| A1 — PlayerModel Decomposition | ✅ Done | 2026-05-17 (merged 2026-05-23, PR #20) |
 | L10N — Localization & Settings | ✅ Done | 2026-05-17 |
 | B16 — Bookmark Cleanup Logging | ✅ Done | 2026-05-17 |
 | A2 — Watch ContentView Decomposition | ✅ Done | 2026-05-17 |

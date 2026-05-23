@@ -3,7 +3,7 @@
 <!-- ⚠️  AUTO-GENERATED — do not edit directly. -->
 <!-- Regenerate with: `make architecture`                        -->
 
-**Last generated:** 2026-05-19 (updated: 2-tab refactor)
+**Last generated:** 2026-05-23 10:34:52 (manual sections updated for PlayerModel decomposition)
 
 This document maps the source-tree layout of the Xcode targets and Shared/
 module in the Orbit Audiobooks project. Folders are shown in the order
@@ -16,12 +16,21 @@ out).
 ## OrbitAudioBooks (iOS)
 
 ```
+CarPlay/CarPlaySceneDelegate.swift
+DailyPlanner/PlannedSession.swift
+DailyPlanner/RealTimeProjectionService.swift
+DailyPlanner/SchedulingSheet.swift
+Development Assets/.gitkeep
 Info.plist
 Localizable.xcstrings
+Models/AggregatedChapter.swift
 Models/Chapter.swift
+Models/ChapterSection.swift
 Models/ContentCard.swift
+Models/FlashcardDeckImport.swift
+Models/M4BBook.swift
 Models/Note.swift
-Models/PlannedSession.swift
+Models/OrbitPlaylistManifest.swift
 Models/PlayerDeepLink.swift
 Models/RealTimeEvent.swift
 Models/SpeedSuggestion.swift
@@ -34,36 +43,70 @@ OrbitAudioBooks.entitlements
 Protocols/PlayerModelComponentProtocols.swift
 Protocols/SettingsManagerProtocol.swift
 Protocols/StoreManagerProtocol.swift
+Services/AlignmentService.swift
 Services/ArtworkCache.swift
 Services/AudioEngine.swift
+Services/BookmarkArtworkCoordinator.swift
 Services/BookmarkStore.swift
+Services/BookPreferencesService.swift
+Services/BookSettingsOverrideStore.swift
+Services/ChapterLoadingCoordinator.swift
 Services/ChapterService.swift
+Services/DeckImportService.swift
 Services/DeepLinkHandler.swift
+Services/EPUBAssetStorage.swift
+Services/EPUBAutoImportScanner.swift
+Services/EPUBImportCoordinator.swift
+Services/EPUBImportService.swift
+Services/InlineFlashcardTriggerController.swift
+Services/LoopMode.swift
+Services/M4BParser.swift
 Services/MockMediaProvider.swift
+Services/NotificationNames.swift
 Services/NowPlayingController.swift
 Services/Persistence.swift
 Services/PlaybackController.swift
+Services/PlaybackEventLogger.swift
+Services/PlaybackProgressPresenter.swift
+Services/PlaybackTimelineService.swift
+Services/PlayerLoadingCoordinator.swift
+Services/PlayerTimelinePersistenceService.swift
 Services/PlaylistManager.swift
-Services/RealTimeProjectionService.swift
+Services/PlaylistManifestService.swift
 Services/SecurityScopeManager.swift
 Services/SettingsManager.swift
 Services/SleepTimerManager.swift
+Services/SleepTimerMode.swift
+Services/SnippetPlayer.swift
 Services/StoreManager.swift
 Services/TimelineIngestionFactory.swift
+Services/TimelineIngestionService.swift
 Services/TimelineService.swift
 Services/TranscriptService.swift
+Services/WatchCommandRouter.swift
+Services/WatchConnectivityCoordinator.swift
+Services/WatchStateContextBuilder.swift
 Services/WatchSyncManager.swift
 State/PlaybackState.swift
 Utilities/FolderPicker.swift
 Utilities/ViewModifiers.swift
 Utilities/WordFrequencyComputer.swift
+ViewModels/DailyReviewViewModel.swift
 ViewModels/PlayerModel.swift
+ViewModels/PlayerModel+PlaybackControllerDelegate.swift
+ViewModels/PlayerModel+PlaybackLogging.swift
+ViewModels/PlayerModel+WatchState.swift
 ViewModels/TimelineFeedViewModel.swift
+Views/BookmarkCardView.swift
 Views/Bookmarks.swift
+Views/BookSettingsView.swift
 Views/BottomToolbarView.swift
 Views/ChapterTimeBlockView.swift
 Views/Components/AlbumArtHeroView.swift
+Views/Components/FlashcardCreationSheet.swift
+Views/Components/FlashcardOverlayView.swift
 Views/Components/TranscriptOverlayView.swift
+Views/Components/TranscriptRowView.swift
 Views/Components/WordCloudView.swift
 Views/ContentCardEditor.swift
 Views/DashboardShelf.swift
@@ -74,15 +117,17 @@ Views/HelpView.swift
 Views/ListeningProgressModuleView.swift
 Views/NoteEditorView.swift
 Views/NowLineView.swift
+Views/NowPlayingLayout.swift
 Views/NowPlayingTab.swift
 Views/PlayerScrubberView.swift
 Views/PlayheadLineView.swift
 Views/PlaylistTimelineView.swift
 Views/PlaylistView.swift
 Views/RootTabView.swift
-Views/SchedulingSheet.swift
 Views/SettingsView.swift
+Views/SleepTimerCardView.swift
 Views/SmartRewindSettingsView.swift
+Views/SpeedCardView.swift
 Views/SpeedSuggestionBanner.swift
 Views/StatsModuleView.swift
 Views/TimelineContentCard.swift
@@ -122,6 +167,7 @@ Views/Components/ToggleTraitModifier.swift
 Views/ContentView.swift
 Views/PlayerPage.swift
 Views/WatchControlBackground.swift
+Views/WatchReviewView.swift
 Views/WordCloudPage.swift
 ```
 
@@ -129,21 +175,26 @@ Views/WordCloudPage.swift
 
 ```
 AppGroupDefaults.swift
+Database/AlignmentAnchorRecord.swift
 Database/BookmarkRecord.swift
 Database/ChapterRecord.swift
+Database/DAOs/AlignmentAnchorDAO.swift
 Database/DAOs/AudiobookDAO.swift
 Database/DAOs/BookmarkDAO.swift
 Database/DAOs/ChapterDAO.swift
+Database/DAOs/EPubBlockDAO.swift
 Database/DAOs/FlashcardDAO.swift
 Database/DAOs/NoteDAO.swift
 Database/DAOs/PlannedSessionDAO.swift
 Database/DAOs/PlaybackEventDAO.swift
+Database/DAOs/PlaybackStateDAO.swift
 Database/DAOs/RealTimeEventDAO.swift
 Database/DAOs/SettingsDAO.swift
 Database/DAOs/TimelineDAO.swift
 Database/DAOs/TrackDAO.swift
 Database/DAOs/TranscriptionDAO.swift
 Database/DatabaseService.swift
+Database/EPubBlockRecord.swift
 Database/Flashcard.swift
 Database/MigrationService.swift
 Database/NoteRecord.swift
@@ -153,16 +204,19 @@ Database/Schema_V1.swift
 Database/Schema_V2.swift
 Database/Schema_V3.swift
 Database/Schema_V4.swift
+Database/Schema_V5.swift
 Database/TimelineItem.swift
 Database/TrackRecord.swift
 Database/TranscriptionRecord.swift
 Database/TranscriptionWord.swift
 EnhancedTranscriptionSegment.swift
 MediaPlayable.swift
+SafeFileName.swift
 SyncMarker.swift
 TimeFormatting.swift
 TranscriptionSegment.swift
 WatchAction.swift
+WatchFlashcard.swift
 WordFrequency.swift
 ```
 
@@ -313,7 +367,7 @@ RootTabView
 └── Tab 1: TimelineTab     ← unified library + feed + planner + review
 ```
 
-**NowPlayingTab** focuses entirely on active playback: `AlbumArtHeroView`, `PlayerScrubberView`, and `TransportControlsView`. It is strictly play/pause/scrubbing — all auxiliary controls (speed, sleep timer, bookmarks, loop mode, and library browsing) live in the Timeline's `DashboardShelf` and feed. The standalone `PlaylistView` sheet has been removed; bookmarks and playlist functionality are now integrated into the Timeline feed. Transcript overlays and voice memo playback are overlaid conditionally.
+**NowPlayingTab** focuses entirely on active playback: `AlbumArtHeroView`, `PlayerScrubberView`, and `TransportControlsView`. It is strictly play/pause/scrubbing — all auxiliary controls (speed, sleep timer, bookmarks, loop mode, and library browsing) live in the Timeline's `DashboardShelf` and feed. `PlaylistView` is embedded inside `TimelineTab` for track/chapter browsing and reordering (with `.onMove` drag handles and per-item toggle controls); the standalone `NavigationStack` presentation is still available. Transcript overlays and voice memo playback are overlaid conditionally.
 
 **TimelineTab** is the unified hub for all content browsing, library management, and annotation review:
 
@@ -325,6 +379,39 @@ TimelineTab
 ├── dueReviewBanner           ← pending flashcard count with tap-to-review
 └── TimelineFeedCollectionView ← UICollectionView-backed feed with heterogeneous TimelineDisplayItem types
 ```
+
+### PlayerModel Decomposition
+
+`PlayerModel` has been decomposed from a ~2,900-line god class into a thin coordinator (~1,200 lines) that owns and wires together 20+ focused services. Each service has a single responsibility:
+
+| Service | Responsibility |
+|---|---|
+| `PlaybackController` | Core playback logic, track-end handling, enabled-state enforcement, navigation |
+| `PlaybackState` | Shared mutable state (tracks, chapters, progress, artwork) as `@Observable` |
+| `BookmarkStore` | Bookmark CRUD, voice memo playback, file cleanup, enabled-state toggling |
+| `SleepTimerManager` | Countdown, fade-out, pause-on-end |
+| `NowPlayingController` | MPNowPlayingInfoCenter, MPRemoteCommandCenter |
+| `ChapterLoadingCoordinator` | Chapter parsing, transcript loading, word cloud computation |
+| `PlaybackProgressPresenter` | Progress updates, elapsed time formatting, Now Playing info |
+| `PlayerLoadingCoordinator` | Folder/track loading, audio session setup, persistence, seek-on-load |
+| `BookmarkArtworkCoordinator` | Artwork generation, caching, Now Playing artwork updates |
+| `PlayerTimelinePersistenceService` | Timeline item ingestion, EPUB presence checks |
+| `InlineFlashcardTriggerController` | SRS flashcard popover detection and trigger logic |
+| `EPUBImportCoordinator` | EPUB file import and block ingestion |
+| `BookSettingsOverrideStore` | Per-book font, volume boost, and bookmarks-inline overrides |
+| `BookPreferencesService` | Resolution logic for per-book + global preference merging |
+| `WatchStateContextBuilder` | Builds the watch connectivity state dictionary |
+| `WatchCommandRouter` | Routes incoming watch commands to the appropriate facade method |
+| `PlaylistManager` | Track/chapter ordering, enabled-state toggling, reset |
+| `PlaylistManifestService` | `.orbitplaylist.json` manifest read/write/migration |
+| `Persistence` | UserDefaults and on-disk state persistence |
+| `SecurityScopeManager` | Security-scoped resource access grants |
+| `TranscriptService` | Transcript JSON loading, word cloud computation |
+
+PlayerModel wires these via coordinator closures in `init()` and exposes thin pass-through computed properties for view binding. The decomposition uses two patterns:
+
+1. **Direct injection** (data-access services): `PlaylistManager`, `TranscriptService`, `SecurityScopeManager` receive `PlaybackState` and `Persistence` directly.
+2. **Coordinator closures** (behavioral services): `PlaybackController`, `BookmarkStore`, `ChapterLoadingCoordinator`, etc. communicate back to `PlayerModel` through `@ObservationIgnored` closure variables wired in `init()`.
 
 ### TimelineScope (Structural Zoom)
 
@@ -394,7 +481,7 @@ The app now uses a **Unified Timeline Paradigm** where all content browsing, lib
 
 **Bookmark lifecycle**: Bookmarks created via `BottomToolbarView.addBookmarkButton` flow through `BookmarkStore.appendBookmark` → `BookmarkDAO.syncToTimeline` → `timeline_item` table. The `.bookmarksDidChange` notification triggers a feed refresh in `TimelineTab`, ensuring bookmarks appear inline immediately.
 
-**Playlist migration**: The standalone `PlaylistView` sheet and `BottomToolbarView.playlistButton` have been removed. Browsing and selecting audiobooks now happens at `.book` scope in the Timeline feed.
+**Playlist management**: `PlaylistView` (embedded in `TimelineTab` for non-EPUB books) provides track/chapter reordering via drag handles in edit mode, per-item enable/disable toggles, and bookmark browsing with swipe-to-edit. The backend is handled by `PlaylistManager` (track/chapter ordering and enabled-state persistence) and `PlaylistManifestService` (`.orbitplaylist.json` manifest I/O). Library browsing happens at `.book` scope in the Timeline feed.
 
 ### EPUB-to-Audio Data Model: Handling Mismatches
 

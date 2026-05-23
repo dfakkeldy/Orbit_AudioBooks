@@ -126,11 +126,11 @@ enum HelpContent {
             id: "playlist",
             title: "Playlist",
             body: """
-            Tap the list icon in the bottom toolbar to open the Playlist. It has two tabs:
+            The Playlist shows all chapters, tracks, and bookmarks in a unified chronological list. Use the filter chips at the top to show or hide chapters/tracks and bookmarks.
 
-            Chapters/Tracks — Shows the contents of your current book. If the file has chapter markers, you see chapter titles. Drag the handles to reorder, or toggle individual items on/off to skip them during playback. Tap "Reset" to restore the original order and enable all items.
+            Tap a chapter or track to jump to its position. Tap the eye button (or swipe left) to toggle an item on/off — disabled items appear dimmed and are skipped during playback. Tap "Reorder" (or "Edit" in standalone mode) to enter reorder mode with drag handles. Tap "Reset" to restore the original order and re-enable all items.
 
-            Bookmarks — Shows all bookmarks for the current book. Tap a bookmark to jump to its timestamp. Swipe left on a bookmark to edit or delete it. Use the toggle to enable or disable a bookmark without deleting it.
+            Bookmarks appear inline at their timestamps. Tap a bookmark to jump to it. Swipe left to enable/disable, swipe right to edit or delete.
             """
         ),
         HelpSection(
