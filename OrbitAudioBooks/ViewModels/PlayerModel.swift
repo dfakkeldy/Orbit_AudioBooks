@@ -7,38 +7,6 @@ import UIKit
 import ImageIO
 import os.log
 
-extension Notification.Name {
-    static let timelineItemsIngested = Notification.Name("TimelineItemsIngested")
-}
-
-/// Playback loop behavior for the current audiobook.
-enum LoopMode: String, Codable {
-    /// No looping; playback advances normally.
-    case off
-    /// Loop the current chapter repeatedly.
-    case chapter
-    /// Loop between consecutive bookmarks.
-    case bookmark
-}
-
-// MARK: - Sleep Timer Mode
-
-/// Controls when playback should automatically pause.
-enum SleepTimerMode: Equatable {
-    /// No sleep timer is active.
-    case off
-    /// Pause after the given number of minutes elapses.
-    case minutes(Int)
-    /// Pause when the current chapter ends.
-    case endOfChapter
-
-    /// Whether a sleep timer is currently armed.
-    var isActive: Bool {
-        if case .off = self { return false }
-        return true
-    }
-}
-
 // MARK: - Model
 
 /// The central observable model managing audiobook playback, bookmarks,
@@ -53,13 +21,13 @@ final class PlayerModel {
     @ObservationIgnored private lazy var watchCommandRouter = WatchCommandRouter(
         facade: WatchConnectivityCoordinator(playerModel: self)
     )
-    @ObservationIgnored private let eventLogger = PlaybackEventLogger()
+    @ObservationIgnored let eventLogger = PlaybackEventLogger()
 
     var audioEngine: AudioEngine { playbackController.audioEngine }
-    @ObservationIgnored private weak var settingsManager: SettingsManager?
+    @ObservationIgnored weak var settingsManager: SettingsManager?
 
     /// Convenience accessor for the shared playback state owned by PlaybackController.
-    private var state: PlaybackState { playbackController.state }
+    var state: PlaybackState { playbackController.state }
 
     // MARK: - Services (continued)
 
@@ -93,62 +61,39 @@ final class PlayerModel {
 
     // MARK: - Per-Book Settings Overrides
     var bookFontOverride: String? = nil
-    var bookPlayBookmarksInlineOverride: String? = nil // "alwaysOn", "alwaysOff", "inherit"
-    var bookVolumeBoostOverride: String? = nil // "alwaysOn", "alwaysOff", "inherit"
+    var bookPlayBookmarksInlineOverride: String? = nil
+    var bookVolumeBoostOverride: String? = nil
 
     var resolvedAppFont: String {
-        if let override = bookFontOverride, override != "inherit" {
-            return override
-        }
-        return settingsManager?.appFont ?? SettingsManager.Defaults.appFont
+        BookPreferencesService.resolveAppFont(override: bookFontOverride, globalFont: settingsManager?.appFont)
     }
 
     var resolvedPlayBookmarksInline: Bool {
-        if let override = bookPlayBookmarksInlineOverride {
-            if override == "alwaysOn" { return true }
-            if override == "alwaysOff" { return false }
-        }
-        return settingsManager?.playBookmarksInline ?? SettingsManager.Defaults.playBookmarksInline
+        BookPreferencesService.resolvePlayBookmarksInline(override: bookPlayBookmarksInlineOverride, globalValue: settingsManager?.playBookmarksInline)
     }
 
     var resolvedVolumeBoostEnabled: Bool {
-        if let override = bookVolumeBoostOverride {
-            if override == "alwaysOn" { return true }
-            if override == "alwaysOff" { return false }
-        }
-        return isVolumeBoostEnabled
+        BookPreferencesService.resolveVolumeBoost(override: bookVolumeBoostOverride, globalEnabled: isVolumeBoostEnabled)
     }
 
     func updateBookFontOverride(_ value: String?) {
         bookFontOverride = value
         if let key = folderURL?.absoluteString {
-            if let val = value {
-                UserDefaults.standard.set(val, forKey: "book_appFont_\(key)")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "book_appFont_\(key)")
-            }
+            BookPreferencesService.saveFontOverride(value, for: key)
         }
     }
 
     func updateBookPlayBookmarksInlineOverride(_ value: String?) {
         bookPlayBookmarksInlineOverride = value
         if let key = folderURL?.absoluteString {
-            if let val = value {
-                UserDefaults.standard.set(val, forKey: "book_bookmarksInline_\(key)")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "book_bookmarksInline_\(key)")
-            }
+            BookPreferencesService.saveBookmarksInlineOverride(value, for: key)
         }
     }
 
     func updateBookVolumeBoostOverride(_ value: String?) {
         bookVolumeBoostOverride = value
         if let key = folderURL?.absoluteString {
-            if let val = value {
-                UserDefaults.standard.set(val, forKey: "book_volumeBoost_\(key)")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "book_volumeBoost_\(key)")
-            }
+            BookPreferencesService.saveVolumeBoostOverride(value, for: key)
         }
         playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
     }
@@ -175,6 +120,7 @@ final class PlayerModel {
     var isPlaying: Bool { state.isPlaying }
     var currentTitle: String { state.currentTitle }
     var currentSubtitle: String { state.currentSubtitle }
+    var isManualSeeking: Bool { state.isManualSeeking }
 
     // MARK: - Progress (pass-through to PlaybackState)
 
@@ -187,9 +133,9 @@ final class PlayerModel {
     var currentDisplayArtwork: UIImage? { state.currentDisplayArtwork }
     var currentDisplayArtworkVersion: Int { state.currentDisplayArtworkVersion }
     var watchThumbnailData: Data? { state.watchThumbnailData }
-    @ObservationIgnored private var baseWatchThumbnailData: Data? = nil
-    @ObservationIgnored private var currentDisplayArtworkKey: String?
-    @ObservationIgnored private var bookmarkArtworkCache: [String: (image: UIImage, watchData: Data?)] = [:]
+    @ObservationIgnored var baseWatchThumbnailData: Data? = nil
+    @ObservationIgnored var currentDisplayArtworkKey: String?
+    @ObservationIgnored var bookmarkArtworkCache: [String: (image: UIImage, watchData: Data?)] = [:]
 
     // MARK: - Chapters (pass-through to PlaybackState)
 
@@ -252,28 +198,8 @@ final class PlayerModel {
 
     private func loadTranscript(for url: URL) {
         transcriptService.loadTranscript(for: url)
-        persistTranscriptToSQL()
-    }
-
-    private func persistTranscriptToSQL() {
-        guard let db = databaseService,
-              let audiobookID = folderURL?.absoluteString,
-              !state.transcription.isEmpty else { return }
-        let records = state.transcription.map { segment in
-            TranscriptionRecord(
-                id: nil,
-                audiobookID: audiobookID,
-                startTime: segment.startTime,
-                endTime: segment.endTime,
-                text: segment.text
-            )
-        }
-        do {
-            try TranscriptionDAO(db: db.writer).deleteAll(for: audiobookID)
-            try TranscriptionDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
-        } catch {
-            Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
-                .error("Failed to persist transcript: \(error.localizedDescription)")
+        if let db = databaseService, let audiobookID = folderURL?.absoluteString {
+            TimelineIngestionService.persistTranscript(db: db, audiobookID: audiobookID, transcription: state.transcription)
         }
     }
 
@@ -297,23 +223,23 @@ final class PlayerModel {
     /// Set of already-triggered flashcard IDs to prevent re-firing on seek/loop.
     @ObservationIgnored var triggeredFlashcardIDs: Set<String> = []
     /// Player time at which the last flashcard trigger fired, for deduplication.
-    @ObservationIgnored private var lastFlashcardTriggerSecond: Double = -1
+    @ObservationIgnored var lastFlashcardTriggerSecond: Double = -1
 
     /// Active playback session event ID for timeline logging.
-    @ObservationIgnored private var currentPlaybackEventID: String?
+    @ObservationIgnored var currentPlaybackEventID: String?
     /// UUID of the most recently triggered bookmark, used to prevent retrigger loops.
     @ObservationIgnored private var lastTriggeredBookmarkID: UUID?
     /// Player time at which the most recent bookmark was triggered, used to suppress duplicate firings.
     @ObservationIgnored private var lastTriggeredAtPlayerSecond: Double = -1
     /// The player time used during the last bookmark voice-memo trigger check.
-    @ObservationIgnored private var lastBookmarkCheckSecond: Double?
+    @ObservationIgnored var lastBookmarkCheckSecond: Double?
 
     /// Tracks the last track ID for which a thumbnail was sent to the watch,
     /// avoiding redundant heavy image transfers on every periodic sync.
 
     /// The display scale used for thumbnail rendering. Set from the SwiftUI
     /// environment to avoid `UIScreen.main` deprecation on iOS 26+.
-    private var displayScale: CGFloat = 2.0
+    var displayScale: CGFloat = 2.0
 
     /// Sets the display scale used for thumbnail rendering.
     /// Called from the SwiftUI environment to avoid `UIScreen.main` on iOS 26+.
@@ -334,8 +260,8 @@ final class PlayerModel {
 
     /// Cached flashcards for the current track, loaded once on track change
     /// to avoid database queries on every playback time tick.
-    @ObservationIgnored private var cachedTrackFlashcards: [Flashcard] = []
-    @ObservationIgnored private var cachedTrackFlashcardKey: String = ""
+    @ObservationIgnored var cachedTrackFlashcards: [Flashcard] = []
+    @ObservationIgnored var cachedTrackFlashcardKey: String = ""
 
     // MARK: - Security-scoped access (delegated to SecurityScopeManager)
 
@@ -557,95 +483,6 @@ final class PlayerModel {
         watchSyncManager.syncToWatch()
     }
 
-    private var currentArtworkSyncKey: String? {
-        guard state.tracks.indices.contains(currentIndex) else { return nil }
-        let trackId = state.tracks[currentIndex].id
-        return "\(trackId)#\(currentDisplayArtworkKey ?? "base")"
-    }
-
-    func watchStateContext() -> [String: Any] {
-        var context: [String: Any] = [:]
-        context["isPlaying"] = isPlaying
-        context["progressFraction"] = progressFraction
-        context["currentTime"] = currentPlaybackTime
-        context["bookmarkStorageKey"] = bookmarksStorageKey
-        context["folderKey"] = folderURL?.absoluteString
-        if state.tracks.indices.contains(currentIndex) {
-            context["trackId"] = state.tracks[currentIndex].id
-        }
-        
-        let title = state.chapters.count >= 2 ? (currentSubtitle.isEmpty ? String(localized: "Chapter \((currentChapterIndex ?? 0) + 1)") : currentSubtitle) : currentTitle
-        context["title"] = title
-        
-        // Dual-progress: total book progress (time-based when possible)
-        // For single-file M4B, currentTime is the absolute file position and
-        // durationSeconds is the full file duration — dividing yields true
-        // time-based book progress instead of a chapter-count approximation.
-        if let duration = durationSeconds, duration.isFinite, duration > 0 {
-            let totalElapsed = currentPlaybackTime
-            context["totalProgressFraction"] = min(1, max(0, totalElapsed / duration))
-            context["totalBookDuration"] = duration
-        } else {
-            // Fallback: track-count-based for multi-file playlists where
-            // individual track durations aren't aggregated.
-            let totalCount = Double(state.tracks.count)
-            context["totalProgressFraction"] = totalCount > 0 ? (Double(currentIndex) + progressFraction) / totalCount : 0.0
-        }
-        
-        let settings = settingsManager
-        let crownAction = settings?.crownAction ?? SettingsManager.Defaults.crownAction
-        context["crownAction"] = crownAction
-        context["isHapticFeedbackEnabled"] = settings?.isHapticFeedbackEnabled ?? SettingsManager.Defaults.isHapticFeedbackEnabled
-        context["watchQuickBookmarkTimeoutSeconds"] = settings?.watchQuickBookmarkTimeoutSeconds ?? SettingsManager.Defaults.watchQuickBookmarkTimeoutSeconds
-        context["loopMode"] = loopMode.rawValue
-        context["playbackSpeed"] = Double(speed)
-        
-        context["watchPage1"] = (try? JSONEncoder().encode(settings?.watchPage1 ?? SettingsManager.Defaults.watchPage1)) ?? Data()
-        context["watchPage2"] = (try? JSONEncoder().encode(settings?.watchPage2 ?? SettingsManager.Defaults.watchPage2)) ?? Data()
-        context["linearBarMode"] = settings?.linearBarMode ?? SettingsManager.Defaults.linearBarMode
-        context["linearBarHidden"] = settings?.linearBarHidden ?? SettingsManager.Defaults.linearBarHidden
-        context["circularRingMode"] = settings?.circularRingMode ?? SettingsManager.Defaults.circularRingMode
-        context["circularRingHidden"] = settings?.circularRingHidden ?? SettingsManager.Defaults.circularRingHidden
-        context["watchArtworkLayout"] = settings?.watchArtworkLayout ?? SettingsManager.Defaults.watchArtworkLayout
-        context["watchBackgroundStyle"] = settings?.watchBackgroundStyle ?? SettingsManager.Defaults.watchBackgroundStyle
-        context["hasThumbnail"] = watchThumbnailData != nil
-
-        // Sleep timer state for watch UI.
-        switch sleepTimerMode {
-        case .off:
-            context["sleepTimerMode"] = "off"
-            context["sleepTimerRemainingSeconds"] = 0
-        case .minutes(let mins):
-            context["sleepTimerMode"] = "minutes"
-            context["sleepTimerMinutes"] = mins
-            context["sleepTimerRemainingSeconds"] = sleepTimerRemainingSeconds
-        case .endOfChapter:
-            context["sleepTimerMode"] = "endOfChapter"
-            context["sleepTimerRemainingSeconds"] = 0
-        }
-
-        // Word cloud data: top 10 words for the current chapter.
-        let cloud = currentChapterWordCloud.prefix(10)
-        if !cloud.isEmpty, let jsonData = try? JSONEncoder().encode(Array(cloud)),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            context["wordCloudJSON"] = jsonString
-            context["wordCloudChapterIndex"] = currentChapterIndex ?? 0
-        }
-
-        // Due flashcards for watch review.
-        if let db = databaseService,
-           let cards = try? FlashcardDAO(db: db.writer).allDueCards(),
-           !cards.isEmpty {
-            let watchCards = cards.map { WatchFlashcard(id: $0.id, frontText: $0.frontText, backText: $0.backText) }
-            if let data = try? JSONEncoder().encode(watchCards),
-               let json = String(data: data, encoding: .utf8) {
-                context["dueCardsJSON"] = json
-            }
-        }
-
-        return context
-    }
-
     deinit {
         let localEngine = audioEngine
         let localBookmarkStore = bookmarkStore
@@ -710,14 +547,16 @@ final class PlayerModel {
         state.folderURL = url
 
         // Load per-book settings overrides
-        let key = url.absoluteString
-        bookFontOverride = UserDefaults.standard.string(forKey: "book_appFont_\(key)")
-        bookPlayBookmarksInlineOverride = UserDefaults.standard.string(forKey: "book_bookmarksInline_\(key)")
-        bookVolumeBoostOverride = UserDefaults.standard.string(forKey: "book_volumeBoost_\(key)")
+        let overrides = BookPreferencesService.loadOverrides(for: url.absoluteString)
+        bookFontOverride = overrides.font
+        bookPlayBookmarksInlineOverride = overrides.bookmarks
+        bookVolumeBoostOverride = overrides.volumeBoost
         playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
 
         // Persist to SQL after tracks are loaded so the DB has accurate track data.
-        persistAudiobookToSQL(folderURL: url)
+        if let db = databaseService {
+            TimelineIngestionService.persistAudiobook(db: db, folderURL: url, tracks: state.tracks, duration: state.durationSeconds)
+        }
 
         // Multi-M4B aggregation: when 2+ .m4b files are detected, parse all of them
         // asynchronously and build an aggregated chapter list with cumulative offsets.
@@ -743,11 +582,17 @@ final class PlayerModel {
                         )
                     }
                     let audioURL = parsed.books.first?.url ?? folderURL
-                    await ingestTimelineItems(
-                        chapters: chapters,
-                        audiobookID: folderURL.absoluteString,
-                        audioURL: audioURL
-                    )
+                    if let db = databaseService {
+                        await TimelineIngestionService.ingestItems(
+                            db: db,
+                            audiobookID: folderURL.absoluteString,
+                            audioURL: audioURL,
+                            chapters: chapters,
+                            transcription: state.transcription,
+                            enhancedTranscription: state.enhancedTranscription,
+                            folderURL: folderURL
+                        )
+                    }
                 }
             }
         } else if state.tracks.count > 1 {
@@ -790,11 +635,17 @@ final class PlayerModel {
                     }
                 }
                 guard !allChapters.isEmpty else { return }
-                await ingestTimelineItems(
-                    chapters: allChapters,
-                    audiobookID: folderURL.absoluteString,
-                    audioURL: tracks[0].url
-                )
+                if let db = databaseService {
+                    await TimelineIngestionService.ingestItems(
+                        db: db,
+                        audiobookID: folderURL.absoluteString,
+                        audioURL: tracks[0].url,
+                        chapters: allChapters,
+                        transcription: state.transcription,
+                        enhancedTranscription: state.enhancedTranscription,
+                        folderURL: folderURL
+                    )
+                }
             }
         }
 
@@ -854,112 +705,23 @@ final class PlayerModel {
 
     /// Restores the last selected folder or file from a security-scoped bookmark,
 
-    /// Saves the current audiobook and its tracks to SQL so the unified timeline
-    /// VIEW returns content. Safe to call on every folder load — uses INSERT OR REPLACE.
-    private func persistAudiobookToSQL(folderURL: URL) {
-        guard let db = databaseService else { return }
-        let audiobookID = folderURL.absoluteString
-        let title = folderURL.deletingPathExtension().lastPathComponent
-        let totalDuration = state.durationSeconds ?? 0
-        let audiobook = AudiobookRecord(
-            id: audiobookID,
-            title: title,
-            author: nil,
-            duration: totalDuration,
-            fileCount: state.tracks.count,
-            addedAt: Date().ISO8601Format()
-        )
-        do {
-            try AudiobookDAO(db: db.writer).save(audiobook)
-            let records = state.tracks.enumerated().map { (i, track) in
-                TrackRecord(
-                    id: track.id,
-                    audiobookID: audiobookID,
-                    title: track.title,
-                    duration: 0,
-                    filePath: track.url.absoluteString,
-                    isEnabled: true,
-                    sortOrder: i,
-                    playlistPosition: nil
-                )
-            }
-            try TrackDAO(db: db.writer).deleteAll(for: audiobookID)
-            try TrackDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
-        } catch {
-            Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
-                .error("Failed to persist audiobook to SQL: \(error.localizedDescription)")
-        }
-    }
-
-    /// Ingests timeline items (chapter markers, text segments, etc.) into the
-    /// timeline_item table so the unified dual-path feed has data to display.
-    private func ingestTimelineItems(
-        chapters: [Chapter],
-        audiobookID: String,
-        audioURL: URL
-    ) async {
-        guard let db = databaseService else { return }
-
-        let hasTranscript = !state.transcription.isEmpty
-        let hasEnhancedTranscript = !state.enhancedTranscription.isEmpty
-        let hasEPUB = (try? EPubBlockDAO(db: db.writer).visibleBlocks(for: audiobookID).isEmpty) == false
-        let strategy = TimelineIngestionFactory.strategy(
-            hasTranscript: hasTranscript,
-            hasEnhancedTranscript: hasEnhancedTranscript,
-            hasEPUB: hasEPUB
-        )
-
-        // Load EPUB blocks and anchors if available.
-        let epubBlocks: [EPubBlockRecord]? = {
-            guard hasEPUB, let db = databaseService, let audiobookID = folderURL?.absoluteString else { return nil }
-            return try? EPubBlockDAO(db: db.writer).visibleBlocks(for: audiobookID)
-        }()
-        let alignmentAnchors: [AlignmentAnchorRecord]? = {
-            guard hasEPUB, let db = databaseService, let audiobookID = folderURL?.absoluteString else { return nil }
-            return try? AlignmentAnchorDAO(db: db.writer).anchors(for: audiobookID)
-        }()
-
-        do {
-            let items = try await strategy.ingest(
-                audiobookID: audiobookID,
-                audioURL: audioURL,
-                chapters: chapters,
-                transcript: hasTranscript ? state.transcription : nil,
-                enhancedTranscript: hasEnhancedTranscript ? state.enhancedTranscription : nil,
-                epubBlocks: epubBlocks,
-                alignmentAnchors: alignmentAnchors,
-                bookmarks: nil,
-                flashcards: nil
-            )
-            guard !items.isEmpty else { return }
-            try TimelineDAO(db: db.writer).deleteAll(for: audiobookID)
-            try TimelineDAO(db: db.writer).ingest(items)
-            await MainActor.run {
-                NotificationCenter.default.post(
-                    name: .timelineItemsIngested,
-                    object: nil,
-                    userInfo: ["audiobookID": audiobookID]
-                )
-            }
-        } catch {
-            Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
-                .error("Failed to ingest timeline items: \(error.localizedDescription)")
-        }
-    }
 
     /// Re-ingests timeline items for the current audiobook, reloading EPUB blocks
     /// and anchors from the database. Call after EPUB import or anchor changes.
     func reingestTimelineFromEPUB() async {
-        guard databaseService != nil,
+        guard let db = databaseService,
               let audiobookID = folderURL?.absoluteString else { return }
-        let allChapters = state.chapters
         let audioURL = state.tracks.indices.contains(currentIndex)
             ? state.tracks[currentIndex].url
             : folderURL
-        await ingestTimelineItems(
-            chapters: allChapters,
+        await TimelineIngestionService.ingestItems(
+            db: db,
             audiobookID: audiobookID,
-            audioURL: audioURL ?? URL(fileURLWithPath: "/")
+            audioURL: audioURL ?? URL(fileURLWithPath: "/"),
+            chapters: state.chapters,
+            transcription: state.transcription,
+            enhancedTranscription: state.enhancedTranscription,
+            folderURL: folderURL
         )
     }
 
@@ -1298,7 +1060,7 @@ final class PlayerModel {
         )
     }
 
-    private func updateNowPlayingElapsedTime() {
+    func updateNowPlayingElapsedTime() {
         guard audioEngine.isItemLoaded else { return }
         let current = audioEngine.currentTime
         guard current.isFinite else { return }
@@ -1313,7 +1075,7 @@ final class PlayerModel {
         nowPlayingController.updateElapsedTime(current, chapterStartOffset: chapterOffset)
     }
 
-    private func updateNowPlayingInfo(isPaused: Bool) {
+    func updateNowPlayingInfo(isPaused: Bool) {
         let elapsed = audioEngine.currentTime
 
         var params = NowPlayingController.NowPlayingParams()
@@ -1337,7 +1099,7 @@ final class PlayerModel {
         nowPlayingController.updateNowPlayingInfo(params)
     }
 
-    private func updateProgressFromPlayer() {
+    func updateProgressFromPlayer() {
         guard audioEngine.isItemLoaded else {
             state.progressFraction = 0
             state.progressText = "--:--"
@@ -1449,38 +1211,6 @@ final class PlayerModel {
                 }
             }
 
-    private func generateThumbnail(for url: URL) async {
-        let sourceImage: UIImage?
-        if let embedded = await ArtworkCache.embeddedArtworkImage(for: url) {
-            sourceImage = embedded
-        } else if let folderImage = await ArtworkCache.folderArtworkImage(near: url) {
-            sourceImage = folderImage
-        } else {
-            sourceImage = loadAppIconImage()
-        }
-
-        guard let sourceImage else {
-            await MainActor.run {
-                state.thumbnailImage = nil
-                state.currentDisplayArtwork = nil
-                state.watchThumbnailData = nil
-                baseWatchThumbnailData = nil
-                currentDisplayArtworkKey = nil
-                updateNowPlayingInfo(isPaused: !isPlaying)
-                syncToWatch()
-            }
-            return
-        }
-
-        let scale = displayScale
-        let result = ArtworkCache.generateThumbnails(from: sourceImage, displayScale: scale)
-
-        await MainActor.run {
-            state.thumbnailImage = result.0
-            baseWatchThumbnailData = result.1
-            updateCurrentDisplayArtwork(at: currentPlaybackTime, force: true)
-        }
-    }
 
     private func loadChaptersForCurrentItem() async {
         guard audioEngine.isItemLoaded,
@@ -1570,15 +1300,28 @@ final class PlayerModel {
 
             // Multi-file folders get a full ingestion pass in loadFolder;
             // avoid wiping all items on every track switch for those cases.
-            if state.tracks.count <= 1 {
+            if state.tracks.count <= 1, let db = databaseService {
                 let trackURL = state.tracks[currentIndex].url
-                Task { await ingestTimelineItems(chapters: built, audiobookID: audiobookID, audioURL: trackURL) }
+                let transcription = state.transcription
+                let enhanced = state.enhancedTranscription
+                let fURL = folderURL
+                Task {
+                    await TimelineIngestionService.ingestItems(
+                        db: db,
+                        audiobookID: audiobookID,
+                        audioURL: trackURL,
+                        chapters: built,
+                        transcription: transcription,
+                        enhancedTranscription: enhanced,
+                        folderURL: fURL
+                    )
+                }
             }
         }
         computeWordClouds()
     }
 
-    private func updateCurrentChapterFromPlayerTime() {
+    func updateCurrentChapterFromPlayerTime() {
         guard state.chapters.count >= 2, audioEngine.isItemLoaded else { return }
         let t = audioEngine.currentTime
         guard t.isFinite else { return }
@@ -1608,7 +1351,7 @@ final class PlayerModel {
 
     /// The persistence key for the currently loaded book, derived from the folder
     /// URL or the current track ID. Used to scope bookmark and progress storage.
-    private var bookmarksStorageKey: String? {
+    var bookmarksStorageKey: String? {
         if let f = folderURL?.absoluteString { return f }
         if state.tracks.indices.contains(currentIndex) { return state.tracks[currentIndex].id }
         return nil
@@ -1632,64 +1375,6 @@ final class PlayerModel {
         return bookmarkStore.trackBookmarks(for: trackId)
     }
 
-    static func activeArtworkBookmark(from bookmarks: [Bookmark], at currentTime: TimeInterval, trackId: String?) -> Bookmark? {
-        bookmarks
-            .filter { bookmark in
-                guard bookmark.isEnabled,
-                      bookmark.bookmarkImageFileName?.isEmpty == false,
-                      bookmark.timestamp.isFinite,
-                      bookmark.timestamp <= currentTime
-                else { return false }
-
-                if let bookmarkTrackId = bookmark.trackId, let trackId {
-                    return bookmarkTrackId == trackId
-                }
-                return bookmark.trackId == nil || trackId == nil
-            }
-            .max { $0.timestamp < $1.timestamp }
-    }
-
-    private func updateCurrentDisplayArtwork(at currentTime: TimeInterval, force: Bool = false) {
-        let trackId = state.tracks.indices.contains(currentIndex) ? state.tracks[currentIndex].id : nil
-        let activeBookmark = Self.activeArtworkBookmark(from: bookmarks, at: currentTime, trackId: trackId)
-        let nextKey = activeBookmark.flatMap { bookmark -> String? in
-            guard let fileName = bookmark.bookmarkImageFileName else { return nil }
-            return "bookmark:\(bookmark.id.uuidString):\(fileName)"
-        } ?? "base"
-
-        guard force || nextKey != currentDisplayArtworkKey else { return }
-        currentDisplayArtworkKey = nextKey
-
-        if let activeBookmark,
-           let fileName = activeBookmark.bookmarkImageFileName,
-           let imageURL = activeBookmark.bookmarkImageURL(in: folderURL) {
-            let cacheKey = imageURL.path
-            if let cached = bookmarkArtworkCache[cacheKey] {
-                state.currentDisplayArtwork = cached.image
-                state.watchThumbnailData = cached.watchData
-            } else if let image = UIImage(contentsOfFile: imageURL.path) {
-                let watchData = makeWatchThumbnailData(from: image)
-                bookmarkArtworkCache[cacheKey] = (image, watchData)
-                state.currentDisplayArtwork = image
-                state.watchThumbnailData = watchData
-            } else {
-                print("Failed to load bookmark artwork: \(fileName)")
-                state.currentDisplayArtwork = thumbnailImage
-                state.watchThumbnailData = baseWatchThumbnailData
-            }
-        } else {
-            state.currentDisplayArtwork = thumbnailImage
-            state.watchThumbnailData = baseWatchThumbnailData
-        }
-
-        updateNowPlayingInfo(isPaused: !isPlaying)
-        syncToWatch()
-        state.currentDisplayArtworkVersion += 1
-    }
-
-    private func makeWatchThumbnailData(from image: UIImage) -> Data? {
-        ArtworkCache.makeWatchThumbnailData(from: image)
-    }
 
     /// Creates a new bookmark at the current playback position with an
     /// auto-numbered title. Persists the bookmark list immediately.
@@ -1755,58 +1440,17 @@ final class PlayerModel {
     /// Copies the selected EPUB file into the current audiobook folder, cleans up previous blocks, and triggers auto-import.
     func importEPUB(from sourceURL: URL) {
         guard let folderURL = folderURL, let db = databaseService else { return }
-        
         let didStartSource = sourceURL.startAccessingSecurityScopedResource()
         defer { if didStartSource { sourceURL.stopAccessingSecurityScopedResource() } }
-        
         let didStartDest = folderURL.startAccessingSecurityScopedResource()
         defer { if didStartDest { folderURL.stopAccessingSecurityScopedResource() } }
-        
-        let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
-        
-        do {
-            let destinationURL = folderURL.appendingPathComponent(sourceURL.lastPathComponent)
-            
-            let standardizedSource = sourceURL.resolvingSymlinksInPath().standardized
-            let standardizedDest = destinationURL.resolvingSymlinksInPath().standardized
-            
-            // Copy new EPUB if destination is not the same as source
-            if standardizedDest.path != standardizedSource.path {
-                let tempDir = FileManager.default.temporaryDirectory
-                let tempURL = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension("epub")
-                
-                try FileManager.default.copyItem(at: sourceURL, to: tempURL)
-                
-                // Safely overwrite the destination file
-                if FileManager.default.fileExists(atPath: destinationURL.path) {
-                    _ = try FileManager.default.replaceItemAt(destinationURL, withItemAt: tempURL, backupItemName: nil, options: [])
-                } else {
-                    try FileManager.default.moveItem(at: tempURL, to: destinationURL)
-                }
-            }
-            
-            // Clear existing database blocks so that new blocks can be imported
-            let audiobookID = folderURL.absoluteString
-            try EPubBlockDAO(db: db.writer).deleteAll(for: audiobookID)
-            
-            // Re-run the scan and import process directly for this EPUB file
-            let currentChapters = state.chapters
-            let currentDuration = state.durationSeconds
-            
-            Task {
-                await EPUBAutoImportScanner.importEPUBFile(
-                    epubURL: destinationURL,
-                    audiobookID: audiobookID,
-                    databaseService: db,
-                    chapters: currentChapters,
-                    duration: currentDuration,
-                    force: true
-                )
-            }
-        } catch {
-            logger.error("Failed to copy and import EPUB: \(error.localizedDescription)")
-            print("Failed to copy and import EPUB: \(error.localizedDescription)")
-        }
+        EPUBAutoImportScanner.copyAndImportEPUB(
+            from: sourceURL,
+            folderURL: folderURL,
+            databaseService: db,
+            chapters: state.chapters,
+            duration: state.durationSeconds
+        )
     }
 
     func addWatchBookmark(from payload: [String: Any]) {
@@ -1929,13 +1573,13 @@ final class PlayerModel {
     }
 
     /// Delegates to BookmarkStore to detect and fire inline voice memo triggers.
-    private func checkVoiceMemoTrigger(at currentSeconds: Double, previousSeconds: Double?) {
+    func checkVoiceMemoTrigger(at currentSeconds: Double, previousSeconds: Double?) {
         let trackId = state.tracks.indices.contains(currentIndex) ? state.tracks[currentIndex].id : nil
         if let memoURL = bookmarkStore.checkVoiceMemoTrigger(
             at: currentSeconds,
             previousSeconds: previousSeconds,
             isPlaying: isPlaying,
-            isManualSeeking: state.isManualSeeking,
+            isManualSeeking: isManualSeeking,
             loopMode: loopMode,
             playBookmarksInline: resolvedPlayBookmarksInline,
             trackId: trackId,
@@ -1947,75 +1591,7 @@ final class PlayerModel {
         }
     }
 
-    /// Polls flashcard timestamps on each time tick and fires an inline overlay when
-    /// playback crosses a card's trigger point. Follows the same tolerance/deduplication
-    /// pattern as voice memo triggers.
-    private func checkInlineFlashcardTrigger(at currentSeconds: Double, previousSeconds: Double?) {
-        guard activeInlineCard == nil, isPlaying, !state.isManualSeeking,
-              loopMode != .bookmark else { return }
-
-        let toleranceAfter: Double = 0.75
-
-        let trackKey = state.tracks.indices.contains(state.currentIndex)
-            ? state.tracks[state.currentIndex].url.lastPathComponent : ""
-        if cachedTrackFlashcardKey != trackKey, let db = databaseService {
-            cachedTrackFlashcards = (try? FlashcardDAO(db: db.writer).flashcards(for: trackKey)) ?? []
-            cachedTrackFlashcardKey = trackKey
-        }
-        let cards = cachedTrackFlashcards
-
-        for card in cards {
-            guard card.triggerTiming != "manualOnly" else { continue }
-            guard !triggeredFlashcardIDs.contains(card.id) else { continue }
-
-            let triggerTime = card.mediaTimestamp
-
-            // Check if playback just crossed the trigger point.
-            let crossed: Bool
-            if let prev = previousSeconds, prev.isFinite {
-                crossed = prev <= triggerTime && currentSeconds > triggerTime
-            } else {
-                crossed = abs(currentSeconds - triggerTime) <= toleranceAfter
-            }
-            guard crossed else { continue }
-
-            // Deduplicate: don't fire within 5s of last trigger.
-            if abs(currentSeconds - lastFlashcardTriggerSecond) < 5 { continue }
-
-            lastFlashcardTriggerSecond = currentSeconds
-            triggeredFlashcardIDs.insert(card.id)
-            wasPlayingBeforeFlashcard = true
-            audioEngine.pause()
-            activeInlineCard = card
-            return
-        }
-    }
-
-    /// Grades the currently shown inline flashcard and resumes playback.
-    func gradeInlineFlashcard(_ grade: Int) {
-        guard let card = activeInlineCard else { return }
-        if let db = databaseService {
-            try? FlashcardDAO(db: db.writer).grade(cardID: card.id, grade: grade)
-        }
-        activeInlineCard = nil
-        if wasPlayingBeforeFlashcard {
-            wasPlayingBeforeFlashcard = false
-            audioEngine.playImmediately(atRate: speed)
-            playbackController.applySpeedToCurrentItem()
-        }
-    }
-
-    /// Dismisses the inline flashcard overlay without grading, resuming playback.
-    func dismissInlineFlashcard() {
-        activeInlineCard = nil
-        if wasPlayingBeforeFlashcard {
-            wasPlayingBeforeFlashcard = false
-            audioEngine.playImmediately(atRate: speed)
-            playbackController.applySpeedToCurrentItem()
-        }
-    }
-
-    @ObservationIgnored private var wasPlayingBeforeFlashcard = false
+    @ObservationIgnored var wasPlayingBeforeFlashcard = false
 
     private func persistSelection(url: URL) {
         // Refresh security scope for the new selection.
@@ -2027,85 +1603,5 @@ final class PlayerModel {
 
         // Load bookmarks for this book.
         loadBookmarksForCurrentBook()
-    }
-}
-
-
-// MARK: - PlaybackControllerDelegate
-
-extension PlayerModel: PlaybackControllerDelegate {
-    func playbackController(_ controller: PlaybackController, didUpdateTime currentTime: TimeInterval) {
-        autoreleasepool {
-            updateNowPlayingElapsedTime()
-            updateCurrentChapterFromPlayerTime()
-            updateProgressFromPlayer()
-            updateCurrentDisplayArtwork(at: currentTime)
-            playbackController.enforceEnabledState()
-            playbackController.applyChapterLoopIfNeeded()
-            playbackController.applyBookmarkLoopIfNeeded()
-            if resolvedPlayBookmarksInline,
-               currentTime.isFinite {
-                checkVoiceMemoTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
-                checkInlineFlashcardTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
-                lastBookmarkCheckSecond = currentTime
-            }
-        }
-    }
-
-    func playbackControllerDidPlayToEnd(_ controller: PlaybackController) {
-        playbackController.handleTrackEnded()
-    }
-
-    func playbackControllerInterruptionBegan(_ controller: PlaybackController) {
-        pause()
-    }
-
-    func playbackControllerInterruptionEnded(_ controller: PlaybackController, shouldResume: Bool) {
-        if shouldResume {
-            play()
-        }
-    }
-}
-
-// MARK: - Timeline Event Logging
-
-extension PlayerModel {
-    func startPlaybackSessionLogging() {
-        let id = UUID().uuidString
-        currentPlaybackEventID = id
-        eventLogger.startPlaybackSessionLogging(
-            id: id,
-            databaseService: databaseService,
-            folderURL: folderURL,
-            currentTime: audioEngine.currentTime,
-            currentTitle: currentTitle,
-            currentSubtitle: currentSubtitle
-        )
-    }
-
-    func endPlaybackSessionLogging() {
-        guard let id = currentPlaybackEventID else { return }
-        eventLogger.endPlaybackSessionLogging(id: id, databaseService: databaseService)
-        currentPlaybackEventID = nil
-    }
-
-    private func logRealTimeEvent(
-        type: RealTimeEventType,
-        title: String? = nil,
-        subtitle: String? = nil,
-        timestamp: TimeInterval? = nil,
-        sourceItemID: String? = nil,
-        sourceItemType: String? = nil
-    ) {
-        eventLogger.logRealTimeEvent(
-            type: type,
-            databaseService: databaseService,
-            folderURL: folderURL,
-            title: title ?? currentTitle,
-            subtitle: subtitle,
-            timestamp: timestamp,
-            sourceItemID: sourceItemID,
-            sourceItemType: sourceItemType
-        )
     }
 }
