@@ -25,6 +25,7 @@ final class PlayerModel {
 
     var audioEngine: AudioEngine { playbackController.audioEngine }
     @ObservationIgnored weak var settingsManager: SettingsManager?
+    let bookSettingsOverrideStore = BookSettingsOverrideStore()
 
     /// Convenience accessor for the shared playback state owned by PlaybackController.
     var state: PlaybackState { playbackController.state }
@@ -59,10 +60,22 @@ final class PlayerModel {
         }
     }
 
-    // MARK: - Per-Book Settings Overrides
-    var bookFontOverride: String? = nil
-    var bookPlayBookmarksInlineOverride: String? = nil
-    var bookVolumeBoostOverride: String? = nil
+    // MARK: - Per-Book Settings Overrides (pass-through to BookSettingsOverrideStore)
+
+    var bookFontOverride: String? {
+        get { bookSettingsOverrideStore.bookFontOverride }
+        set { bookSettingsOverrideStore.bookFontOverride = newValue }
+    }
+
+    var bookPlayBookmarksInlineOverride: String? {
+        get { bookSettingsOverrideStore.bookPlayBookmarksInlineOverride }
+        set { bookSettingsOverrideStore.bookPlayBookmarksInlineOverride = newValue }
+    }
+
+    var bookVolumeBoostOverride: String? {
+        get { bookSettingsOverrideStore.bookVolumeBoostOverride }
+        set { bookSettingsOverrideStore.bookVolumeBoostOverride = newValue }
+    }
 
     var resolvedAppFont: String {
         BookPreferencesService.resolveAppFont(override: bookFontOverride, globalFont: settingsManager?.appFont)
@@ -79,21 +92,21 @@ final class PlayerModel {
     func updateBookFontOverride(_ value: String?) {
         bookFontOverride = value
         if let key = folderURL?.absoluteString {
-            BookPreferencesService.saveFontOverride(value, for: key)
+            bookSettingsOverrideStore.persistFontOverride(value, for: key)
         }
     }
 
     func updateBookPlayBookmarksInlineOverride(_ value: String?) {
         bookPlayBookmarksInlineOverride = value
         if let key = folderURL?.absoluteString {
-            BookPreferencesService.saveBookmarksInlineOverride(value, for: key)
+            bookSettingsOverrideStore.persistBookmarksInlineOverride(value, for: key)
         }
     }
 
     func updateBookVolumeBoostOverride(_ value: String?) {
         bookVolumeBoostOverride = value
         if let key = folderURL?.absoluteString {
-            BookPreferencesService.saveVolumeBoostOverride(value, for: key)
+            bookSettingsOverrideStore.persistVolumeBoostOverride(value, for: key)
         }
         playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
     }
@@ -547,10 +560,7 @@ final class PlayerModel {
         state.folderURL = url
 
         // Load per-book settings overrides
-        let overrides = BookPreferencesService.loadOverrides(for: url.absoluteString)
-        bookFontOverride = overrides.font
-        bookPlayBookmarksInlineOverride = overrides.bookmarks
-        bookVolumeBoostOverride = overrides.volumeBoost
+        bookSettingsOverrideStore.loadOverrides(for: url.absoluteString)
         playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
 
         // Persist to SQL after tracks are loaded so the DB has accurate track data.
