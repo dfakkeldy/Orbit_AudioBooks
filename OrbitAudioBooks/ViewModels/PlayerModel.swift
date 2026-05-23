@@ -207,6 +207,8 @@ final class PlayerModel {
     let sleepTimerManager = SleepTimerManager()
     let artworkCoordinator = BookmarkArtworkCoordinator()
     let flashcardTriggerController = InlineFlashcardTriggerController()
+    let progressPresenter = PlaybackProgressPresenter()
+    let chapterLoadingCoordinator = ChapterLoadingCoordinator()
 
     private func loadTranscript(for url: URL) {
         transcriptService.loadTranscript(for: url)
@@ -424,6 +426,63 @@ final class PlayerModel {
         flashcardTriggerController.isPlayingProvider = { [weak self] in self?.isPlaying ?? false }
         flashcardTriggerController.isManualSeekingProvider = { [weak self] in self?.isManualSeeking ?? false }
         flashcardTriggerController.loopModeProvider = { [weak self] in self?.loopMode ?? .off }
+
+        // Wire progress presenter dependencies.
+        progressPresenter.state = state
+        progressPresenter.audioEngine = audioEngine
+        progressPresenter.nowPlayingController = nowPlayingController
+        progressPresenter.speedProvider = { [weak self] in self?.speed ?? 1.0 }
+        progressPresenter.currentTitleProvider = { [weak self] in self?.currentTitle ?? "" }
+        progressPresenter.currentSubtitleProvider = { [weak self] in self?.currentSubtitle ?? "" }
+        progressPresenter.currentDisplayArtworkProvider = { [weak self] in self?.currentDisplayArtwork }
+        progressPresenter.thumbnailImageProvider = { [weak self] in self?.thumbnailImage }
+        progressPresenter.onSyncToWatch = { [weak self] in self?.syncToWatch() }
+        progressPresenter.onChapterOutOfBounds = { [weak self] in
+            self?.chapterLoadingCoordinator.updateCurrentChapterFromPlayerTime()
+        }
+
+        // Wire chapter loading coordinator dependencies.
+        chapterLoadingCoordinator.state = state
+        chapterLoadingCoordinator.audioEngine = audioEngine
+        chapterLoadingCoordinator.persistence = persistence
+        chapterLoadingCoordinator.timelinePersistence = timelinePersistence
+        chapterLoadingCoordinator.isPlayingProvider = { [weak self] in self?.isPlaying ?? false }
+        chapterLoadingCoordinator.databaseServiceProvider = { [weak self] in self?.databaseService }
+        chapterLoadingCoordinator.onUpdateNowPlayingInfo = { [weak self] isPaused in
+            self?.progressPresenter.updateNowPlayingInfo(isPaused: isPaused)
+        }
+        chapterLoadingCoordinator.onSyncToWatch = { [weak self] in self?.syncToWatch() }
+        chapterLoadingCoordinator.onUpdateProgress = { [weak self] in self?.progressPresenter.updateProgress() }
+        chapterLoadingCoordinator.onComputeWordClouds = { [weak self] in self?.computeWordClouds() }
+        chapterLoadingCoordinator.onDurationLoaded = { [weak self] seconds in
+            guard let self else { return }
+            if self.deepLinkHandler.pendingSeekTime != nil {
+                Task { @MainActor in
+                    self.applyPendingDeepLinkSeekIfPossible()
+                }
+            } else if let folder = self.folderURL?.absoluteString,
+                      let progress = self.persistence.getBookProgress(for: folder),
+                      self.state.tracks.indices.contains(self.currentIndex),
+                      progress.trackId == self.state.tracks[self.currentIndex].id,
+                      progress.time > 0, progress.time < seconds {
+                let savedTime = progress.time
+                Task { @MainActor in
+                    self.state.isManualSeeking = true
+                    self.audioEngine.seek(to: savedTime) { [weak self] _ in
+                        DispatchQueue.main.async {
+                            self?.state.isManualSeeking = false
+                            self?.chapterLoadingCoordinator.updateCurrentChapterFromPlayerTime()
+                            self?.progressPresenter.updateElapsedTime()
+                            self?.progressPresenter.updateProgress()
+                            if let self, self.isPlaying {
+                                self.audioEngine.playImmediately(atRate: self.speed)
+                                self.playbackController.applySpeedToCurrentItem()
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Wire PlaybackController coordination closures.
         playbackController.coordinator_smartRewind = { [weak self] pausedDuration in
@@ -1075,289 +1134,29 @@ final class PlayerModel {
     }
 
     func updateNowPlayingElapsedTime() {
-        guard audioEngine.isItemLoaded else { return }
-        let current = audioEngine.currentTime
-        guard current.isFinite else { return }
-
-        let chapterOffset: TimeInterval?
-        if state.chapters.count >= 2, let idx = currentChapterIndex {
-            chapterOffset = chapters[idx].startSeconds
-        } else {
-            chapterOffset = nil
-        }
-
-        nowPlayingController.updateElapsedTime(current, chapterStartOffset: chapterOffset)
+        progressPresenter.updateElapsedTime()
     }
 
     func updateNowPlayingInfo(isPaused: Bool) {
-        let elapsed = audioEngine.currentTime
-
-        var params = NowPlayingController.NowPlayingParams()
-        params.title = currentTitle
-        params.subtitle = currentSubtitle
-        params.elapsed = elapsed
-        params.isPaused = isPaused
-        params.playbackRate = speed
-        params.artworkImage = currentDisplayArtwork ?? thumbnailImage
-        params.duration = durationSeconds ?? 0
-
-        if state.chapters.count >= 2, let idx = currentChapterIndex {
-            let c = chapters[idx]
-            params.chapterIndex = idx
-            params.chapterElapsed = max(0, elapsed - c.startSeconds)
-            params.chapterDuration = c.endSeconds - c.startSeconds
-        } else {
-            params.albumTitle = currentSubtitle.isEmpty ? nil : currentSubtitle
-        }
-
-        nowPlayingController.updateNowPlayingInfo(params)
+        progressPresenter.updateNowPlayingInfo(isPaused: isPaused)
     }
 
     func updateProgressFromPlayer() {
-        guard audioEngine.isItemLoaded else {
-            state.progressFraction = 0
-            state.progressText = "--:--"
-            state.elapsedText = "--:--"
-            return
-        }
-
-        let elapsed = audioEngine.currentTime
-
-        // Multi-M4B: book-level progress (overrides chapter-level fraction below).
-        if state.isMultiM4B, state.totalBookDuration > 0 {
-            let bookOffset: TimeInterval = {
-                guard state.m4bBooks.indices.contains(state.currentIndex) else { return 0 }
-                return state.m4bBooks[state.currentIndex].cumulativeStartOffset
-            }()
-            let bookElapsed = bookOffset + elapsed
-            let frac = min(1, max(0, bookElapsed / state.totalBookDuration))
-            let didChange = abs(state.progressFraction - frac) > 0.005
-            state.progressFraction = frac
-            state.elapsedText = NowPlayingController.formatTime(max(0, bookElapsed) / Double(speed))
-            let remaining = max(0, state.totalBookDuration - bookElapsed) / Double(speed)
-            state.progressText = "-\(NowPlayingController.formatTime(remaining))"
-            if didChange { syncToWatch() }
-        }
-
-        if state.chapters.count >= 2 {
-            if let idx = currentChapterIndex {
-                let c = chapters[idx]
-                if elapsed.isFinite, elapsed < c.startSeconds - 0.1 || elapsed >= c.endSeconds + 0.1 {
-                    updateCurrentChapterFromPlayerTime()
-                }
-            } else {
-                updateCurrentChapterFromPlayerTime()
-            }
-
-            if let idx = currentChapterIndex {
-                let c = chapters[idx]
-                let chapterDuration = c.endSeconds - c.startSeconds
-                let chapterElapsed = elapsed - c.startSeconds
-
-                // Multi-M4B: book-level progress is already set above; skip chapter-level override.
-                if state.isMultiM4B { return }
-
-                if chapterElapsed.isFinite, chapterDuration.isFinite, chapterDuration > 0 {
-                    let frac = min(1, max(0, chapterElapsed / chapterDuration))
-                    let didChange = abs(progressFraction - frac) > 0.005
-                    state.progressFraction = frac
-                    let remaining = max(0, chapterDuration - chapterElapsed) / Double(speed)
-                    state.progressText = "-\(NowPlayingController.formatTime(remaining))"
-                    state.elapsedText = NowPlayingController.formatTime(max(0, chapterElapsed) / Double(speed))
-                    if didChange { syncToWatch() }
-                    return
-                }
-            }
-        }
-
-        let duration = durationSeconds ?? 0
-
-        guard elapsed.isFinite, duration.isFinite, duration > 0 else {
-            state.progressFraction = 0
-            state.progressText = "--:--"
-            state.elapsedText = "--:--"
-            return
-        }
-
-        let frac = min(1, max(0, elapsed / duration))
-        let didChange = abs(progressFraction - frac) > 0.005
-        state.progressFraction = frac
-
-        let remaining = max(0, duration - elapsed) / Double(speed)
-        state.progressText = "-\(NowPlayingController.formatTime(remaining))"
-        state.elapsedText = NowPlayingController.formatTime(max(0, elapsed) / Double(speed))
-        if didChange { syncToWatch() }
+        progressPresenter.updateProgress()
     }
 
 
     private func loadDurationForNowPlaying() async {
-        guard let seconds = audioEngine.duration, seconds > 0 else { return }
-        state.durationSeconds = seconds
-        updateNowPlayingInfo(isPaused: !isPlaying)
-        updateProgressFromPlayer()
-
-        // Once asset is ready, check for saved progress and seek
-        if deepLinkHandler.pendingSeekTime != nil {
-            await MainActor.run {
-                self.applyPendingDeepLinkSeekIfPossible()
-            }
-        } else if let folder = folderURL?.absoluteString,
-           let progress = persistence.getBookProgress(for: folder),
-           state.tracks.indices.contains(currentIndex),
-           progress.trackId == state.tracks[currentIndex].id,
-           progress.time > 0, progress.time < seconds {
-            let savedTime = progress.time
-            await MainActor.run {
-                state.isManualSeeking = true
-                audioEngine.seek(to: savedTime) { [weak self] _ in
-                    DispatchQueue.main.async {
-                        self?.state.isManualSeeking = false
-                                self?.updateCurrentChapterFromPlayerTime()
-                                self?.updateNowPlayingElapsedTime()
-                                self?.updateProgressFromPlayer()
-                                if let self, self.isPlaying {
-                                    self.audioEngine.playImmediately(atRate: self.speed)
-                                    self.playbackController.applySpeedToCurrentItem()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        await chapterLoadingCoordinator.loadDurationForNowPlaying()
+    }
 
 
     private func loadChaptersForCurrentItem() async {
-        guard audioEngine.isItemLoaded,
-              state.tracks.indices.contains(currentIndex) else { return }
-
-        // Multi-M4B: chapters already loaded from M4BParser with intra-book offsets.
-        if state.isMultiM4B, !state.chapters.isEmpty { return }
-
-        let asset = AVURLAsset(url: state.tracks[currentIndex].url)
-
-        var built: [Chapter] = []
-        let ext = state.tracks[currentIndex].url.pathExtension.lowercased()
-        if ext == "m4b" || ext == "m4a" {
-            built = await ChapterService.parseChapters(from: asset)
-        }
-
-        let trackKey = state.tracks.indices.contains(currentIndex) ? state.tracks[currentIndex].url.absoluteString : ""
-        if let savedStates = persistence.loadEnabledState(for: trackKey) {
-            for i in 0..<built.count {
-                if let isEnabled = savedStates[built[i].id] {
-                    built[i].isEnabled = isEnabled
-                }
-            }
-        }
-        if let savedOrder = persistence.loadOrder(for: trackKey) {
-            var orderedChapters: [Chapter] = []
-            var remainingChapters = built
-            for id in savedOrder {
-                if let idx = remainingChapters.firstIndex(where: { $0.id == id }) {
-                    orderedChapters.append(remainingChapters.remove(at: idx))
-                }
-            }
-            orderedChapters.append(contentsOf: remainingChapters)
-            built = orderedChapters
-        }
-
-        // For files with no parsed chapters, create a single chapter spanning the book
-        // so the timeline feed always has at least one chapter marker.
-        if built.isEmpty {
-            let track = state.tracks[currentIndex]
-            let title = track.title
-            let duration = state.durationSeconds ?? 0
-            built = [Chapter(
-                index: 0,
-                title: title,
-                startSeconds: 0,
-                endSeconds: duration,
-                isEnabled: true
-            )]
-        }
-
-        // Files with a single chapter that spans the whole book are still valid
-        // timeline entries. Only skip chapter-based Now Playing UI when < 2.
-        if built.count >= 2 {
-            chapters = built
-            updateCurrentChapterFromPlayerTime()
-        } else {
-            chapters = built
-            state.currentChapterIndex = nil
-            state.currentSubtitle = ""
-            updateNowPlayingInfo(isPaused: !isPlaying)
-            syncToWatch()
-        }
-
-        // Persist chapters and ingest timeline items for every book,
-        // regardless of chapter count or file type.
-        if let db = databaseService, let audiobookID = folderURL?.absoluteString {
-            let records = built.enumerated().map { (i, ch) in
-                ChapterRecord(
-                    id: nil,
-                    audiobookID: audiobookID,
-                    title: ch.title ?? "Chapter \(i + 1)",
-                    startSeconds: ch.startSeconds,
-                    endSeconds: ch.endSeconds,
-                    isEnabled: ch.isEnabled,
-                    sortOrder: i,
-                    playlistPosition: nil
-                )
-            }
-            do {
-                try ChapterDAO(db: db.writer).deleteAll(for: audiobookID)
-                try ChapterDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
-            } catch {
-                Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
-                    .error("Failed to persist chapters: \(error.localizedDescription)")
-            }
-
-            // Multi-file folders get a full ingestion pass in loadFolder;
-            // avoid wiping all items on every track switch for those cases.
-            if state.tracks.count <= 1 {
-                let trackURL = state.tracks[currentIndex].url
-                let transcription = state.transcription
-                let enhanced = state.enhancedTranscription
-                let fURL = folderURL
-                Task {
-                    await timelinePersistence.ingestTimelineItems(
-                        audiobookID: audiobookID,
-                        audioURL: trackURL,
-                        chapters: built,
-                        transcription: transcription,
-                        enhancedTranscription: enhanced,
-                        folderURL: fURL
-                    )
-                }
-            }
-        }
-        computeWordClouds()
+        await chapterLoadingCoordinator.loadChaptersForCurrentItem()
     }
 
     func updateCurrentChapterFromPlayerTime() {
-        guard state.chapters.count >= 2, audioEngine.isItemLoaded else { return }
-        let t = audioEngine.currentTime
-        guard t.isFinite else { return }
-
-        // Find all chapters that contain the current time
-        let matching = chapters.filter { t >= $0.startSeconds && t < $0.endSeconds }
-        
-        // Pick the most specific one (shortest duration) to ignore global/overlapping chapters
-        if let bestMatch = matching.min(by: { ($0.endSeconds - $0.startSeconds) < ($1.endSeconds - $1.startSeconds) }),
-           let idx = state.chapters.firstIndex(of: bestMatch) {
-            
-            if currentChapterIndex != idx {
-                state.currentChapterIndex = idx
-                let c = state.chapters[idx]
-                if let title = c.title, !title.isEmpty {
-                    state.currentSubtitle = title
-                } else {
-                    state.currentSubtitle = String(localized: "Chapter \(idx + 1)")
-                }
-                updateNowPlayingInfo(isPaused: !isPlaying)
-                syncToWatch()
-            }
-        }
+        chapterLoadingCoordinator.updateCurrentChapterFromPlayerTime()
     }
 
     // MARK: - Bookmarks API
