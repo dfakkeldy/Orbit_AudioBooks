@@ -2,6 +2,55 @@ import Foundation
 import Observation
 import UIKit
 
+// MARK: - Column Mode
+
+enum TimelineColumn: String, CaseIterable, Identifiable {
+    case timestamps
+    case chapters
+    case epub
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .timestamps: "Timestamps"
+        case .chapters: "Chapters"
+        case .epub: "EPUB"
+        }
+    }
+
+    var sfSymbol: String {
+        switch self {
+        case .timestamps: "clock"
+        case .chapters: "list.bullet"
+        case .epub: "book"
+        }
+    }
+}
+
+struct TimelineColumnVisibility: Equatable {
+    var showTimestamps = true
+    var showChapters = true
+    var showEPUB = true
+
+    subscript(_ column: TimelineColumn) -> Bool {
+        get {
+            switch column {
+            case .timestamps: showTimestamps
+            case .chapters: showChapters
+            case .epub: showEPUB
+            }
+        }
+        set {
+            switch column {
+            case .timestamps: showTimestamps = newValue
+            case .chapters: showChapters = newValue
+            case .epub: showEPUB = newValue
+            }
+        }
+    }
+}
+
 // MARK: - Feed Mode
 
 enum TimelineFeedMode: Equatable {
@@ -40,6 +89,12 @@ final class TimelineFeedViewModel {
     private(set) var searchQuery = ""
     private(set) var searchResults: [TimelineSearchResult] = []
     var showHiddenBlocks = false
+
+    /// Column visibility state for the 3-column layout mode.
+    var columnVisibility = TimelineColumnVisibility()
+
+    /// Chapters that have been tapped to grey out in the Chapters column.
+    private(set) var greyedChapterIDs: Set<String> = []
 
     /// The active structural zoom level. Setting this triggers a data reload.
     var scope: TimelineScope = .chapter {
@@ -153,6 +208,51 @@ final class TimelineFeedViewModel {
     /// Called when the timeline exits frozen state (via goToNow or syncAndResume).
     /// Wired by the view layer to reset PlayerModel.isTimelineFrozen.
     var onUnfrozen: (() -> Void)?
+
+    /// Toggle a chapter between normal and greyed-out appearance.
+    func toggleChapterGreyed(_ itemID: String) {
+        var updated = greyedChapterIDs
+        if updated.contains(itemID) {
+            updated.remove(itemID)
+        } else {
+            updated.insert(itemID)
+        }
+        greyedChapterIDs = updated
+    }
+
+    // MARK: - Column-filtered accessors
+
+    /// Items for the timestamps column: now-line, scrubber gaps, and timestamp-only entries.
+    var timestampColumnItems: [TimelineDisplayItem] {
+        items.filter { item in
+            switch item {
+            case .nowLine, .scrubberGap: return true
+            case .timelineItem: return false
+            case .audiobookCard: return false
+            }
+        }
+    }
+
+    /// Items for the chapters column: chapter markers, audiobook cards.
+    var chapterColumnItems: [TimelineDisplayItem] {
+        items.filter { item in
+            switch item {
+            case .audiobookCard: return true
+            case .timelineItem(let ti): return ti.itemType == .chapterMarker
+            default: return false
+            }
+        }
+    }
+
+    /// Items for the EPUB column: text segments and image assets sourced from EPUB.
+    var epubColumnItems: [TimelineDisplayItem] {
+        items.filter { item in
+            guard case .timelineItem(let ti) = item else { return false }
+            return ti.sourceTable == "epub_block" || ti.epubBlockID != nil
+        }
+    }
+
+    // MARK: - Search
 
     /// Enter search-to-anchor mode.
     func beginSearch() {

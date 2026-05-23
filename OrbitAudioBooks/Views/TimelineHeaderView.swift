@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Header for the Timeline (playlist-time) tab — scale cycle and recenter only.
-/// Mode switching and editing toggles live in the Planner tab header.
+/// Header for the Timeline (playlist-time) tab — scale cycle, column toggle, and recenter.
 struct TimelineHeaderView: View {
     @Environment(PlayerModel.self) private var model
     @Environment(SettingsManager.self) private var settings
     @Binding var scope: TimelineScope
+    @Binding var isColumnMode: Bool
     var onZoomOut: (() -> Void)? = nil
     let onRecenterNow: () -> Void
 
@@ -22,6 +22,19 @@ struct TimelineHeaderView: View {
             }
 
             scaleCycleButton
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isColumnMode.toggle()
+                }
+            } label: {
+                Label(
+                    "Columns",
+                    systemImage: isColumnMode ? "rectangle.grid.1x2.fill" : "rectangle.grid.1x2"
+                )
+                .customFont(.caption, weight: .medium, appFont: model.resolvedAppFont)
+            }
+            .buttonStyle(.bordered)
 
             Spacer()
 
