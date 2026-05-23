@@ -64,3 +64,9 @@ __pycache__/
 # Local ruby dependencies
 .bundle/
 vendor/bundle/
+
+# --- Dev tool configs ---
+.agents/
+.antigravitycli/
+.dev/
+.claude/worktrees/
