@@ -34,6 +34,7 @@ final class PlayerModel {
 
     @ObservationIgnored let playlistManager: PlaylistManager
     let transcriptService: TranscriptService
+    let timelinePersistence = PlayerTimelinePersistenceService()
 
     // MARK: - UI state (local to PlayerModel)
 
@@ -180,8 +181,7 @@ final class PlayerModel {
 
     /// Whether EPUB blocks have been imported for the current audiobook.
     var hasEPUB: Bool {
-        guard let db = databaseService, let audiobookID = folderURL?.absoluteString else { return false }
-        return (try? EPubBlockDAO(db: db.writer).visibleBlocks(for: audiobookID).isEmpty) == false
+        timelinePersistence.hasEPUB(for: folderURL?.absoluteString)
     }
 
     /// Whether transcript or enhanced transcript data is loaded for the current audiobook.
@@ -211,8 +211,8 @@ final class PlayerModel {
 
     private func loadTranscript(for url: URL) {
         transcriptService.loadTranscript(for: url)
-        if let db = databaseService, let audiobookID = folderURL?.absoluteString {
-            TimelineIngestionService.persistTranscript(db: db, audiobookID: audiobookID, transcription: state.transcription)
+        if let audiobookID = folderURL?.absoluteString {
+            timelinePersistence.persistTranscriptToSQL(audiobookID: audiobookID, transcription: state.transcription)
         }
     }
 
@@ -313,7 +313,10 @@ final class PlayerModel {
 
     /// Optional database service for SQL persistence.
     /// Set externally to enable SQL-backed bookmark storage.
-    var databaseService: DatabaseService?
+    var databaseService: DatabaseService? {
+        get { timelinePersistence.databaseService }
+        set { timelinePersistence.databaseService = newValue }
+    }
 
     /// Optional timeline service for event logging.
     /// Set externally when the Timeline tab is active.
@@ -564,9 +567,7 @@ final class PlayerModel {
         playbackController.setVolumeBoost(enabled: resolvedVolumeBoostEnabled)
 
         // Persist to SQL after tracks are loaded so the DB has accurate track data.
-        if let db = databaseService {
-            TimelineIngestionService.persistAudiobook(db: db, folderURL: url, tracks: state.tracks, duration: state.durationSeconds)
-        }
+        timelinePersistence.persistAudiobookToSQL(folderURL: url, tracks: state.tracks, duration: state.durationSeconds)
 
         // Multi-M4B aggregation: when 2+ .m4b files are detected, parse all of them
         // asynchronously and build an aggregated chapter list with cumulative offsets.
@@ -592,17 +593,14 @@ final class PlayerModel {
                         )
                     }
                     let audioURL = parsed.books.first?.url ?? folderURL
-                    if let db = databaseService {
-                        await TimelineIngestionService.ingestItems(
-                            db: db,
-                            audiobookID: folderURL.absoluteString,
-                            audioURL: audioURL,
-                            chapters: chapters,
-                            transcription: state.transcription,
-                            enhancedTranscription: state.enhancedTranscription,
-                            folderURL: folderURL
-                        )
-                    }
+                    await timelinePersistence.ingestTimelineItems(
+                        audiobookID: folderURL.absoluteString,
+                        audioURL: audioURL,
+                        chapters: chapters,
+                        transcription: state.transcription,
+                        enhancedTranscription: state.enhancedTranscription,
+                        folderURL: folderURL
+                    )
                 }
             }
         } else if state.tracks.count > 1 {
@@ -645,17 +643,14 @@ final class PlayerModel {
                     }
                 }
                 guard !allChapters.isEmpty else { return }
-                if let db = databaseService {
-                    await TimelineIngestionService.ingestItems(
-                        db: db,
-                        audiobookID: folderURL.absoluteString,
-                        audioURL: tracks[0].url,
-                        chapters: allChapters,
-                        transcription: state.transcription,
-                        enhancedTranscription: state.enhancedTranscription,
-                        folderURL: folderURL
-                    )
-                }
+                await timelinePersistence.ingestTimelineItems(
+                    audiobookID: folderURL.absoluteString,
+                    audioURL: tracks[0].url,
+                    chapters: allChapters,
+                    transcription: state.transcription,
+                    enhancedTranscription: state.enhancedTranscription,
+                    folderURL: folderURL
+                )
             }
         }
 
@@ -719,15 +714,16 @@ final class PlayerModel {
     /// Re-ingests timeline items for the current audiobook, reloading EPUB blocks
     /// and anchors from the database. Call after EPUB import or anchor changes.
     func reingestTimelineFromEPUB() async {
-        guard let db = databaseService,
-              let audiobookID = folderURL?.absoluteString else { return }
-        let audioURL = state.tracks.indices.contains(currentIndex)
-            ? state.tracks[currentIndex].url
-            : folderURL
-        await TimelineIngestionService.ingestItems(
-            db: db,
+        guard let audiobookID = folderURL?.absoluteString else { return }
+        let audioURL: URL = {
+            if state.tracks.indices.contains(currentIndex) {
+                return state.tracks[currentIndex].url
+            }
+            return folderURL ?? URL(fileURLWithPath: "/")
+        }()
+        await timelinePersistence.reingestTimelineFromEPUB(
             audiobookID: audiobookID,
-            audioURL: audioURL ?? URL(fileURLWithPath: "/"),
+            audioURL: audioURL,
             chapters: state.chapters,
             transcription: state.transcription,
             enhancedTranscription: state.enhancedTranscription,
@@ -1310,14 +1306,13 @@ final class PlayerModel {
 
             // Multi-file folders get a full ingestion pass in loadFolder;
             // avoid wiping all items on every track switch for those cases.
-            if state.tracks.count <= 1, let db = databaseService {
+            if state.tracks.count <= 1 {
                 let trackURL = state.tracks[currentIndex].url
                 let transcription = state.transcription
                 let enhanced = state.enhancedTranscription
                 let fURL = folderURL
                 Task {
-                    await TimelineIngestionService.ingestItems(
-                        db: db,
+                    await timelinePersistence.ingestTimelineItems(
                         audiobookID: audiobookID,
                         audioURL: trackURL,
                         chapters: built,
