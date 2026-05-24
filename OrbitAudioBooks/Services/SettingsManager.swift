@@ -32,6 +32,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let watchBackgroundStyle = "artwork"
         static let isHapticFeedbackEnabled = true
         static let watchQuickBookmarkTimeoutSeconds = 5
+        static let silenceDetectionLookbackSeconds = 10.0
     }
 
     private enum Keys {
@@ -59,6 +60,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let watchBackgroundStyle = "watchBackgroundStyle"
         static let isHapticFeedbackEnabled = "isHapticFeedbackEnabled"
         static let watchQuickBookmarkTimeoutSeconds = "watchQuickBookmarkTimeoutSeconds"
+        static let silenceDetectionLookbackSeconds = "silenceDetectionLookbackSeconds"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -91,6 +93,10 @@ final class SettingsManager: SettingsManagerProtocol {
     // MARK: - Playback
 
     var playBookmarksInline: Bool { didSet { defaults.set(playBookmarksInline, forKey: Keys.playBookmarksInline) } }
+
+    // MARK: - Silence Detection
+
+    var silenceDetectionLookbackSeconds: Double { didSet { defaults.set(silenceDetectionLookbackSeconds, forKey: Keys.silenceDetectionLookbackSeconds) } }
 
     // MARK: - Watch
 
@@ -175,6 +181,7 @@ final class SettingsManager: SettingsManagerProtocol {
         rewindAmountAfterHours = defaults.integer(forKey: Keys.rewindAmountAfterHours)
         rewindHoursToChapterStart = defaults.bool(forKey: Keys.rewindHoursToChapterStart)
         playBookmarksInline = defaults.bool(forKey: Keys.playBookmarksInline)
+        silenceDetectionLookbackSeconds = defaults.double(forKey: Keys.silenceDetectionLookbackSeconds)
         crownAction = appGroupDefaults.string(forKey: Keys.crownAction) ?? Defaults.crownAction
         crownVolumeSensitivity = defaults.double(forKey: Keys.crownVolumeSensitivity)
         crownScrubSensitivity = defaults.double(forKey: Keys.crownScrubSensitivity)
@@ -215,6 +222,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.rewindAmountAfterHours: Defaults.rewindAmountAfterHours,
             Keys.rewindHoursToChapterStart: Defaults.rewindHoursToChapterStart,
             Keys.playBookmarksInline: Defaults.playBookmarksInline,
+            Keys.silenceDetectionLookbackSeconds: Defaults.silenceDetectionLookbackSeconds,
             Keys.crownVolumeSensitivity: Defaults.crownVolumeSensitivity,
             Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity
         ])

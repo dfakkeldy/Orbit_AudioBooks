@@ -20,19 +20,7 @@ struct SettingsView: View {
             Form {
                 Section("Display") {
                     NavigationLink("Appearance") {
-                        Form {
-                            Section {
-                                Toggle("Dark Mode", isOn: $settings.isDarkMode)
-                            }
-                            Section("Typography") {
-                                Picker("Font", selection: $settings.appFont) {
-                                    Text("Lexend (Default)").tag("Lexend")
-                                    Text("OpenDyslexic").tag("OpenDyslexic")
-                                    Text("System").tag(SettingsManager.systemFontName)
-                                }
-                            }
-                        }
-                        .navigationTitle("Appearance")
+                        SettingsAppearanceView()
                     }
                 }
 
@@ -62,11 +50,9 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
-                    Toggle("Play Bookmarks Inline", isOn: $settings.playBookmarksInline)
-                } footer: {
-                    Text("When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp.")
-                }
+                SettingsSilenceDetectionSection()
+
+                SettingsBookmarksInlineSection()
 
                 Section("Flashcards") {
                     Button {
@@ -94,26 +80,10 @@ struct SettingsView: View {
         .fileImporter(
             isPresented: $showingDeckImporter,
             allowedContentTypes: [.json],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first, let db = model.databaseService else { return }
-                let importer = DeckImportService()
-                do {
-                    let count = try importer.importDeck(from: url, db: db.writer)
-                    importAlert = ("Import Complete", "Imported \(count) cards successfully.")
-                } catch {
-                    importAlert = ("Import Failed", error.localizedDescription)
-                }
-            case .failure(let error):
-                importAlert = ("Import Failed", error.localizedDescription)
-            }
-        }
-        .alert(importAlert?.title ?? "", isPresented: Binding(
-            get: { importAlert != nil },
-            set: { if !$0 { importAlert = nil } }
-        )) {
+            allowsMultipleSelection: false,
+            onCompletion: handleImportResult
+        )
+        .alert(importAlert?.title ?? "", isPresented: isShowingAlert) {
             Button("OK") { importAlert = nil }
         } message: {
             if let message = importAlert?.message {
@@ -122,7 +92,94 @@ struct SettingsView: View {
         }
         .preferredColorScheme(settings.isDarkMode ? .dark : .light)
     }
+
+    // MARK: - Helpers
+
+    private var isShowingAlert: Binding<Bool> {
+        Binding(
+            get: { importAlert != nil },
+            set: { if !$0 { importAlert = nil } }
+        )
+    }
+
+    private func handleImportResult(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first, let db = model.databaseService else { return }
+            let importer = DeckImportService()
+            do {
+                let count = try importer.importDeck(from: url, db: db.writer)
+                importAlert = ("Import Complete", "Imported \(count) cards successfully.")
+            } catch {
+                importAlert = ("Import Failed", error.localizedDescription)
+            }
+        case .failure(let error):
+            importAlert = ("Import Failed", error.localizedDescription)
+        }
+    }
 }
+
+// MARK: - Extracted Section Views
+
+private struct SettingsAppearanceView: View {
+    @Environment(SettingsManager.self) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        Form {
+            Section {
+                Toggle("Dark Mode", isOn: $settings.isDarkMode)
+            }
+            Section("Typography") {
+                Picker("Font", selection: $settings.appFont) {
+                    Text("Lexend (Default)").tag("Lexend")
+                    Text("OpenDyslexic").tag("OpenDyslexic")
+                    Text("System").tag(SettingsManager.systemFontName)
+                }
+            }
+        }
+        .navigationTitle("Appearance")
+    }
+}
+
+private struct SettingsSilenceDetectionSection: View {
+    @Environment(SettingsManager.self) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Lookback Duration")
+                    Spacer()
+                    Text(String(format: "%.1fs", settings.silenceDetectionLookbackSeconds))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $settings.silenceDetectionLookbackSeconds, in: 1...30, step: 0.5)
+            }
+        } header: {
+            Text("Silence Detection")
+        } footer: {
+            Text("How far back to scan for silence when locating playback position during reverse playback. For testing.")
+        }
+    }
+}
+
+private struct SettingsBookmarksInlineSection: View {
+    @Environment(SettingsManager.self) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        Section {
+            Toggle("Play Bookmarks Inline", isOn: $settings.playBookmarksInline)
+        } footer: {
+            Text("When enabled, voice memos attached to bookmarks are played automatically when the audiobook reaches that timestamp.")
+        }
+    }
+}
+
+// MARK: - ProTranscriptsSettingsView
 
 private struct ProTranscriptsSettingsView: View {
     @Environment(StoreManager.self) private var storeManager

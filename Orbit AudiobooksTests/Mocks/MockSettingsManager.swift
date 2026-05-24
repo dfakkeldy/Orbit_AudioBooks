@@ -17,6 +17,8 @@ final class MockSettingsManager: SettingsManagerProtocol {
 
     var playBookmarksInline: Bool = true
 
+    var silenceDetectionLookbackSeconds: Double = 10.0
+
     var crownAction: String = "volume"
     var crownVolumeSensitivity: Double = 0.05
     var crownScrubSensitivity: Double = 0.5

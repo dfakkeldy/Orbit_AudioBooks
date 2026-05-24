@@ -44,6 +44,10 @@ final class PlayerModel {
     /// column independently without the feed chasing playback position.
     var isTimelineFrozen: Bool = false
 
+    /// Tracks whether the player was genuinely playing before an audio interruption
+    /// began, so that `.ended` only resumes playback when appropriate.
+    var wasPlayingBeforeInterruption: Bool = false
+
     // MARK: - UI state (pass-through to PlaybackController)
 
     var loopMode: LoopMode {
