@@ -3,7 +3,7 @@
 <plist version="1.0">
 	<dict>
 		<key>CFBundleDisplayName</key>
-		<string>Orbit AudioBooks</string>
+		<string>Orbit: Learn Audiobooks</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Orbit Audiobooks records short voice memos so you can attach narrated notes to your audiobook bookmarks.</string>
 		<key>NSSpeechRecognitionUsageDescription</key>

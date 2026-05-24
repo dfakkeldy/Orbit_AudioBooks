@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Orbit AudioBooks</string>
+	<string>Orbit: Learn Audiobooks</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.books</string>
 	<key>NSHumanReadableCopyright</key>

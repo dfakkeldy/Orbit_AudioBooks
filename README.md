@@ -1,4 +1,6 @@
-# 🛰️ Orbit AudioBooks
+# 🛰️ Orbit: Learn Audiobooks
+
+> Listen smarter, not harder.
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 [![TestFlight](https://img.shields.io/badge/TestFlight-Beta-blue.svg)](#)
@@ -13,7 +15,7 @@ A multi-platform Apple ecosystem audiobook player built with SwiftUI, delivering
 
 ## Overview
 
-Orbit AudioBooks is a full-featured audiobook application organized as a single Xcode workspace with four distinct targets. It supports bookmarking with optional voice memos, chapter navigation, loop modes, a sleep timer, variable playback speed, and intelligent rewind logic that adapts to pause duration. The iOS and watchOS apps communicate bidirectionally via WatchConnectivity, while a Widget displays the current playback state on the Home Screen / Lock Screen.
+Orbit: Learn Audiobooks is a full-featured audiobook application organized as a single Xcode workspace with four distinct targets. It supports bookmarking with optional voice memos, chapter navigation, loop modes, a sleep timer, variable playback speed, and intelligent rewind logic that adapts to pause duration. The iOS and watchOS apps communicate bidirectionally via WatchConnectivity, while a Widget displays the current playback state on the Home Screen / Lock Screen.
 
 ---
 
@@ -40,7 +42,7 @@ Shared models and utilities used across targets include:
 
 ## Accessibility (A11y) First
 
-Orbit AudioBooks is built with accessibility as a core principle, not an afterthought.
+Orbit: Learn Audiobooks is built with accessibility as a core principle, not an afterthought.
 
 ### Dyslexia-Optimized Typography
 
@@ -100,7 +102,7 @@ This allows developers to test the full playback, bookmarking, and chapter-navig
 
 ## Agentic Workflows
 
-Orbit AudioBooks includes an autonomous agent workflow definition at [`.clinerules/workflows/release.md`](.clinerules/workflows/release.md). This file is consumed by Cline-compatible agents to automate the release process:
+Orbit: Learn Audiobooks includes an autonomous agent workflow definition at [`.clinerules/workflows/release.md`](.clinerules/workflows/release.md). This file is consumed by Cline-compatible agents to automate the release process:
 
 1. The agent asks the developer for the next semantic version number.
 2. It updates `MARKETING_VERSION` and increments `CURRENT_PROJECT_VERSION` in the Xcode project settings.

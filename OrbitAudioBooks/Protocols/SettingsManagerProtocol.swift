@@ -18,6 +18,9 @@ protocol SettingsManagerProtocol: AnyObject {
     // MARK: - Playback
     var playBookmarksInline: Bool { get set }
 
+    // MARK: - Silence Detection
+    var silenceDetectionLookbackSeconds: Double { get set }
+
     // MARK: - Watch
     var crownAction: String { get set }
     var crownVolumeSensitivity: Double { get set }
