@@ -18,6 +18,7 @@ struct TimelineFeedCollectionView: UIViewRepresentable {
     @Binding var scrollTargetPosition: TimeInterval?
     var isFollowingPlayback: Bool
     var onUserScrolled: () -> Void
+    var bottomInset: CGFloat
 
     /// Called when the user taps a feed item.
     var onItemTapped: ((TimelineDisplayItem) -> Void)?
@@ -95,14 +96,21 @@ struct TimelineFeedCollectionView: UIViewRepresentable {
         context.coordinator.collectionView = collectionView
         context.coordinator.parent = self
 
-        collectionView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 95, right: 0)
-        collectionView.verticalScrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 95, right: 0)
+        collectionView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
+        collectionView.verticalScrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
 
         return collectionView
     }
 
     func updateUIView(_ collectionView: UICollectionView, context: Context) {
         let displayIDs = items.map { $0.id }
+
+        // Update bottom inset dynamically if it changes
+        let targetInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
+        if collectionView.contentInset != targetInsets {
+            collectionView.contentInset = targetInsets
+            collectionView.verticalScrollIndicatorInsets = targetInsets
+        }
 
         // Only rebuild the diffable snapshot when items actually change.
         if displayIDs != context.coordinator.currentItems {

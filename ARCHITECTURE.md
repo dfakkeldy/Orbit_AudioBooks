@@ -103,6 +103,7 @@ Views/BookSettingsView.swift
 Views/BottomToolbarView.swift
 Views/ChapterTimeBlockView.swift
 Views/Components/AlbumArtHeroView.swift
+Views/Components/PlayerControlBar.swift
 Views/Components/FlashcardCreationSheet.swift
 Views/Components/FlashcardOverlayView.swift
 Views/Components/TranscriptOverlayView.swift
@@ -382,6 +383,11 @@ TimelineTab
 ├── SpeedSuggestionBanner     ← real-time completion projection
 ├── dueReviewBanner           ← pending flashcard count with tap-to-review
 └── TimelineFeedCollectionView ← UICollectionView-backed feed with heterogeneous TimelineDisplayItem types
+
+When a book is loaded, a PlayerControlBar mini-player appears above the BottomToolbarView,
+showing artwork, title/chapter metadata, and play/pause — tapping it opens the full NowPlaying view.
+Bottom insets on TimelineFeedCollectionView and PlaylistView adjust dynamically (95pt → 155pt)
+to accommodate the mini-player without clipping content.
 ```
 
 ### PlayerModel Decomposition

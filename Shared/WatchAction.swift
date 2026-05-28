@@ -38,13 +38,13 @@ public enum WatchAction: String, Codable, CaseIterable, Identifiable {
             if valid.contains(duration) {
                 return "goforward.\(duration)"
             }
-            return "goforward"
+            return "arrow.clockwise"
         case .skipBackward:
             let valid = [5, 10, 15, 30, 45, 60, 75, 90]
             if valid.contains(duration) {
                 return "gobackward.\(duration)"
             }
-            return "gobackward"
+            return "arrow.counterclockwise"
         default:
             return iconName
         }

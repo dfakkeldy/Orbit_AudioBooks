@@ -5,6 +5,7 @@ All notable changes to Orbit Audiobooks.
 ## [Unreleased]
 
 ### Added
+- Mini-player control bar (`PlayerControlBar`) on the Timeline tab — appears above the bottom toolbar when a book is loaded, showing artwork, title/chapter metadata, and play/pause. Tap to open the full NowPlaying player.
 - Configurable seek forward/backward durations (5–60s), synced between phone and watch.
 - Customizable watch button layout presets — drag-and-drop 10-slot (2 pages × 5 actions) configuration from the phone via `PhonePlayerSettingsView`.
 - `LayoutPreset` data model (`WatchPreset`, `PhonePreset`) with WatchConnectivity sync and UserDefaults persistence.
@@ -21,6 +22,7 @@ All notable changes to Orbit Audiobooks.
 - Artwork handling simplified; oversized widget artwork now downsampled via ImageIO instead of discarded.
 
 ### Fixed
+- Watch skip forward/backward fallback SF Symbols corrected from nonexistent `goforward`/`gobackward` to valid `arrow.clockwise`/`arrow.counterclockwise`.
 - Auto-resume after audio interruption when playback was paused.
 - Digital crown deadzone to prevent accidental scrubbing on watch.
 - Out-of-range crashes and settings view layout crash.

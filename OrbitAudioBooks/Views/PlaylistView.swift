@@ -222,7 +222,7 @@ struct PlaylistView: View {
                     editingContent
 
                     Color.clear
-                        .frame(height: 95)
+                        .frame(height: model.folderURL != nil && !model.tracks.isEmpty ? 155 : 95)
                         .listRowBackground(Color.clear)
                 }
                 .listStyle(.plain)
@@ -247,7 +247,7 @@ struct PlaylistView: View {
 
                     // Empty space at bottom to ensure items scroll past the floating BottomToolbarView
                     Color.clear
-                        .frame(height: 95)
+                        .frame(height: model.folderURL != nil && !model.tracks.isEmpty ? 155 : 95)
                         .listRowBackground(Color.clear)
                 }
                 .listStyle(.plain)

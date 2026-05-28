@@ -38,7 +38,12 @@ struct RootTabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
  
                 if !model.isPlayingVoiceMemo {
-                    BottomToolbarView(onCreateBookmark: { draft in newBookmarkDraft = draft })
+                    VStack(spacing: 8) {
+                        if model.showingTimeline && model.folderURL != nil && !model.tracks.isEmpty {
+                            PlayerControlBar()
+                        }
+                        BottomToolbarView(onCreateBookmark: { draft in newBookmarkDraft = draft })
+                    }
                 }
             }
             .overlay(alignment: .top) {

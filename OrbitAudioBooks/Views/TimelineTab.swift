@@ -57,6 +57,7 @@ struct TimelineTab: View {
                                 onUserScrolled: {
                                     viewModel.userDidScroll()
                                 },
+                                bottomInset: (model.folderURL != nil && !model.tracks.isEmpty) ? 155 : 95,
                                 onItemTapped: { displayItem in
                                     handleItemTap(displayItem)
                                 },
