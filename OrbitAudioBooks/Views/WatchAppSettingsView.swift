@@ -10,6 +10,8 @@ struct WatchAppSettingsView: View {
     @State private var page1Slots: [WatchAction] = Array(repeating: .empty, count: 5)
     @State private var page2Slots: [WatchAction] = Array(repeating: .empty, count: 5)
     @State private var selectedPage: Int = 0
+    @State private var showingSaveAlert = false
+    @State private var newPresetName = ""
 
     private let palette: [WatchAction] = [
         .playPause, .skipForward, .skipBackward, .nextTrack,
@@ -25,7 +27,7 @@ struct WatchAppSettingsView: View {
                 // MARK: Digital Crown Control
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Digital Crown Control")
-                        .font(.title3)
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     Picker("Digital Crown", selection: $settings.crownAction) {
@@ -45,7 +47,7 @@ struct WatchAppSettingsView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Volume Sensitivity")
-                            .font(.caption)
+                            .customFont(.caption, appFont: settings.appFont)
                             .foregroundStyle(.secondary)
                         HStack {
                             Image(systemName: "tortoise")
@@ -55,14 +57,14 @@ struct WatchAppSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Text("\(settings.crownVolumeSensitivity, specifier: "%.2f")×")
-                            .font(.caption2)
+                            .customFont(.caption2, appFont: settings.appFont)
                             .foregroundStyle(.tertiary)
                     }
                     .padding(.top, 4)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Scrubbing Sensitivity")
-                            .font(.caption)
+                            .customFont(.caption, appFont: settings.appFont)
                             .foregroundStyle(.secondary)
                         HStack {
                             Image(systemName: "tortoise")
@@ -72,7 +74,7 @@ struct WatchAppSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Text("\(settings.crownScrubSensitivity, specifier: "%.1f")×")
-                            .font(.caption2)
+                            .customFont(.caption2, appFont: settings.appFont)
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -80,7 +82,7 @@ struct WatchAppSettingsView: View {
                 // MARK: Haptics
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Haptics")
-                        .font(.title3)
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     Toggle("Button Haptics", isOn: Binding(
@@ -100,7 +102,7 @@ struct WatchAppSettingsView: View {
                 // MARK: Bookmark Timeout
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Bookmark Timeout")
-                        .font(.title3)
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     Stepper(value: $settings.watchQuickBookmarkTimeoutSeconds, in: 1...15) {
@@ -108,7 +110,7 @@ struct WatchAppSettingsView: View {
                             Label("Quick Bookmark", systemImage: "timer")
                             Spacer()
                             Text("\(settings.watchQuickBookmarkTimeoutSeconds)s")
-                                .font(.body.monospacedDigit())
+                                .customFont(.body, appFont: settings.appFont)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -125,7 +127,7 @@ struct WatchAppSettingsView: View {
                 // MARK: Progress Indicators
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Progress Indicators")
-                        .font(.title3)
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     VStack(spacing: 12) {
@@ -175,13 +177,13 @@ struct WatchAppSettingsView: View {
                 // MARK: Artwork Layout
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Watch Appearance")
-                        .font(.title3)
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     VStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Face Style")
-                                .font(.caption)
+                                .customFont(.caption, appFont: settings.appFont)
                                 .foregroundStyle(.secondary)
 
                             Picker("Face Style", selection: $settings.watchArtworkLayout) {
@@ -196,7 +198,7 @@ struct WatchAppSettingsView: View {
 
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Classic Background")
-                                .font(.caption)
+                                .customFont(.caption, appFont: settings.appFont)
                                 .foregroundStyle(.secondary)
 
                             Picker("Classic Background", selection: $settings.watchBackgroundStyle) {
@@ -219,7 +221,7 @@ struct WatchAppSettingsView: View {
                 // MARK: Watch App Designer
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Watch App Designer")
-                        .font(.title3)
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     VStack(spacing: 16) {
@@ -245,7 +247,7 @@ struct WatchAppSettingsView: View {
                 // MARK: Available Actions
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Available Actions (Drag to slots)")
-                        .font(.subheadline)
+                        .customFont(.subheadline, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -265,6 +267,84 @@ struct WatchAppSettingsView: View {
                         .fill(.quaternary)
                 )
 
+                // MARK: Layout Presets
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Layout Presets")
+                            .customFont(.title3, weight: .semibold, appFont: settings.appFont)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            newPresetName = ""
+                            showingSaveAlert = true
+                        } label: {
+                            Label("Save Current", systemImage: "plus.circle")
+                        }
+                    }
+
+                    if settings.watchPresets.isEmpty {
+                        Text("No presets saved yet.")
+                            .customFont(.subheadline, appFont: settings.appFont)
+                            .foregroundStyle(.tertiary)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(settings.watchPresets) { preset in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(preset.name)
+                                        .customFont(.headline, weight: .bold, appFont: settings.appFont)
+                                    Text("P1: \(preset.page1.map { $0 == .empty ? "➕" : $0.rawValue }.joined(separator: ", "))")
+                                        .customFont(.caption2, appFont: settings.appFont)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                
+                                Button {
+                                    page1Slots = padded(preset.page1)
+                                    page2Slots = padded(preset.page2)
+                                    saveSlots()
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                } label: {
+                                    Text("Load")
+                                        .customFont(.caption, weight: .bold, appFont: settings.appFont)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .buttonBorderShape(.capsule)
+                                .controlSize(.small)
+                                
+                                Button(role: .destructive) {
+                                    settings.watchPresets.removeAll(where: { $0.id == preset.id })
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundStyle(.red)
+                                }
+                                .padding(.leading, 8)
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(.quaternary)
+                            )
+                        }
+                    }
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.quaternary)
+                )
+                .alert("Save Current Layout", isPresented: $showingSaveAlert) {
+                    TextField("Preset Name", text: $newPresetName)
+                    Button("Save") {
+                        saveCurrentAsPreset()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Enter a name for this watch layout configuration.")
+                }
+
                 // MARK: Force Sync
                 Button {
                     saveSlots()
@@ -272,7 +352,7 @@ struct WatchAppSettingsView: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 } label: {
                     Text("Force Sync to Watch")
-                        .font(.headline)
+                        .customFont(.headline, weight: .bold, appFont: settings.appFont)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                 }
@@ -298,6 +378,14 @@ struct WatchAppSettingsView: View {
         model.syncToWatch()
     }
 
+    private func saveCurrentAsPreset() {
+        let name = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let preset = WatchPreset(name: name, page1: page1Slots, page2: page2Slots)
+        settings.watchPresets.append(preset)
+        newPresetName = ""
+    }
+
     private func padded(_ s: [WatchAction]) -> [WatchAction] {
         var out = s
         while out.count < 5 { out.append(.empty) }
@@ -308,6 +396,7 @@ struct WatchAppSettingsView: View {
 // A draggable palette chip showing the action icon + label.
 private struct PaletteItem: View {
     let action: WatchAction
+    @Environment(SettingsManager.self) private var settings
 
     var body: some View {
         VStack(spacing: 6) {
@@ -315,16 +404,18 @@ private struct PaletteItem: View {
                 Circle()
                     .fill(Color.accentColor.opacity(0.18))
                     .frame(width: 56, height: 56)
-                Image(systemName: action.iconName)
+                let duration = action == .skipBackward ? settings.seekBackwardDuration : settings.seekForwardDuration
+                Image(systemName: action.dynamicIconName(forDuration: duration))
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.tint)
             }
             Text(action.rawValue)
-                .font(.caption)
+                .customFont(.caption, appFont: settings.appFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .frame(width: 78)
+        .accessibilityLabel(Text("Action: \(action.rawValue)"))
         .onDrag {
             NSItemProvider(object: NSString(string: action.rawValue))
         }
@@ -422,6 +513,7 @@ private struct DropSlot: View {
     let shape: SlotShape
     var onChange: () -> Void
 
+    @Environment(SettingsManager.self) private var settings
     @State private var isTargeted: Bool = false
 
     var body: some View {
@@ -511,7 +603,8 @@ private struct DropSlot: View {
                 .font(.system(size: shape == .topGlyph ? 12 : 16, weight: .medium))
                 .foregroundStyle(.white.opacity(0.35))
         } else {
-            Image(systemName: slot.iconName)
+            let duration = slot == .skipBackward ? settings.seekBackwardDuration : settings.seekForwardDuration
+            Image(systemName: slot.dynamicIconName(forDuration: duration))
                 .font(.system(size: shape == .topGlyph ? 16 : 20, weight: .semibold))
                 .foregroundStyle(.white)
         }

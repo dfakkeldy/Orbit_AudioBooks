@@ -240,14 +240,20 @@ struct TopSlotButton: View {
             default: return "infinity.circle"
             }
         }
+        if action == .skipForward {
+            return action.dynamicIconName(forDuration: viewModel.seekForwardDuration)
+        }
+        if action == .skipBackward {
+            return action.dynamicIconName(forDuration: viewModel.seekBackwardDuration)
+        }
         return action.iconName
     }
 
     private var accessibilityLabelText: String {
         switch action {
         case .playPause: return viewModel.isPlaying ? "Pause" : "Play"
-        case .skipForward: return "Skip forward 30 seconds"
-        case .skipBackward: return "Skip back 30 seconds"
+        case .skipForward: return "Skip forward \(viewModel.seekForwardDuration) seconds"
+        case .skipBackward: return "Skip back \(viewModel.seekBackwardDuration) seconds"
         case .nextTrack: return "Next track"
         case .previousTrack: return "Previous track"
         case .loopMode: return "Loop mode"
@@ -460,6 +466,12 @@ struct SideTransportButton: View {
             default: return "infinity.circle"
             }
         }
+        if action == .skipForward {
+            return action.dynamicIconName(forDuration: viewModel.seekForwardDuration)
+        }
+        if action == .skipBackward {
+            return action.dynamicIconName(forDuration: viewModel.seekBackwardDuration)
+        }
         return action == .empty ? "plus" : action.iconName
     }
 
@@ -474,8 +486,8 @@ struct SideTransportButton: View {
     private var accessibilityLabelText: String {
         switch action {
         case .playPause: return viewModel.isPlaying ? "Pause" : "Play"
-        case .skipForward: return "Skip forward 30 seconds"
-        case .skipBackward: return "Skip back 30 seconds"
+        case .skipForward: return "Skip forward \(viewModel.seekForwardDuration) seconds"
+        case .skipBackward: return "Skip back \(viewModel.seekBackwardDuration) seconds"
         case .nextTrack: return "Next track"
         case .previousTrack: return "Previous track"
         case .loopMode: return "Loop mode"
@@ -548,7 +560,7 @@ struct CenterTransportButton: View {
                     .clipShape(Circle())
             }
             .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel(resolvedAction == .playPause ? (viewModel.isPlaying ? "Pause" : "Play") : resolvedAction.iconName)
+            .accessibilityLabel(centerAccessibilityLabel)
 
             // Hidden helper for the double-tap primary-action shortcut.
             Button("") {
@@ -575,8 +587,27 @@ struct CenterTransportButton: View {
         switch resolvedAction {
         case .playPause:
             return viewModel.isPlaying ? "pause.fill" : "play.fill"
+        case .skipForward:
+            return resolvedAction.dynamicIconName(forDuration: viewModel.seekForwardDuration)
+        case .skipBackward:
+            return resolvedAction.dynamicIconName(forDuration: viewModel.seekBackwardDuration)
         default:
             return resolvedAction.iconName
+        }
+    }
+
+    private var centerAccessibilityLabel: String {
+        switch resolvedAction {
+        case .playPause: return viewModel.isPlaying ? "Pause" : "Play"
+        case .skipForward: return "Skip forward \(viewModel.seekForwardDuration) seconds"
+        case .skipBackward: return "Skip back \(viewModel.seekBackwardDuration) seconds"
+        case .nextTrack: return "Next track"
+        case .previousTrack: return "Previous track"
+        case .loopMode: return "Loop mode"
+        case .speed: return "Playback speed"
+        case .sleepTimer: return "Sleep timer"
+        case .bookmark: return "Bookmark"
+        case .empty: return ""
         }
     }
 }

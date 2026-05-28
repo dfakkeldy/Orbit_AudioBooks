@@ -57,6 +57,9 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         return raw > 0 ? raw : 5
     }()
 
+    var seekBackwardDuration: Int = 30
+    var seekForwardDuration: Int = 30
+
     var page1Slots: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
     var page2Slots: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
 
@@ -186,6 +189,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         folderKey = defaults.string(forKey: "folderKey")
         trackId = defaults.string(forKey: "trackId")
         crownAction = defaults.string(forKey: "crownAction") ?? "volume"
+        seekBackwardDuration = defaults.integer(forKey: "seekBackwardDuration")
+        if seekBackwardDuration == 0 { seekBackwardDuration = 30 }
+        seekForwardDuration = defaults.integer(forKey: "seekForwardDuration")
+        if seekForwardDuration == 0 { seekForwardDuration = 30 }
 
         if let thumbnailData = defaults.data(forKey: "thumbnailData"),
            let image = UIImage(data: thumbnailData) {
@@ -280,6 +287,14 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 let safeTimeout = max(1, timeoutSeconds)
                 self.watchQuickBookmarkTimeoutSeconds = safeTimeout
                 self.defaults.set(safeTimeout, forKey: "watchQuickBookmarkTimeoutSeconds")
+            }
+            if let seekBackwardDuration = state["seekBackwardDuration"] as? Int {
+                self.seekBackwardDuration = seekBackwardDuration
+                self.defaults.set(seekBackwardDuration, forKey: "seekBackwardDuration")
+            }
+            if let seekForwardDuration = state["seekForwardDuration"] as? Int {
+                self.seekForwardDuration = seekForwardDuration
+                self.defaults.set(seekForwardDuration, forKey: "seekForwardDuration")
             }
             if let isPlaying = state["isPlaying"] as? Bool {
                 self.isPlaying = isPlaying

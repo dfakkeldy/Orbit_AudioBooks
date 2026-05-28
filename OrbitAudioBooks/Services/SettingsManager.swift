@@ -35,6 +35,9 @@ final class SettingsManager: SettingsManagerProtocol {
         static let isHapticFeedbackEnabled = true
         static let watchQuickBookmarkTimeoutSeconds = 5
         static let silenceDetectionLookbackSeconds = 10.0
+        static let phonePage: [WatchAction] = [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack]
+        static let seekBackwardDuration = 30
+        static let seekForwardDuration = 30
     }
 
     private enum Keys {
@@ -65,6 +68,11 @@ final class SettingsManager: SettingsManagerProtocol {
         static let isHapticFeedbackEnabled = "isHapticFeedbackEnabled"
         static let watchQuickBookmarkTimeoutSeconds = "watchQuickBookmarkTimeoutSeconds"
         static let silenceDetectionLookbackSeconds = "silenceDetectionLookbackSeconds"
+        static let phonePage = "phonePage"
+        static let seekBackwardDuration = "seekBackwardDuration"
+        static let seekForwardDuration = "seekForwardDuration"
+        static let watchPresets = "watchPresets"
+        static let phonePresets = "phonePresets"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -103,6 +111,13 @@ final class SettingsManager: SettingsManagerProtocol {
     // MARK: - Silence Detection
 
     var silenceDetectionLookbackSeconds: Double { didSet { defaults.set(silenceDetectionLookbackSeconds, forKey: Keys.silenceDetectionLookbackSeconds) } }
+
+    // MARK: - Customizable Phone Controls & Presets
+    var phonePage: [WatchAction] { didSet { defaults.set(try? JSONEncoder().encode(phonePage), forKey: Keys.phonePage) } }
+    var seekBackwardDuration: Int { didSet { defaults.set(seekBackwardDuration, forKey: Keys.seekBackwardDuration) } }
+    var seekForwardDuration: Int { didSet { defaults.set(seekForwardDuration, forKey: Keys.seekForwardDuration) } }
+    var watchPresets: [WatchPreset] { didSet { defaults.set(try? JSONEncoder().encode(watchPresets), forKey: Keys.watchPresets) } }
+    var phonePresets: [PhonePreset] { didSet { defaults.set(try? JSONEncoder().encode(phonePresets), forKey: Keys.phonePresets) } }
 
     // MARK: - Watch
 
@@ -206,6 +221,27 @@ final class SettingsManager: SettingsManagerProtocol {
             1,
             appGroupDefaults.integer(forKey: Keys.watchQuickBookmarkTimeoutSeconds)
         )
+        phonePage = Self.decodeWatchPage(key: Keys.phonePage, from: defaults, fallback: Defaults.phonePage)
+        
+        let storedSeekBackward = defaults.integer(forKey: Keys.seekBackwardDuration)
+        seekBackwardDuration = storedSeekBackward == 0 ? Defaults.seekBackwardDuration : storedSeekBackward
+        
+        let storedSeekForward = defaults.integer(forKey: Keys.seekForwardDuration)
+        seekForwardDuration = storedSeekForward == 0 ? Defaults.seekForwardDuration : storedSeekForward
+        
+        if let presetsData = defaults.data(forKey: Keys.watchPresets),
+           let decoded = try? JSONDecoder().decode([WatchPreset].self, from: presetsData) {
+            watchPresets = decoded
+        } else {
+            watchPresets = []
+        }
+        
+        if let presetsData = defaults.data(forKey: Keys.phonePresets),
+           let decoded = try? JSONDecoder().decode([PhonePreset].self, from: presetsData) {
+            phonePresets = decoded
+        } else {
+            phonePresets = []
+        }
     }
 
     static func registerDefaults(
@@ -234,7 +270,10 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.playBookmarksInline: Defaults.playBookmarksInline,
             Keys.silenceDetectionLookbackSeconds: Defaults.silenceDetectionLookbackSeconds,
             Keys.crownVolumeSensitivity: Defaults.crownVolumeSensitivity,
-            Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity
+            Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity,
+            Keys.phonePage: (try? JSONEncoder().encode(Defaults.phonePage)) ?? Data(),
+            Keys.seekBackwardDuration: Defaults.seekBackwardDuration,
+            Keys.seekForwardDuration: Defaults.seekForwardDuration
         ])
         appGroupDefaults.register(defaults: [
             Keys.crownAction: Defaults.crownAction,

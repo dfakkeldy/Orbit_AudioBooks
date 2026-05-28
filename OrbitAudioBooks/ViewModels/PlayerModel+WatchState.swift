@@ -48,6 +48,8 @@ extension PlayerModel {
         s.crownAction = settings?.crownAction ?? SettingsManager.Defaults.crownAction
         s.isHapticFeedbackEnabled = settings?.isHapticFeedbackEnabled ?? SettingsManager.Defaults.isHapticFeedbackEnabled
         s.watchQuickBookmarkTimeoutSeconds = settings?.watchQuickBookmarkTimeoutSeconds ?? SettingsManager.Defaults.watchQuickBookmarkTimeoutSeconds
+        s.seekBackwardDuration = settings?.seekBackwardDuration ?? SettingsManager.Defaults.seekBackwardDuration
+        s.seekForwardDuration = settings?.seekForwardDuration ?? SettingsManager.Defaults.seekForwardDuration
         s.loopModeRawValue = loopMode.rawValue
         s.playbackSpeed = Double(speed)
         s.watchPage1Data = (try? JSONEncoder().encode(settings?.watchPage1 ?? SettingsManager.Defaults.watchPage1)) ?? Data()

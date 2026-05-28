@@ -37,5 +37,12 @@ protocol SettingsManagerProtocol: AnyObject {
     var isHapticFeedbackEnabled: Bool { get set }
     var watchQuickBookmarkTimeoutSeconds: Int { get set }
 
+    // MARK: - Customizable Phone Controls & Presets
+    var phonePage: [WatchAction] { get set }
+    var seekBackwardDuration: Int { get set }
+    var seekForwardDuration: Int { get set }
+    var watchPresets: [WatchPreset] { get set }
+    var phonePresets: [PhonePreset] { get set }
+
     static var systemFontName: String { get }
 }

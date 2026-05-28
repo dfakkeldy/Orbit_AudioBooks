@@ -5,6 +5,7 @@ import Foundation
 final class MockSettingsManager: SettingsManagerProtocol {
     var isDarkMode: Bool = true
     var appFont: String = "Lexend"
+    var themeColor: String = "System"
 
     var isRewindEnabled: Bool = false
     var rewindPauseSecondsThreshold: Int = 30
@@ -32,6 +33,12 @@ final class MockSettingsManager: SettingsManagerProtocol {
     var watchBackgroundStyle: String = "artwork"
     var isHapticFeedbackEnabled: Bool = true
     var watchQuickBookmarkTimeoutSeconds: Int = 5
+
+    var phonePage: [WatchAction] = [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack]
+    var seekBackwardDuration: Int = 30
+    var seekForwardDuration: Int = 30
+    var watchPresets: [WatchPreset] = []
+    var phonePresets: [PhonePreset] = []
 
     static var systemFontName: String { "System" }
 }

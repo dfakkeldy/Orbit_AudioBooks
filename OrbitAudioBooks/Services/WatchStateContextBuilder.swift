@@ -29,6 +29,8 @@ struct WatchStateSnapshot {
     var crownAction: String = SettingsManager.Defaults.crownAction
     var isHapticFeedbackEnabled: Bool = SettingsManager.Defaults.isHapticFeedbackEnabled
     var watchQuickBookmarkTimeoutSeconds: Int = SettingsManager.Defaults.watchQuickBookmarkTimeoutSeconds
+    var seekBackwardDuration: Int = SettingsManager.Defaults.seekBackwardDuration
+    var seekForwardDuration: Int = SettingsManager.Defaults.seekForwardDuration
     var loopModeRawValue: String = LoopMode.off.rawValue
     var playbackSpeed: Double = 1.0
     var watchPage1Data: Data = Data()
@@ -102,6 +104,8 @@ enum WatchStateContextBuilder {
         context["watchQuickBookmarkTimeoutSeconds"] = s.watchQuickBookmarkTimeoutSeconds
         context["loopMode"] = s.loopModeRawValue
         context["playbackSpeed"] = s.playbackSpeed
+        context["seekBackwardDuration"] = s.seekBackwardDuration
+        context["seekForwardDuration"] = s.seekForwardDuration
         context["watchPage1"] = s.watchPage1Data
         context["watchPage2"] = s.watchPage2Data
         context["linearBarMode"] = s.linearBarMode

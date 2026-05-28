@@ -21,6 +21,7 @@ struct RootTabView: View {
     }
 
     var body: some View {
+        @Bindable var model = model
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Group {
@@ -35,7 +36,7 @@ struct RootTabView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+ 
                 if !model.isPlayingVoiceMemo {
                     BottomToolbarView(onCreateBookmark: { draft in newBookmarkDraft = draft })
                 }
@@ -64,7 +65,7 @@ struct RootTabView: View {
                     }
                     .accessibilityLabel(Text("Open folder"))
                 }
-
+ 
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         showingHelp = true
@@ -73,7 +74,7 @@ struct RootTabView: View {
                     }
                     .accessibilityLabel(Text("Help"))
                 }
-
+ 
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
                         if model.folderURL != nil {
@@ -124,6 +125,9 @@ struct RootTabView: View {
                 EditBookmarkView(bookmarkID: wrapper.id, draft: nil)
             }
             .sheet(item: $newBookmarkDraft) { draft in
+                EditBookmarkView(bookmarkID: nil, draft: draft)
+            }
+            .sheet(item: $model.activeBookmarkDraft) { draft in
                 EditBookmarkView(bookmarkID: nil, draft: draft)
             }
             .sheet(isPresented: $showingReview) {

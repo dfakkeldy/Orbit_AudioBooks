@@ -44,6 +44,9 @@ final class PlayerModel {
     /// column independently without the feed chasing playback position.
     var isTimelineFrozen: Bool = false
 
+    /// Active bookmark draft used to present the edit bookmark modal.
+    var activeBookmarkDraft: BookmarkDraft? = nil
+
     // MARK: - UI state (pass-through to PlaybackController)
 
     var loopMode: LoopMode {
@@ -515,6 +518,13 @@ final class PlayerModel {
         playerLoadingCoordinator.onResetBookmarkCheckSecond = { [weak self] in self?.lastBookmarkCheckSecond = nil }
 
         // Wire PlaybackController coordination closures.
+        playbackController.coordinator_seekBackwardDuration = { [weak self] in
+            Double(self?.settingsManager?.seekBackwardDuration ?? SettingsManager.Defaults.seekBackwardDuration)
+        }
+        playbackController.coordinator_seekForwardDuration = { [weak self] in
+            Double(self?.settingsManager?.seekForwardDuration ?? SettingsManager.Defaults.seekForwardDuration)
+        }
+
         playbackController.coordinator_smartRewind = { [weak self] pausedDuration in
             self?.smartRewindAmount(for: pausedDuration) ?? 0
         }

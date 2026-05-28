@@ -34,8 +34,11 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Watch") {
-                    NavigationLink("Watch App") {
+                Section("Customization") {
+                    NavigationLink("Phone Player Designer") {
+                        PhonePlayerSettingsView()
+                    }
+                    NavigationLink("Watch App Settings") {
                         WatchAppSettingsView()
                     }
                 }
@@ -51,6 +54,28 @@ struct SettingsView: View {
                         Text("1.5×").tag(1.5)
                         Text("2.0×").tag(2.0)
                         Text("3.0×").tag(3.0)
+                    }
+                    Picker("Seek Backward", selection: Binding(
+                        get: { settings.seekBackwardDuration },
+                        set: {
+                            settings.seekBackwardDuration = $0
+                            model.syncToWatch()
+                        }
+                    )) {
+                        ForEach([5, 10, 15, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300], id: \.self) { duration in
+                            Text("\(duration)s").tag(duration)
+                        }
+                    }
+                    Picker("Seek Forward", selection: Binding(
+                        get: { settings.seekForwardDuration },
+                        set: {
+                            settings.seekForwardDuration = $0
+                            model.syncToWatch()
+                        }
+                    )) {
+                        ForEach([5, 10, 15, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300], id: \.self) { duration in
+                            Text("\(duration)s").tag(duration)
+                        }
                     }
                     NavigationLink("Smart Rewind") {
                         SmartRewindSettingsView()

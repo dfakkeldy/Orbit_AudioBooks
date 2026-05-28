@@ -159,6 +159,46 @@ struct OrbitAudioBooksTests {
         #expect(appGroupDefaults.string(forKey: "watchBackgroundStyle") == "black")
     }
 
+    @Test func settingsPersistsSeekDurationsAndLayoutCustomizations() {
+        let suiteName = "seek-durations-\(UUID().uuidString)"
+        let appGroupName = "seek-durations-ag-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let appGroupDefaults = UserDefaults(suiteName: appGroupName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            appGroupDefaults.removePersistentDomain(forName: appGroupName)
+        }
+
+        let settings = SettingsManager(defaults: defaults, appGroupDefaults: appGroupDefaults)
+
+        // Defaults
+        #expect(settings.seekBackwardDuration == 30)
+        #expect(settings.seekForwardDuration == 30)
+        #expect(settings.phonePage == [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack])
+        #expect(settings.phonePresets.isEmpty)
+        #expect(settings.watchPresets.isEmpty)
+
+        // Modify settings
+        settings.seekBackwardDuration = 45
+        settings.seekForwardDuration = 15
+        settings.phonePage = [.empty, .skipBackward, .playPause, .skipForward, .empty]
+
+        let phonePreset = PhonePreset(name: "Test Phone Preset", slots: [.empty, .skipBackward, .playPause, .skipForward, .empty])
+        settings.phonePresets = [phonePreset]
+
+        let watchPreset = WatchPreset(name: "Test Watch Preset", page1: [.empty, .skipBackward, .playPause, .skipForward, .empty], page2: [])
+        settings.watchPresets = [watchPreset]
+
+        // Verify values are persisted
+        #expect(settings.seekBackwardDuration == 45)
+        #expect(settings.seekForwardDuration == 15)
+        #expect(settings.phonePage == [.empty, .skipBackward, .playPause, .skipForward, .empty])
+        #expect(settings.phonePresets.count == 1)
+        #expect(settings.phonePresets.first?.name == "Test Phone Preset")
+        #expect(settings.watchPresets.count == 1)
+        #expect(settings.watchPresets.first?.name == "Test Watch Preset")
+    }
+
     @Test func settingsNormalizeLegacyHelveticaToSystemFont() {
         #expect(SettingsManager.normalizedAppFont("Helvetica") == SettingsManager.systemFontName)
     }

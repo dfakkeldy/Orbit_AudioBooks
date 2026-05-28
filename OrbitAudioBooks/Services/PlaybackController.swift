@@ -50,6 +50,8 @@ final class PlaybackController: PlaybackControllerProtocol {
     @ObservationIgnored var coordinator_configureAudioSession: (() -> Void)?
     @ObservationIgnored var coordinator_startSecurityScope: (() -> Void)?
     @ObservationIgnored var coordinator_playStateChanged: ((_ isPlaying: Bool) -> Void)?
+    @ObservationIgnored var coordinator_seekBackwardDuration: (() -> Double)?
+    @ObservationIgnored var coordinator_seekForwardDuration: (() -> Double)?
 
     init() {
         audioEngine.delegate = self
@@ -542,7 +544,8 @@ final class PlaybackController: PlaybackControllerProtocol {
             return false
         }
 
-        var target = max(0, current - 30)
+        let durationAmount = coordinator_seekBackwardDuration?() ?? 30.0
+        var target = max(0, current - durationAmount)
 
         // Clamp to chapter start to prevent unintended chapter crossings
         if state.isMultiM4B, !state.aggregatedChapters.isEmpty {
@@ -591,8 +594,9 @@ final class PlaybackController: PlaybackControllerProtocol {
             return false
         }
 
+        let durationAmount = coordinator_seekForwardDuration?() ?? 30.0
         let duration = state.durationSeconds ?? 0
-        let target = min(duration, current + 30)
+        let target = min(duration, current + durationAmount)
         state.isManualSeeking = true
         audioEngine.seek(to: target) { [weak self] _ in
             DispatchQueue.main.async {
