@@ -43,6 +43,8 @@ struct Orbit_AudioBooksApp: App {
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
+                .tint(ThemeColor(rawValue: settings.themeColor)?.color)
+                .accentColor(ThemeColor(rawValue: settings.themeColor)?.color)
         }
     }
 

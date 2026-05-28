@@ -63,7 +63,7 @@ enum HelpContent {
             The transport bar has five buttons:
 
             • Previous — Jump to the previous chapter or track.
-            • Skip Back 30s — Rewind 30 seconds.
+            • Skip Back 30s — Rewind 30 seconds (respects chapter boundaries).
             • Play / Pause — Start or pause playback.
             • Skip Forward 30s — Jump ahead 30 seconds.
             • Next — Jump to the next chapter or track.
@@ -150,7 +150,7 @@ enum HelpContent {
             • Medium pauses (minutes) — A larger rewind when you've been away longer.
             • Long pauses (hours) — The largest rewind, or optionally jump to the start of the current chapter.
 
-            Configure Smart Rewind in Settings > Smart Rewind. The feature is off by default. All rewind amounts respect chapter boundaries — you will never rewind past the start of the current chapter.
+            Configure Smart Rewind in Settings > Smart Rewind. The feature is off by default. All automatic rewind amounts and the manual skip backward button respect chapter boundaries — you will never rewind past the start of the current chapter.
             """
         ),
         HelpSection(

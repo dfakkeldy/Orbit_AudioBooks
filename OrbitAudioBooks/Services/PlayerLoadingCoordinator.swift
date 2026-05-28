@@ -33,6 +33,7 @@ final class PlayerLoadingCoordinator {
     /// Value providers for properties owned by PlayerModel.
     @ObservationIgnored var databaseServiceProvider: (() -> DatabaseService?)?
     @ObservationIgnored var resolvedVolumeBoostEnabledProvider: (() -> Bool)?
+    @ObservationIgnored var defaultPlaybackSpeedProvider: (() -> Float)?
 
     /// Callbacks for PlayerModel-specific behavior.
     @ObservationIgnored var onConfigureRemoteCommands: (() -> Void)?
@@ -185,7 +186,8 @@ final class PlayerLoadingCoordinator {
                     from: persistence,
                     folderURL: url,
                     tracks: state.tracks,
-                    bookmarks: bookmarkStore.bookmarks
+                    bookmarks: bookmarkStore.bookmarks,
+                    defaultSpeed: defaultPlaybackSpeedProvider?() ?? 1.25
                 )
                 PlaylistManifestService.write(manifest, to: url)
             }
@@ -258,7 +260,7 @@ final class PlayerLoadingCoordinator {
 
         // Load the specific speed for this book
         if let key = state.folderURL?.absoluteString {
-            playbackController.speed = persistence.getSpeed(for: key, folderURL: state.folderURL) ?? 1.25
+            playbackController.speed = persistence.getSpeed(for: key, folderURL: state.folderURL) ?? defaultPlaybackSpeedProvider?() ?? 1.25
             if let raw = persistence.getLoopMode(for: key, folderURL: state.folderURL),
                let mode = LoopMode(rawValue: raw) {
                 playbackController.loopMode = mode
@@ -266,7 +268,7 @@ final class PlayerLoadingCoordinator {
                 playbackController.loopMode = .off
             }
         } else {
-            playbackController.speed = 1.25
+            playbackController.speed = defaultPlaybackSpeedProvider?() ?? 1.25
             playbackController.loopMode = .off
         }
         audioEngine.setSpeed(playbackController.speed)

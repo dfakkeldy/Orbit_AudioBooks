@@ -112,14 +112,33 @@ final class PlaybackController: PlaybackControllerProtocol {
                     let rewindAmount = coordinator_smartRewind?(pausedDuration) ?? 0
                     var target = current
 
-                    if coordinator_jumpToChapterStartForHours?(pausedDuration) == true,
-                       state.chapters.count >= 2,
-                       let idx = state.currentChapterIndex {
-                        target = state.chapters[idx].startSeconds
+                    if coordinator_jumpToChapterStartForHours?(pausedDuration) == true {
+                        if state.isMultiM4B, !state.aggregatedChapters.isEmpty {
+                            let currentOffset = state.m4bBooks.indices.contains(state.currentIndex) ? state.m4bBooks[state.currentIndex].cumulativeStartOffset : 0
+                            let globalTime = currentOffset + current
+                            if let idx = aggregatedChapterIndex(at: globalTime) {
+                                let agg = state.aggregatedChapters[idx]
+                                target = max(0, agg.startSeconds - currentOffset)
+                            }
+                        } else if state.chapters.count >= 2, let idx = state.currentChapterIndex {
+                            target = state.chapters[idx].startSeconds
+                        } else {
+                            target = 0
+                        }
                     } else if rewindAmount > 0 {
                         target = max(0, current - rewindAmount)
 
-                        if state.chapters.count >= 2, let idx = state.currentChapterIndex {
+                        if state.isMultiM4B, !state.aggregatedChapters.isEmpty {
+                            let currentOffset = state.m4bBooks.indices.contains(state.currentIndex) ? state.m4bBooks[state.currentIndex].cumulativeStartOffset : 0
+                            let globalTime = currentOffset + current
+                            if let idx = aggregatedChapterIndex(at: globalTime) {
+                                let agg = state.aggregatedChapters[idx]
+                                let intraBookStart = max(0, agg.startSeconds - currentOffset)
+                                if target < intraBookStart {
+                                    target = intraBookStart
+                                }
+                            }
+                        } else if state.chapters.count >= 2, let idx = state.currentChapterIndex {
                             let c = state.chapters[idx]
                             if target < c.startSeconds {
                                 target = c.startSeconds
@@ -523,7 +542,26 @@ final class PlaybackController: PlaybackControllerProtocol {
             return false
         }
 
-        let target = max(0, current - 30)
+        var target = max(0, current - 30)
+
+        // Clamp to chapter start to prevent unintended chapter crossings
+        if state.isMultiM4B, !state.aggregatedChapters.isEmpty {
+            let currentOffset = state.m4bBooks.indices.contains(state.currentIndex) ? state.m4bBooks[state.currentIndex].cumulativeStartOffset : 0
+            let globalTime = currentOffset + current
+            if let idx = aggregatedChapterIndex(at: globalTime) {
+                let agg = state.aggregatedChapters[idx]
+                let intraBookStart = max(0, agg.startSeconds - currentOffset)
+                if target < intraBookStart {
+                    target = intraBookStart
+                }
+            }
+        } else if state.chapters.count >= 2, let idx = state.currentChapterIndex {
+            let c = state.chapters[idx]
+            if target < c.startSeconds {
+                target = c.startSeconds
+            }
+        }
+
         state.isManualSeeking = true
         audioEngine.seek(to: target) { [weak self] _ in
             DispatchQueue.main.async {

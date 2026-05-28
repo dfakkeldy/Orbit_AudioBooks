@@ -45,6 +45,13 @@ struct SettingsView: View {
                         get: { model.isVolumeBoostEnabled },
                         set: { model.setVolumeBoost(enabled: $0) }
                     ))
+                    Picker("Default Speed", selection: $settings.defaultPlaybackSpeed) {
+                        Text("1.0×").tag(1.0)
+                        Text("1.25×").tag(1.25)
+                        Text("1.5×").tag(1.5)
+                        Text("2.0×").tag(2.0)
+                        Text("3.0×").tag(3.0)
+                    }
                     NavigationLink("Smart Rewind") {
                         SmartRewindSettingsView()
                     }
@@ -91,6 +98,7 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(settings.isDarkMode ? .dark : .light)
+        .tint(ThemeColor(rawValue: settings.themeColor)?.color)
     }
 
     // MARK: - Helpers
@@ -129,16 +137,85 @@ private struct SettingsAppearanceView: View {
         Form {
             Section {
                 Toggle("Dark Mode", isOn: $settings.isDarkMode)
+                    .tint(ThemeColor(rawValue: settings.themeColor)?.color)
+            }
+            Section("Theme") {
+                NavigationLink {
+                    ThemeSelectionView()
+                } label: {
+                    HStack {
+                        Text("Accent Color")
+                        Spacer()
+                        if let color = ThemeColor(rawValue: settings.themeColor)?.color {
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(color)
+                        } else {
+                            Text("System")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             Section("Typography") {
-                Picker("Font", selection: $settings.appFont) {
-                    Text("Lexend (Default)").tag("Lexend")
-                    Text("OpenDyslexic").tag("OpenDyslexic")
-                    Text("System").tag(SettingsManager.systemFontName)
+                NavigationLink {
+                    FontSelectionView()
+                } label: {
+                    HStack {
+                        Text("Font")
+                        Spacer()
+                        Text(settings.appFont == SettingsManager.systemFontName ? "System" : settings.appFont)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
         .navigationTitle("Appearance")
+        .tint(ThemeColor(rawValue: settings.themeColor)?.color)
+        .accentColor(ThemeColor(rawValue: settings.themeColor)?.color)
+    }
+}
+
+private struct FontSelectionView: View {
+    @Environment(SettingsManager.self) private var settings
+    
+    var body: some View {
+        Form {
+            Button { settings.appFont = "Lexend" } label: {
+                HStack {
+                    Text("Lexend (Default)")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if settings.appFont == "Lexend" {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.accentColor)
+                    }
+                }
+            }
+            Button { settings.appFont = "OpenDyslexic" } label: {
+                HStack {
+                    Text("OpenDyslexic")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if settings.appFont == "OpenDyslexic" {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.accentColor)
+                    }
+                }
+            }
+            Button { settings.appFont = SettingsManager.systemFontName } label: {
+                HStack {
+                    Text("System")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if settings.appFont == SettingsManager.systemFontName {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.accentColor)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Font")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -270,5 +347,75 @@ private struct ProTranscriptsSettingsView: View {
         isRetryingProducts = true
         defer { isRetryingProducts = false }
         await storeManager.requestProducts()
+    }
+}
+
+private struct ThemeSelectionView: View {
+    @Environment(SettingsManager.self) private var settings
+    
+    var body: some View {
+        Form {
+            ForEach(ThemeColor.allCases) { theme in
+                Button {
+                    settings.themeColor = theme.rawValue
+                } label: {
+                    HStack {
+                        if theme != .system {
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(theme.color)
+                        } else {
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Text(theme.rawValue)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        if settings.themeColor == theme.rawValue {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Accent Color")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+enum ThemeColor: String, CaseIterable, Identifiable {
+    case system = "System"
+    case blue = "Blue"
+    case purple = "Purple"
+    case pink = "Pink"
+    case red = "Red"
+    case orange = "Orange"
+    case yellow = "Yellow"
+    case green = "Green"
+    case mint = "Mint"
+    case teal = "Teal"
+    case cyan = "Cyan"
+    case indigo = "Indigo"
+    
+    var id: String { self.rawValue }
+    
+    var color: Color? {
+        switch self {
+        case .system: return nil
+        case .blue: return .blue
+        case .purple: return .purple
+        case .pink: return .pink
+        case .red: return .red
+        case .orange: return .orange
+        case .yellow: return .yellow
+        case .green: return .green
+        case .mint: return .mint
+        case .teal: return .teal
+        case .cyan: return .cyan
+        case .indigo: return .indigo
+        }
     }
 }

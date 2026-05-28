@@ -507,6 +507,9 @@ final class PlayerModel {
         playerLoadingCoordinator.deepLinkHandler = deepLinkHandler
         playerLoadingCoordinator.databaseServiceProvider = { [weak self] in self?.databaseService }
         playerLoadingCoordinator.resolvedVolumeBoostEnabledProvider = { [weak self] in self?.resolvedVolumeBoostEnabled ?? false }
+        playerLoadingCoordinator.defaultPlaybackSpeedProvider = { [weak self] in
+            Float(self?.settingsManager?.defaultPlaybackSpeed ?? SettingsManager.Defaults.defaultPlaybackSpeed)
+        }
         playerLoadingCoordinator.onConfigureRemoteCommands = { [weak self] in self?.configureRemoteCommandsIfNeeded() }
         playerLoadingCoordinator.onPersistSelection = { [weak self] url in self?.persistSelection(url: url) }
         playerLoadingCoordinator.onResetBookmarkCheckSecond = { [weak self] in self?.lastBookmarkCheckSecond = nil }

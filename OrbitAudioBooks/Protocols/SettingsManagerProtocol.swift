@@ -4,6 +4,7 @@ protocol SettingsManagerProtocol: AnyObject {
     // MARK: - Appearance
     var isDarkMode: Bool { get set }
     var appFont: String { get set }
+    var themeColor: String { get set }
 
     // MARK: - Smart Rewind
     var isRewindEnabled: Bool { get set }

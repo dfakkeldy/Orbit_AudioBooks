@@ -38,6 +38,7 @@ struct AlbumArtHeroView: View {
                 }
                 Text(mainText)
                     .customFont(.title2, weight: .semibold, appFont: appFont)
+                    .foregroundStyle(.tint)
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
                     .minimumScaleFactor(0.8)

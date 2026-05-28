@@ -10,6 +10,7 @@ final class SettingsManager: SettingsManagerProtocol {
     enum Defaults {
         static let isDarkMode = true
         static let appFont = "Lexend"
+        static let themeColor = "System"
         static let isRewindEnabled = false
         static let rewindPauseSecondsThreshold = 30
         static let rewindAmountAfterSeconds = 10
@@ -22,6 +23,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let crownAction = "volume"
         static let crownVolumeSensitivity = 0.05
         static let crownScrubSensitivity = 0.5
+        static let defaultPlaybackSpeed = 1.25
         static let watchPage1: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
         static let watchPage2: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
         static let linearBarMode = "total"
@@ -38,6 +40,7 @@ final class SettingsManager: SettingsManagerProtocol {
     private enum Keys {
         static let isDarkMode = "isDarkMode"
         static let appFont = "appFont"
+        static let themeColor = "themeColor"
         static let isRewindEnabled = "isRewindEnabled"
         static let rewindPauseSecondsThreshold = "rewindPauseSecondsThreshold"
         static let rewindAmountAfterSeconds = "rewindAmountAfterSeconds"
@@ -50,6 +53,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let crownAction = "crownAction"
         static let crownVolumeSensitivity = "crownVolumeSensitivity"
         static let crownScrubSensitivity = "crownScrubSensitivity"
+        static let defaultPlaybackSpeed = "defaultPlaybackSpeed"
         static let watchPage1 = "watchPage1"
         static let watchPage2 = "watchPage2"
         static let linearBarMode = "linearBarMode"
@@ -78,6 +82,7 @@ final class SettingsManager: SettingsManagerProtocol {
 
     var isDarkMode: Bool { didSet { defaults.set(isDarkMode, forKey: Keys.isDarkMode) } }
     var appFont: String { didSet { defaults.set(appFont, forKey: Keys.appFont) } }
+    var themeColor: String { didSet { defaults.set(themeColor, forKey: Keys.themeColor) } }
 
     // MARK: - Smart Rewind
 
@@ -92,6 +97,7 @@ final class SettingsManager: SettingsManagerProtocol {
 
     // MARK: - Playback
 
+    var defaultPlaybackSpeed: Double { didSet { defaults.set(defaultPlaybackSpeed, forKey: Keys.defaultPlaybackSpeed) } }
     var playBookmarksInline: Bool { didSet { defaults.set(playBookmarksInline, forKey: Keys.playBookmarksInline) } }
 
     // MARK: - Silence Detection
@@ -172,6 +178,7 @@ final class SettingsManager: SettingsManagerProtocol {
         if normalizedAppFont != storedAppFont {
             defaults.set(normalizedAppFont, forKey: Keys.appFont)
         }
+        themeColor = defaults.string(forKey: Keys.themeColor) ?? Defaults.themeColor
         isRewindEnabled = defaults.bool(forKey: Keys.isRewindEnabled)
         rewindPauseSecondsThreshold = defaults.integer(forKey: Keys.rewindPauseSecondsThreshold)
         rewindAmountAfterSeconds = defaults.integer(forKey: Keys.rewindAmountAfterSeconds)
@@ -180,6 +187,7 @@ final class SettingsManager: SettingsManagerProtocol {
         rewindPauseHoursThreshold = defaults.integer(forKey: Keys.rewindPauseHoursThreshold)
         rewindAmountAfterHours = defaults.integer(forKey: Keys.rewindAmountAfterHours)
         rewindHoursToChapterStart = defaults.bool(forKey: Keys.rewindHoursToChapterStart)
+        defaultPlaybackSpeed = defaults.object(forKey: Keys.defaultPlaybackSpeed) as? Double ?? Defaults.defaultPlaybackSpeed
         playBookmarksInline = defaults.bool(forKey: Keys.playBookmarksInline)
         silenceDetectionLookbackSeconds = defaults.double(forKey: Keys.silenceDetectionLookbackSeconds)
         crownAction = appGroupDefaults.string(forKey: Keys.crownAction) ?? Defaults.crownAction
@@ -213,6 +221,7 @@ final class SettingsManager: SettingsManagerProtocol {
         defaults.register(defaults: [
             Keys.isDarkMode: Defaults.isDarkMode,
             Keys.appFont: Defaults.appFont,
+            Keys.themeColor: Defaults.themeColor,
             Keys.isRewindEnabled: Defaults.isRewindEnabled,
             Keys.rewindPauseSecondsThreshold: Defaults.rewindPauseSecondsThreshold,
             Keys.rewindAmountAfterSeconds: Defaults.rewindAmountAfterSeconds,
@@ -221,6 +230,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.rewindPauseHoursThreshold: Defaults.rewindPauseHoursThreshold,
             Keys.rewindAmountAfterHours: Defaults.rewindAmountAfterHours,
             Keys.rewindHoursToChapterStart: Defaults.rewindHoursToChapterStart,
+            Keys.defaultPlaybackSpeed: Defaults.defaultPlaybackSpeed,
             Keys.playBookmarksInline: Defaults.playBookmarksInline,
             Keys.silenceDetectionLookbackSeconds: Defaults.silenceDetectionLookbackSeconds,
             Keys.crownVolumeSensitivity: Defaults.crownVolumeSensitivity,

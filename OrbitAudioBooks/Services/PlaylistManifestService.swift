@@ -32,7 +32,8 @@ struct PlaylistManifestService {
         from persistence: Persistence,
         folderURL: URL,
         tracks: [Track],
-        bookmarks: [Bookmark]
+        bookmarks: [Bookmark],
+        defaultSpeed: Float = 1.25
     ) -> OrbitPlaylistManifest {
         let key = folderURL.absoluteString
 
@@ -46,7 +47,7 @@ struct PlaylistManifestService {
         }
 
         let progress = persistence.getBookProgress(for: key)
-        let speed = persistence.getSpeed(for: key) ?? 1.25
+        let speed = persistence.getSpeed(for: key) ?? defaultSpeed
         let loopMode = persistence.getLoopMode(for: key) ?? "off"
 
         let manifestBookmarks: [OrbitPlaylistManifest.ManifestBookmark]? =
