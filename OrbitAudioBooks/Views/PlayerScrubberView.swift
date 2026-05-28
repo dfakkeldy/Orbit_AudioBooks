@@ -9,33 +9,15 @@ struct PlayerScrubberView: View {
     @State private var isScrubbing = false
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            horizontalScrubber
-            verticalScrubber
-        }
-    }
-
-    private var horizontalScrubber: some View {
-        HStack(spacing: 10) {
-            timeLabel(model.elapsedText, alignment: .leading)
-
+        VStack(spacing: 0) {
             scrubber
-
-            timeLabel(model.progressText, alignment: .trailing)
-        }
-    }
-
-    private var verticalScrubber: some View {
-        VStack(spacing: 8) {
-            scrubber
-
+            
             HStack {
                 timeLabel(model.elapsedText, alignment: .leading)
-
-                Spacer(minLength: 12)
-
+                Spacer()
                 timeLabel(model.progressText, alignment: .trailing)
             }
+            .padding(.horizontal, 4) // slight inset so text aligns with the slider thumb visually
         }
     }
 

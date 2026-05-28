@@ -52,7 +52,7 @@ struct NowPlayingLayoutTests {
         )
     }
 
-    @Test func scrubberKeepsTimeLabelsInsideBounds() throws {
+    @Test func scrubberKeepsTimeLabelsBelowScrubber() throws {
         let source = try Self.source(named: "PlayerScrubberView.swift")
 
         #expect(
@@ -60,8 +60,12 @@ struct NowPlayingLayoutTests {
             "Scrubber time labels need stable widths so elapsed and remaining time stay aligned."
         )
         #expect(
-            source.contains("ViewThatFits"),
-            "The scrubber should keep time labels beside the slider when they fit and fall back when space is crowded."
+            !source.contains("ViewThatFits"),
+            "The scrubber should no longer use ViewThatFits to push labels beside the slider, but should place them below it instead."
+        )
+        #expect(
+            source.contains("Spacer()"),
+            "The time labels should be spread apart horizontally."
         )
     }
 
