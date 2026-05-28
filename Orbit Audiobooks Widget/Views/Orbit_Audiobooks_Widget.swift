@@ -1,6 +1,7 @@
 import WidgetKit
 import SwiftUI
 import AppIntents
+import ImageIO
 
 struct Provider: TimelineProvider {
     private static let refreshInterval: TimeInterval = 60
@@ -12,11 +13,20 @@ struct Provider: TimelineProvider {
     // Helper to ensure image data isn't too large for the widget
     private func safelyDownsampledData(_ data: Data?) -> Data? {
         guard let data = data, let image = UIImage(data: data) else { return nil }
-        // If the legacy image is too large, it crashes widget archival.
-        // Discard it. The updated iOS app will sync a properly sized 60x60 image.
-        if image.size.width > 100 || image.size.height > 100 {
-            return nil
+        
+        let maxSize: CGFloat = 60
+        if image.size.width > maxSize || image.size.height > maxSize {
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxSize * 2.0 // retina scale
+            ]
+            if let source = CGImageSourceCreateWithData(data as CFData, nil),
+               let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+                return UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.75)
+            }
         }
+        
         return data
     }
 
