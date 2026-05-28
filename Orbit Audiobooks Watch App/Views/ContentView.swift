@@ -66,13 +66,35 @@ struct ContentView: View {
         }
     }
 
+    @State private var accumulatedScrubDelta: Double = 0.0
+    @State private var isScrubbingActive: Bool = false
+    @State private var scrubIdleTimer: Timer?
+
     private func handleCrownRotation(offset: Double) {
         let delta = offset - previousCrownOffset
         previousCrownOffset = offset
         guard delta != 0 else { return }
 
         if viewModel.crownAction == "scrub" {
-            viewModel.sendCommand("scrubDelta", params: ["delta": delta])
+            scrubIdleTimer?.invalidate()
+            
+            if isScrubbingActive {
+                viewModel.sendCommand("scrubDelta", params: ["delta": delta])
+            } else {
+                accumulatedScrubDelta += delta
+                // Require ~10% of a full rotation to break the deadzone and begin scrubbing
+                if abs(accumulatedScrubDelta) > 0.10 {
+                    isScrubbingActive = true
+                    viewModel.sendCommand("scrubDelta", params: ["delta": accumulatedScrubDelta])
+                    accumulatedScrubDelta = 0.0
+                }
+            }
+            
+            // Reset the deadzone if the crown hasn't been moved for 1 second
+            scrubIdleTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
+                isScrubbingActive = false
+                accumulatedScrubDelta = 0.0
+            }
         } else {
             viewModel.sendCommand("volumeDelta", params: ["delta": delta])
         }
