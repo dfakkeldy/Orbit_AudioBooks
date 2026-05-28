@@ -30,6 +30,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var progressFraction: Double = 0.0
     var totalProgressFraction: Double = 0.0
     var totalBookDuration: Double = 0
+    var chapterDuration: Double = 0
+    
+    @ObservationIgnored private var playbackTimer: Timer?
+    @ObservationIgnored private var lastTimerTick: Date?
     /// When `true`, the linear progress bar should snap to the current value
     /// instead of animating. Driven by large state jumps (background wake-up).
     var progressAnimationSuppressed: Bool = true
@@ -119,6 +123,42 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         }
     }
 
+    private func updatePlaybackTimer() {
+        if isPlaying {
+            if playbackTimer == nil {
+                lastTimerTick = Date()
+                playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                    self?.tickPlayback()
+                }
+            }
+        } else {
+            playbackTimer?.invalidate()
+            playbackTimer = nil
+        }
+    }
+    
+    private func tickPlayback() {
+        guard let lastTick = lastTimerTick else { return }
+        let now = Date()
+        let elapsed = now.timeIntervalSince(lastTick)
+        lastTimerTick = now
+        
+        let delta = elapsed * playbackSpeed
+        currentTime += delta
+        
+        if totalBookDuration > 0 {
+            let frac = min(1.0, max(0.0, currentTime / totalBookDuration))
+            self.totalProgressFraction = frac
+        }
+        
+        if chapterDuration > 0 {
+            let newFrac = min(1.0, max(0.0, progressFraction + (delta / chapterDuration)))
+            self.progressFraction = newFrac
+        } else if totalBookDuration > 0 {
+            self.progressFraction = self.totalProgressFraction
+        }
+    }
+
     override init() {
         super.init()
         AppGroupDefaults.migrateStandardDefaultsIfNeeded()
@@ -137,6 +177,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         totalBookDuration = defaults.double(forKey: "totalBookDuration")
         loopMode = defaults.string(forKey: "loopMode") ?? "off"
         currentTime = defaults.double(forKey: "currentTime")
+        chapterDuration = defaults.double(forKey: "chapterDuration")
         if let storedSpeed = defaults.object(forKey: "playbackSpeed") as? Double,
            let idx = availableSpeeds.firstIndex(where: { abs($0 - storedSpeed) < 0.001 }) {
             currentSpeedIndex = idx
@@ -285,6 +326,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 self.totalBookDuration = totalBookDuration
                 self.defaults.set(totalBookDuration, forKey: "totalBookDuration")
             }
+            if let chapterDuration = state["chapterDuration"] as? Double {
+                self.chapterDuration = chapterDuration
+                self.defaults.set(chapterDuration, forKey: "chapterDuration")
+            }
             if let currentTime = state["currentTime"] as? Double {
                 self.currentTime = currentTime
                 self.defaults.set(currentTime, forKey: "currentTime")
@@ -381,6 +426,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 WKInterfaceDevice.current().play(.success)
             }
             WidgetCenter.shared.reloadTimelines(ofKind: "Orbit_Audiobooks_Widget")
+            self.updatePlaybackTimer()
         }
     }
 
@@ -481,6 +527,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         case .playPause:
             prepareOptimisticUpdate()
             isPlaying.toggle()
+            updatePlaybackTimer()
             sendCommand(isPlaying ? "play" : "pause")
         case .loopMode:
             prepareOptimisticUpdate()

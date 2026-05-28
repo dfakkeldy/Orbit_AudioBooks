@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UIKit
+import os.log
 
 // MARK: - Feed Mode
 
@@ -39,7 +40,10 @@ final class TimelineFeedViewModel {
     private(set) var feedMode: TimelineFeedMode = .followingPlayback
     private(set) var searchQuery = ""
     private(set) var searchResults: [TimelineSearchResult] = []
+    private(set) var loadError: String?
     var showHiddenBlocks = false
+
+    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TimelineFeedViewModel")
 
     /// The active structural zoom level. Setting this triggers a data reload.
     var scope: TimelineScope = .chapter {
@@ -260,6 +264,7 @@ final class TimelineFeedViewModel {
     func loadInitialWindow(around position: TimeInterval) async {
         isLoading = true
         defer { isLoading = false }
+        loadError = nil
 
         switch scope {
         case .book:
@@ -298,6 +303,7 @@ final class TimelineFeedViewModel {
                 onItemsChanged?()
             } catch {
                 lastError = error
+                logger.error("Failed to load next page: \(error.localizedDescription)")
             }
         }
     }
@@ -331,6 +337,7 @@ final class TimelineFeedViewModel {
                 onItemsChanged?()
             } catch {
                 lastError = error
+                logger.error("Failed to load previous page: \(error.localizedDescription)")
             }
         }
     }
@@ -344,6 +351,7 @@ final class TimelineFeedViewModel {
     func reloadScope() async {
         isLoading = true
         defer { isLoading = false }
+        loadError = nil
 
         switch scope {
         case .book:
@@ -374,6 +382,8 @@ final class TimelineFeedViewModel {
             onItemsChanged?()
         } catch {
             lastError = error
+            logger.error("Failed to load book scope: \(error.localizedDescription)")
+            loadError = error.localizedDescription
         }
     }
 
@@ -396,6 +406,8 @@ final class TimelineFeedViewModel {
             onItemsChanged?()
         } catch {
             lastError = error
+            logger.error("Failed to load timeline window: \(error.localizedDescription)")
+            loadError = error.localizedDescription
         }
     }
 

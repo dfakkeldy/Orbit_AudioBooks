@@ -320,8 +320,10 @@ struct AlignmentService {
                 let prevSeq = Double(prev.sequenceIndex)
                 let nextSeq = Double(next.sequenceIndex)
                 let blockSeq = Double(block.sequenceIndex)
-                let prevTime = anchorTimeByBlockID[prev.id]!
-                let nextTime = anchorTimeByBlockID[next.id]!
+                guard let prevTime = anchorTimeByBlockID[prev.id],
+                      let nextTime = anchorTimeByBlockID[next.id] else {
+                    continue
+                }
                 let fraction = (blockSeq - prevSeq) / (nextSeq - prevSeq)
                 audioStart = prevTime + fraction * (nextTime - prevTime)
                 timestampSrc = TimestampSource.interpolated.rawValue

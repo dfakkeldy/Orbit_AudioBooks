@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import CryptoKit
+import os.log
 
 struct GlobalTranscriptIndex: Codable {
     let fileHash: String
@@ -15,10 +16,12 @@ class TranscriptStore: ObservableObject {
     /// Per-hash word frequencies for the full transcript, computed on load.
     @Published var wordClouds: [String: [WordFrequency]] = [:]
 
+    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TranscriptStore")
     private let transcriptDir: URL
 
     init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         transcriptDir = appSupport.appendingPathComponent("Transcripts", isDirectory: true)
         loadIndex()
 
@@ -37,13 +40,13 @@ class TranscriptStore: ObservableObject {
     func loadIndex() {
         guard let files = try? FileManager.default.contentsOfDirectory(at: transcriptDir, includingPropertiesForKeys: nil) else {
 #if DEBUG
-            print("TranscriptStore: Could not list directory \(transcriptDir)")
+            logger.debug("Could not list directory \(self.transcriptDir.lastPathComponent)")
 #endif
             return
         }
 
 #if DEBUG
-        print("TranscriptStore: Loading from \(transcriptDir.path), found \(files.count) files")
+        logger.debug("Loading from \(self.transcriptDir.lastPathComponent), found \(files.count) files")
 #endif
 
         var newTranscriptions: [String: [TranscriptionSegment]] = [:]
@@ -57,7 +60,7 @@ class TranscriptStore: ObservableObject {
             if let data = try? Data(contentsOf: file),
                let segments = try? JSONDecoder().decode([TranscriptionSegment].self, from: data) {
 #if DEBUG
-                print("TranscriptStore: Loaded \(segments.count) segments for hash \(hash)")
+                logger.debug("Loaded \(segments.count) segments for hash \(hash)")
 #endif
                 newTranscriptions[hash] = segments
                 // Prefer pre-computed word_frequencies.json sidecar.
@@ -71,7 +74,7 @@ class TranscriptStore: ObservableObject {
                 fileMapping[hash] = "Audiobook"
             } else {
 #if DEBUG
-                print("TranscriptStore: Failed to decode \(file.lastPathComponent)")
+                logger.error("Failed to decode \(file.lastPathComponent)")
 #endif
             }
         }

@@ -12,6 +12,7 @@ import SwiftUI
 import AVFoundation
 import AppKit
 import UniformTypeIdentifiers
+import os.log
 
 struct MacBookmark: Identifiable, Codable, Equatable, Hashable {
     var id: UUID = UUID()
@@ -344,7 +345,8 @@ final class MacPlayerModel: ObservableObject {
                 try data.write(to: sidecar, options: .atomic)
             } catch {
 #if DEBUG
-                print("Bookmark sidecar write failed at \(sidecar.path): \(error)")
+                let logger = Logger(subsystem: "com.orbitaudiobooks", category: "MacPlayerModel")
+                logger.error("Bookmark sidecar write failed at \(sidecar.lastPathComponent): \(error.localizedDescription)")
 #endif
             }
         }

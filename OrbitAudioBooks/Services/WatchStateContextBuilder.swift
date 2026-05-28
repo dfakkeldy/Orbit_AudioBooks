@@ -19,6 +19,7 @@ struct WatchStateSnapshot {
     var currentSubtitle: String = ""
     var currentTitle: String = ""
     var currentChapterIndex: Int?
+    var chapterDuration: Double?
 
     // MARK: Storage keys
     var bookmarkStorageKey: String?
@@ -69,6 +70,9 @@ enum WatchStateContextBuilder {
         context["folderKey"] = s.folderKey
         if let trackId = s.currentTrackId {
             context["trackId"] = trackId
+        }
+        if let cd = s.chapterDuration {
+            context["chapterDuration"] = cd
         }
 
         // Title

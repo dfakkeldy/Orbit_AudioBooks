@@ -116,19 +116,19 @@ struct ArtworkCache {
         return nil
     }
 
-    /// Creates a 60×60 JPEG thumbnail suitable for Watch transfer.
+    /// Creates a high-resolution (400x400) JPEG thumbnail suitable for Watch transfer.
     static func makeWatchThumbnailData(from image: UIImage) -> Data? {
-        let watchSize = CGSize(width: 60, height: 60)
+        let watchSize = CGSize(width: 200, height: 200)
         let watchFormat = UIGraphicsImageRendererFormat()
-        watchFormat.scale = 1.0
+        watchFormat.scale = 2.0
         let watchRenderer = UIGraphicsImageRenderer(size: watchSize, format: watchFormat)
         let watchImage = watchRenderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: watchSize))
         }
-        return watchImage.jpegData(compressionQuality: 0.6)
+        return watchImage.jpegData(compressionQuality: 0.75)
     }
 
-    /// Generates display (300×300) and watch (60×60) thumbnails from a source image.
+    /// Generates display (300×300) and watch (400×400) thumbnails from a source image.
     /// - Parameters:
     ///   - sourceImage: The artwork to resize.
     ///   - displayScale: The screen scale factor for the display thumbnail.

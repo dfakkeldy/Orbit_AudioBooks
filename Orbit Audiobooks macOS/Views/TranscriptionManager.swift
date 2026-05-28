@@ -3,6 +3,7 @@ import Combine
 import CryptoKit
 import AppKit
 import UniformTypeIdentifiers
+import os.log
 
 struct TranscriptionLogEntry: Identifiable, Equatable {
     enum Kind: String {
@@ -102,6 +103,7 @@ private enum TranscriptionCLIEvent: Codable {
 
 @MainActor
 class TranscriptionManager: ObservableObject {
+    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TranscriptionManager")
     @Published var progress: Double = 0
     @Published var isTranscribing: Bool = false
     @Published var status: String = ""
@@ -122,7 +124,7 @@ class TranscriptionManager: ObservableObject {
             let data = try JSONEncoder().encode(segments)
             try data.write(to: url, options: .atomic)
 #if DEBUG
-            print("Successfully exported transcript to: \(url.path)")
+            logger.debug("Successfully exported transcript to: \(url.lastPathComponent)")
 #endif
         }
     }
@@ -147,7 +149,8 @@ class TranscriptionManager: ObservableObject {
             currentProcess = nil
         }
 
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         let transcriptDir = appSupport.appendingPathComponent("Transcripts", isDirectory: true)
         if !FileManager.default.fileExists(atPath: transcriptDir.path) {
             try? FileManager.default.createDirectory(at: transcriptDir, withIntermediateDirectories: true)

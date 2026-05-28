@@ -34,6 +34,10 @@ extension PlayerModel {
         s.currentSubtitle = currentSubtitle
         s.currentTitle = currentTitle
         s.currentChapterIndex = currentChapterIndex
+        if let idx = currentChapterIndex, chapters.indices.contains(idx) {
+            let c = chapters[idx]
+            s.chapterDuration = c.endSeconds - c.startSeconds
+        }
 
         // Storage keys
         s.bookmarkStorageKey = bookmarksStorageKey
