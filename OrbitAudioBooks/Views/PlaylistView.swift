@@ -292,29 +292,38 @@ struct PlaylistView: View {
 
     @ViewBuilder
     private func chapterRow(index: Int, chapter: Chapter) -> some View {
-        Button {
-            model.seek(toSeconds: chapter.startSeconds + 0.05)
-            onRowTapped?(chapter.startSeconds)
-        } label: {
-            HStack {
-                Image(systemName: "list.bullet")
-                    .foregroundStyle(.secondary)
+        HStack {
+            Button {
+                model.toggleChapterEnabled(at: index)
+            } label: {
+                Image(systemName: chapter.isEnabled ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(chapter.isEnabled ? Color.accentColor : Color.secondary)
                     .frame(width: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
-                        .foregroundStyle(.primary)
-                    Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
-                        .customFont(.caption, appFont: model.resolvedAppFont)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if model.currentChapterIndex == index {
-                    Image(systemName: "play.circle.fill")
-                        .foregroundStyle(.tint)
-                }
             }
+            .buttonStyle(.plain)
+            
+            Button {
+                model.seek(toSeconds: chapter.startSeconds + 0.05)
+                onRowTapped?(chapter.startSeconds)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
+                            .foregroundStyle(.primary)
+                        Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
+                            .customFont(.caption, appFont: model.resolvedAppFont)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if model.currentChapterIndex == index {
+                        Image(systemName: "play.circle.fill")
+                            .foregroundStyle(.tint)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .foregroundStyle(chapter.isEnabled ? .primary : .tertiary)
         .opacity(chapter.isEnabled ? 1.0 : 0.35)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -329,23 +338,32 @@ struct PlaylistView: View {
 
     @ViewBuilder
     private func trackRow(index: Int, track: Track) -> some View {
-        Button {
-            model.skipToTrack(index)
-            onRowTapped?(0)
-        } label: {
-            HStack {
-                Image(systemName: "music.note")
-                    .foregroundStyle(.secondary)
+        HStack {
+            Button {
+                model.toggleTrackEnabled(at: index)
+            } label: {
+                Image(systemName: track.isEnabled ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(track.isEnabled ? Color.accentColor : Color.secondary)
                     .frame(width: 22)
-                Text(track.title)
-                Spacer()
-                if model.currentIndex == index {
-                    Image(systemName: "play.circle.fill")
-                        .foregroundStyle(.tint)
-                }
             }
+            .buttonStyle(.plain)
+
+            Button {
+                model.skipToTrack(index)
+                onRowTapped?(0)
+            } label: {
+                HStack {
+                    Text(track.title)
+                    Spacer()
+                    if model.currentIndex == index {
+                        Image(systemName: "play.circle.fill")
+                            .foregroundStyle(.tint)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .foregroundStyle(track.isEnabled ? .primary : .tertiary)
         .opacity(track.isEnabled ? 1.0 : 0.35)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {

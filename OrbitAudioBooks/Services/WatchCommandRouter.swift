@@ -32,7 +32,7 @@ protocol WatchCommandRoutingFacade: AnyObject {
 }
 
 final class WatchCommandRouter {
-    private weak var facade: WatchCommandRoutingFacade?
+    private let facade: WatchCommandRoutingFacade
 
     init(facade: WatchCommandRoutingFacade) {
         self.facade = facade
@@ -40,7 +40,8 @@ final class WatchCommandRouter {
 
     func route(message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
         DispatchQueue.main.async { [weak self] in
-            guard let self, let facade = self.facade else { return }
+            guard let self else { return }
+            let facade = self.facade
 
             var commandResult: String?
             if let command = message["command"] as? String {
@@ -157,7 +158,7 @@ final class WatchCommandRouter {
         metadata["voiceMemoFileName"] = safeFileName
 
         DispatchQueue.main.async { [weak self] in
-            self?.facade?.addWatchBookmark(from: metadata)
+            self?.facade.addWatchBookmark(from: metadata)
         }
     }
 
@@ -186,7 +187,7 @@ final class WatchCommandRouter {
             }
 
             await MainActor.run {
-                routingFacade?.addWatchBookmark(from: metadata)
+                routingFacade.addWatchBookmark(from: metadata)
             }
         }
     }

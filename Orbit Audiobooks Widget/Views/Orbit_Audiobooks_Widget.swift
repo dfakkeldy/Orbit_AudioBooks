@@ -24,7 +24,7 @@ struct Provider: TimelineProvider {
         let defaults = AppGroupDefaults.shared
         let title = defaults.string(forKey: "title") ?? "No track"
         let isPlaying = defaults.bool(forKey: "isPlaying")
-        let progressFraction = defaults.double(forKey: "progressFraction")
+        let progressFraction = defaults.double(forKey: "totalProgressFraction")
         let thumbnailData = safelyDownsampledData(defaults.data(forKey: "thumbnailData"))
 
         return SimpleEntry(date: Date(), title: title, isPlaying: isPlaying, progressFraction: progressFraction, thumbnailData: thumbnailData)

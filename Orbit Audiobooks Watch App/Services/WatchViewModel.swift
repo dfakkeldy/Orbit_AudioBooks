@@ -415,14 +415,20 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         guard !command.isEmpty else { return false }
         let session = WCSession.default
 
-        var didSend = false
-        if session.activationState == .activated, session.isReachable {
-            var message: [String: Any] = ["command": command]
-            if let params = params {
-                for (key, value) in params {
-                    message[key] = value
-                }
+        guard session.activationState == .activated else {
+            rollback()
+            requestCurrentState()
+            return false
+        }
+
+        var message: [String: Any] = ["command": command]
+        if let params = params {
+            for (key, value) in params {
+                message[key] = value
             }
+        }
+
+        if session.isReachable {
             session.sendMessage(message, replyHandler: { [weak self] reply in
                 self?.clearPendingRollback()
                 self?.applyState(reply)
@@ -436,16 +442,16 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 self?.rollback()
                 self?.requestCurrentState()
             })
-            didSend = true
             if pendingSnapshot != nil {
                 scheduleRollback()
             }
-        }
-
-        guard didSend else {
-            rollback()
-            requestCurrentState()
-            return false
+        } else {
+            // Fallback for background communication when iPhone is locked/backgrounded.
+            // transferUserInfo queues the payload to be delivered even if the counterpart is suspended.
+            session.transferUserInfo(message)
+            // Since we won't get a reply handler callback, clear the rollback timer so the UI
+            // doesn't revert prematurely before the iPhone wakes up and syncs the new state.
+            clearPendingRollback()
         }
 
         if loopMode == "bookmark" && Self.isDirectionalCommand(command) {
@@ -454,14 +460,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
 
         if self.defaults.bool(forKey: "isHapticFeedbackEnabled") {
             switch command {
-            case "play", "pause", "toggle":
-                WKInterfaceDevice.current().play(.click)
-            case "next", "skipForward":
-                WKInterfaceDevice.current().play(.directionUp)
             case "skipBackward", "previous":
                 WKInterfaceDevice.current().play(.directionDown)
             default:
-                WKInterfaceDevice.current().play(.click)
+                WKInterfaceDevice.current().play(.directionUp)
             }
         }
 
@@ -479,10 +481,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         case .playPause:
             prepareOptimisticUpdate()
             isPlaying.toggle()
-            sendCommand(isPlaying ? "pause" : "play")
+            sendCommand(isPlaying ? "play" : "pause")
         case .loopMode:
             prepareOptimisticUpdate()
-            let modes = ["off", "track", "bookmark"]
+            let modes = ["off", "chapter", "bookmark"]
             let currentIndex = modes.firstIndex(of: loopMode) ?? 0
             let next = modes[(currentIndex + 1) % modes.count]
             loopMode = next

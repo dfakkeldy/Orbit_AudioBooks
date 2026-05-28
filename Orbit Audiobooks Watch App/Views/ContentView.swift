@@ -38,11 +38,9 @@ struct ContentView: View {
                     onSleepTimer: { isShowingSleepTimer = true }
                 )
                     .tag(1)
-                WordCloudPage(viewModel: viewModel)
-                    .tag(2)
                 if !viewModel.dueCards.isEmpty {
                     WatchReviewView(viewModel: viewModel)
-                        .tag(3)
+                        .tag(2)
                 }
             }
             .tabViewStyle(.page)
@@ -95,35 +93,14 @@ struct ContentView: View {
         } else if let image = viewModel.thumbnailImage {
             switch artworkLayout {
             case .immersive:
-                GeometryReader { proxy in
-                    let availableSide = min(proxy.size.width, proxy.size.height)
-                    let blurredSide = availableSide * 0.94
-                    let artworkSide = availableSide * 0.72
-
-                    ZStack {
-                        Color.black
-
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: blurredSide, height: blurredSide)
-                            .blur(radius: 10)
-                            .opacity(0.30)
-                            .accessibilityHidden(true)
-
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: artworkSide, height: artworkSide)
-                            .opacity(0.58)
-                            .accessibilityLabel(Text(viewModel.title))
-                            .accessibilityAddTraits(.isImage)
-                    }
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                }
-                .overlay(Color.black.opacity(0.30))
-                .overlay(artworkScrim)
-                .ignoresSafeArea()
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+                    .overlay(Color.black.opacity(0.30))
+                    .overlay(artworkScrim)
+                    .accessibilityLabel(Text(viewModel.title))
+                    .accessibilityAddTraits(.isImage)
             case .classic:
                 Image(uiImage: image)
                     .resizable()
