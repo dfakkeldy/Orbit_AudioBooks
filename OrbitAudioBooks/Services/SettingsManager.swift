@@ -26,6 +26,9 @@ final class SettingsManager: SettingsManagerProtocol {
         static let defaultPlaybackSpeed = 1.25
         static let watchPage1: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
         static let watchPage2: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
+        static let watchPage3: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
+        static let watchPage4: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
+        static let watchPage5: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
         static let linearBarMode = "total"
         static let linearBarHidden = false
         static let circularRingMode = "chapter"
@@ -36,6 +39,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let watchQuickBookmarkTimeoutSeconds = 5
         static let silenceDetectionLookbackSeconds = 10.0
         static let phonePage: [WatchAction] = [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack]
+        static let phoneLongPressPage: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
         static let seekBackwardDuration = 30
         static let seekForwardDuration = 30
         static let playerLayoutStyle = "default"
@@ -60,6 +64,9 @@ final class SettingsManager: SettingsManagerProtocol {
         static let defaultPlaybackSpeed = "defaultPlaybackSpeed"
         static let watchPage1 = "watchPage1"
         static let watchPage2 = "watchPage2"
+        static let watchPage3 = "watchPage3"
+        static let watchPage4 = "watchPage4"
+        static let watchPage5 = "watchPage5"
         static let linearBarMode = "linearBarMode"
         static let linearBarHidden = "linearBarHidden"
         static let circularRingMode = "circularRingMode"
@@ -70,6 +77,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let watchQuickBookmarkTimeoutSeconds = "watchQuickBookmarkTimeoutSeconds"
         static let silenceDetectionLookbackSeconds = "silenceDetectionLookbackSeconds"
         static let phonePage = "phonePage"
+        static let phoneLongPressPage = "phoneLongPressPage"
         static let seekBackwardDuration = "seekBackwardDuration"
         static let seekForwardDuration = "seekForwardDuration"
         static let watchPresets = "watchPresets"
@@ -117,6 +125,7 @@ final class SettingsManager: SettingsManagerProtocol {
 
     // MARK: - Customizable Phone Controls & Presets
     var phonePage: [WatchAction] { didSet { defaults.set(try? JSONEncoder().encode(phonePage), forKey: Keys.phonePage) } }
+    var phoneLongPressPage: [WatchAction] { didSet { defaults.set(try? JSONEncoder().encode(phoneLongPressPage), forKey: Keys.phoneLongPressPage) } }
     var seekBackwardDuration: Int { didSet { defaults.set(seekBackwardDuration, forKey: Keys.seekBackwardDuration) } }
     var seekForwardDuration: Int { didSet { defaults.set(seekForwardDuration, forKey: Keys.seekForwardDuration) } }
     var watchPresets: [WatchPreset] { didSet { defaults.set(try? JSONEncoder().encode(watchPresets), forKey: Keys.watchPresets) } }
@@ -129,6 +138,9 @@ final class SettingsManager: SettingsManagerProtocol {
     var crownScrubSensitivity: Double { didSet { defaults.set(crownScrubSensitivity, forKey: Keys.crownScrubSensitivity) } }
     var watchPage1: [WatchAction] { didSet { appGroupSet(try? JSONEncoder().encode(watchPage1), forKey: Keys.watchPage1) } }
     var watchPage2: [WatchAction] { didSet { appGroupSet(try? JSONEncoder().encode(watchPage2), forKey: Keys.watchPage2) } }
+    var watchPage3: [WatchAction] { didSet { appGroupSet(try? JSONEncoder().encode(watchPage3), forKey: Keys.watchPage3) } }
+    var watchPage4: [WatchAction] { didSet { appGroupSet(try? JSONEncoder().encode(watchPage4), forKey: Keys.watchPage4) } }
+    var watchPage5: [WatchAction] { didSet { appGroupSet(try? JSONEncoder().encode(watchPage5), forKey: Keys.watchPage5) } }
     var linearBarMode: String { didSet { appGroupSet(linearBarMode, forKey: Keys.linearBarMode) } }
     var linearBarHidden: Bool { didSet { appGroupSet(linearBarHidden, forKey: Keys.linearBarHidden) } }
     var circularRingMode: String { didSet { appGroupSet(circularRingMode, forKey: Keys.circularRingMode) } }
@@ -172,6 +184,9 @@ final class SettingsManager: SettingsManagerProtocol {
                 (Keys.crownAction, { defaults.object(forKey: Keys.crownAction) }),
                 (Keys.watchPage1, { defaults.object(forKey: Keys.watchPage1) }),
                 (Keys.watchPage2, { defaults.object(forKey: Keys.watchPage2) }),
+                (Keys.watchPage3, { defaults.object(forKey: Keys.watchPage3) }),
+                (Keys.watchPage4, { defaults.object(forKey: Keys.watchPage4) }),
+                (Keys.watchPage5, { defaults.object(forKey: Keys.watchPage5) }),
                 (Keys.linearBarMode, { defaults.object(forKey: Keys.linearBarMode) }),
                 (Keys.linearBarHidden, { defaults.object(forKey: Keys.linearBarHidden) }),
                 (Keys.circularRingMode, { defaults.object(forKey: Keys.circularRingMode) }),
@@ -214,6 +229,9 @@ final class SettingsManager: SettingsManagerProtocol {
         crownScrubSensitivity = defaults.double(forKey: Keys.crownScrubSensitivity)
         watchPage1 = Self.decodeWatchPage(key: Keys.watchPage1, from: appGroupDefaults, fallback: Defaults.watchPage1)
         watchPage2 = Self.decodeWatchPage(key: Keys.watchPage2, from: appGroupDefaults, fallback: Defaults.watchPage2)
+        watchPage3 = Self.decodeWatchPage(key: Keys.watchPage3, from: appGroupDefaults, fallback: Defaults.watchPage3)
+        watchPage4 = Self.decodeWatchPage(key: Keys.watchPage4, from: appGroupDefaults, fallback: Defaults.watchPage4)
+        watchPage5 = Self.decodeWatchPage(key: Keys.watchPage5, from: appGroupDefaults, fallback: Defaults.watchPage5)
         linearBarMode = appGroupDefaults.string(forKey: Keys.linearBarMode) ?? Defaults.linearBarMode
         linearBarHidden = appGroupDefaults.bool(forKey: Keys.linearBarHidden)
         circularRingMode = appGroupDefaults.string(forKey: Keys.circularRingMode) ?? Defaults.circularRingMode
@@ -226,6 +244,7 @@ final class SettingsManager: SettingsManagerProtocol {
             appGroupDefaults.integer(forKey: Keys.watchQuickBookmarkTimeoutSeconds)
         )
         phonePage = Self.decodeWatchPage(key: Keys.phonePage, from: defaults, fallback: Defaults.phonePage)
+        phoneLongPressPage = Self.decodeWatchPage(key: Keys.phoneLongPressPage, from: defaults, fallback: Defaults.phoneLongPressPage)
         
         let storedSeekBackward = defaults.integer(forKey: Keys.seekBackwardDuration)
         seekBackwardDuration = storedSeekBackward == 0 ? Defaults.seekBackwardDuration : storedSeekBackward
@@ -276,6 +295,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.crownVolumeSensitivity: Defaults.crownVolumeSensitivity,
             Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity,
             Keys.phonePage: (try? JSONEncoder().encode(Defaults.phonePage)) ?? Data(),
+            Keys.phoneLongPressPage: (try? JSONEncoder().encode(Defaults.phoneLongPressPage)) ?? Data(),
             Keys.seekBackwardDuration: Defaults.seekBackwardDuration,
             Keys.seekForwardDuration: Defaults.seekForwardDuration,
             Keys.playerLayoutStyle: Defaults.playerLayoutStyle
@@ -284,6 +304,9 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.crownAction: Defaults.crownAction,
             Keys.watchPage1: (try? JSONEncoder().encode(Defaults.watchPage1)) ?? Data(),
             Keys.watchPage2: (try? JSONEncoder().encode(Defaults.watchPage2)) ?? Data(),
+            Keys.watchPage3: (try? JSONEncoder().encode(Defaults.watchPage3)) ?? Data(),
+            Keys.watchPage4: (try? JSONEncoder().encode(Defaults.watchPage4)) ?? Data(),
+            Keys.watchPage5: (try? JSONEncoder().encode(Defaults.watchPage5)) ?? Data(),
             Keys.linearBarMode: Defaults.linearBarMode,
             Keys.linearBarHidden: Defaults.linearBarHidden,
             Keys.circularRingMode: Defaults.circularRingMode,

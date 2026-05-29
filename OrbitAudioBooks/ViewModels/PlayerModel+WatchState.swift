@@ -54,6 +54,9 @@ extension PlayerModel {
         s.playbackSpeed = Double(speed)
         s.watchPage1Data = (try? JSONEncoder().encode(settings?.watchPage1 ?? SettingsManager.Defaults.watchPage1)) ?? Data()
         s.watchPage2Data = (try? JSONEncoder().encode(settings?.watchPage2 ?? SettingsManager.Defaults.watchPage2)) ?? Data()
+        s.watchPage3Data = (try? JSONEncoder().encode(settings?.watchPage3 ?? SettingsManager.Defaults.watchPage3)) ?? Data()
+        s.watchPage4Data = (try? JSONEncoder().encode(settings?.watchPage4 ?? SettingsManager.Defaults.watchPage4)) ?? Data()
+        s.watchPage5Data = (try? JSONEncoder().encode(settings?.watchPage5 ?? SettingsManager.Defaults.watchPage5)) ?? Data()
         s.linearBarMode = settings?.linearBarMode ?? SettingsManager.Defaults.linearBarMode
         s.linearBarHidden = settings?.linearBarHidden ?? SettingsManager.Defaults.linearBarHidden
         s.circularRingMode = settings?.circularRingMode ?? SettingsManager.Defaults.circularRingMode

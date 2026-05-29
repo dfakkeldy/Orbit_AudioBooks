@@ -37,6 +37,8 @@ enum HelpContent {
             • Skip Forward 30s — Jump ahead 30 seconds.
             • Next — Jump to the next chapter or track.
 
+            Each button can be configured with a Tap Action (primary) and a Long Press Action (secondary). Customize both in Settings > Phone Controls. Long-press a button for 0.5 seconds to trigger its secondary action with haptic feedback.
+
             Playback also works from the Lock Screen and Control Center. Use the system Now Playing controls to pause, play, or skip without opening the app.
             """
         ),
@@ -139,7 +141,7 @@ enum HelpContent {
             body: """
             The Apple Watch app works as a remote control for the iPhone player. Key features:
 
-            • Two customizable Player Pages — Each page holds up to 5 action slots that you can configure from the iPhone Settings > Watch App screen. Drag and drop actions to reorder them.
+            • Up to five customizable Player Pages — Each page holds up to 5 action slots that you can configure from the iPhone Settings > Watch App screen. Swipe between pages to configure them. Empty pages are hidden on the watch.
             • Digital Crown — Configurable to control volume or scrub through the current track.
             • Quick Bookmarks — Hold the bookmark button to auto-create a bookmark after a configurable countdown (1–15 seconds). Great for hands-free bookmarking.
             • Progress Display — Choose between a circular progress ring and a linear progress bar. Each can show either chapter progress or total book progress.

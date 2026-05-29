@@ -30,17 +30,53 @@ struct ContentView: View {
                     onSleepTimer: { isShowingSleepTimer = true }
                 )
                     .tag(0)
-                PlayerPage(
-                    slots: viewModel.page2Slots,
-                    viewModel: viewModel,
-                    layout: artworkLayout,
-                    onBookmark: { isShowingNewBookmark = true },
-                    onSleepTimer: { isShowingSleepTimer = true }
-                )
+                if viewModel.page2Slots.contains(where: { $0 != .empty }) {
+                    PlayerPage(
+                        slots: viewModel.page2Slots,
+                        viewModel: viewModel,
+                        layout: artworkLayout,
+                        onBookmark: { isShowingNewBookmark = true },
+                        onSleepTimer: { isShowingSleepTimer = true }
+                    )
                     .tag(1)
+                }
+
+                if viewModel.page3Slots.contains(where: { $0 != .empty }) {
+                    PlayerPage(
+                        slots: viewModel.page3Slots,
+                        viewModel: viewModel,
+                        layout: artworkLayout,
+                        onBookmark: { isShowingNewBookmark = true },
+                        onSleepTimer: { isShowingSleepTimer = true }
+                    )
+                    .tag(2)
+                }
+
+                if viewModel.page4Slots.contains(where: { $0 != .empty }) {
+                    PlayerPage(
+                        slots: viewModel.page4Slots,
+                        viewModel: viewModel,
+                        layout: artworkLayout,
+                        onBookmark: { isShowingNewBookmark = true },
+                        onSleepTimer: { isShowingSleepTimer = true }
+                    )
+                    .tag(3)
+                }
+
+                if viewModel.page5Slots.contains(where: { $0 != .empty }) {
+                    PlayerPage(
+                        slots: viewModel.page5Slots,
+                        viewModel: viewModel,
+                        layout: artworkLayout,
+                        onBookmark: { isShowingNewBookmark = true },
+                        onSleepTimer: { isShowingSleepTimer = true }
+                    )
+                    .tag(4)
+                }
+
                 if !viewModel.dueCards.isEmpty {
                     WatchReviewView(viewModel: viewModel)
-                        .tag(2)
+                        .tag(5)
                 }
             }
             .tabViewStyle(.page)

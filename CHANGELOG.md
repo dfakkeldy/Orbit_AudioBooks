@@ -7,8 +7,10 @@ All notable changes to Orbit Audiobooks.
 ### Added
 - Mini-player control bar (`PlayerControlBar`) on the Timeline tab — appears above the bottom toolbar when a book is loaded, showing artwork, title/chapter metadata, and play/pause. Tap to open the full NowPlaying player.
 - Configurable seek forward/backward durations (5–60s), synced between phone and watch.
-- Customizable watch button layout presets — drag-and-drop 10-slot (2 pages × 5 actions) configuration from the phone via `PhonePlayerSettingsView`.
-- `LayoutPreset` data model (`WatchPreset`, `PhonePreset`) with WatchConnectivity sync and UserDefaults persistence.
+- **Watch expanded to 5 pages** — up to 25 customizable action slots (5 pages × 5 slots) with per-page configuration and TabView-style page swiping in settings. Empty pages auto-hide on the watch.
+- **Phone transport long-press actions** — each of the 5 transport buttons now supports a configurable long-press secondary action (`TransportButton` / `TransportPrimitiveButtonStyle`) with haptic feedback, configurable via a "Tap Actions" / "Long Press" segmented picker in `PhonePlayerSettingsView`.
+- Customizable watch button layout presets — drag-and-drop configuration from the phone via `WatchAppSettingsView`.
+- `LayoutPreset` data model (`WatchPreset`, `PhonePreset`) with WatchConnectivity sync and UserDefaults persistence. `WatchPreset` supports optional `page3`/`page4`/`page5` fields; `PhonePreset` supports optional `longPressSlots`.
 - Configurable default playback speed per-book and globally.
 - Theme accent color setting.
 - Local watch playback timer with independent progress tracking.
@@ -22,6 +24,7 @@ All notable changes to Orbit Audiobooks.
 - **Section disclosure groups in playlist**: logical chapters with sub-section data render as expandable `DisclosureGroup` rows, with tappable section rows and now-playing indicators.
 
 ### Changed
+- Settings, Book Settings, and Help toolbar buttons consolidated into a single "More" (`ellipsis.circle`) menu on both the NowPlaying tab and the NowPlaying top toolbar.
 - Simplified scrubber layout: time labels always below the slider.
 - Watch communication reliability improvements and playlist toggle UI polish.
 - Artwork handling simplified; oversized widget artwork now downsampled via ImageIO instead of discarded.

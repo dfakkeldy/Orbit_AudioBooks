@@ -35,6 +35,9 @@ struct WatchStateSnapshot {
     var playbackSpeed: Double = 1.0
     var watchPage1Data: Data = Data()
     var watchPage2Data: Data = Data()
+    var watchPage3Data: Data = Data()
+    var watchPage4Data: Data = Data()
+    var watchPage5Data: Data = Data()
     var linearBarMode: String = SettingsManager.Defaults.linearBarMode
     var linearBarHidden: Bool = SettingsManager.Defaults.linearBarHidden
     var circularRingMode: String = SettingsManager.Defaults.circularRingMode
@@ -108,6 +111,9 @@ enum WatchStateContextBuilder {
         context["seekForwardDuration"] = s.seekForwardDuration
         context["watchPage1"] = s.watchPage1Data
         context["watchPage2"] = s.watchPage2Data
+        context["watchPage3"] = s.watchPage3Data
+        context["watchPage4"] = s.watchPage4Data
+        context["watchPage5"] = s.watchPage5Data
         context["linearBarMode"] = s.linearBarMode
         context["linearBarHidden"] = s.linearBarHidden
         context["circularRingMode"] = s.circularRingMode

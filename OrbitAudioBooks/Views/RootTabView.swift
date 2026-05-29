@@ -71,33 +71,31 @@ struct RootTabView: View {
                     .accessibilityLabel(Text("Open folder"))
                 }
  
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingHelp = true
-                    } label: {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .accessibilityLabel(Text("Help"))
-                }
- 
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 12) {
+                    Menu {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Label("Global Settings", systemImage: "gearshape")
+                        }
+                        
                         if model.folderURL != nil {
                             Button {
                                 showingBookSettings = true
                             } label: {
-                                Image(systemName: "document.badge.gearshape")
+                                Label("Book Settings", systemImage: "document.badge.gearshape")
                             }
-                            .accessibilityLabel(Text("Book Settings"))
                         }
                         
                         Button {
-                            showingSettings = true
+                            showingHelp = true
                         } label: {
-                            Image(systemName: "gearshape")
+                            Label("Help", systemImage: "questionmark.circle")
                         }
-                        .accessibilityLabel(Text("Global Settings"))
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
+                    .accessibilityLabel(Text("More"))
                 }
             }
             .sheet(isPresented: $showingFolderPicker) {
@@ -190,30 +188,38 @@ private struct NowPlayingTopToolbar: View {
                         accessibilityLabel: "Open folder",
                         action: openFolder
                     )
-
-                    toolbarButton(
-                        systemName: "questionmark.circle",
-                        accessibilityLabel: "Help",
-                        action: showHelp
-                    )
                 }
 
                 Spacer()
 
                 controlGroup {
-                    if showsBookSettings {
-                        toolbarButton(
-                            systemName: "document.badge.gearshape",
-                            accessibilityLabel: "Book Settings",
-                            action: showBookSettings
-                        )
+                    Menu {
+                        Button {
+                            showSettings()
+                        } label: {
+                            Label("Global Settings", systemImage: "gearshape")
+                        }
+                        
+                        if showsBookSettings {
+                            Button {
+                                showBookSettings()
+                            } label: {
+                                Label("Book Settings", systemImage: "document.badge.gearshape")
+                            }
+                        }
+                        
+                        Button {
+                            showHelp()
+                        } label: {
+                            Label("Help", systemImage: "questionmark.circle")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
-
-                    toolbarButton(
-                        systemName: "gearshape",
-                        accessibilityLabel: "Global Settings",
-                        action: showSettings
-                    )
+                    .accessibilityLabel(Text("More"))
                 }
             }
             .padding(.horizontal, 24)

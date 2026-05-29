@@ -9,6 +9,9 @@ struct WatchAppSettingsView: View {
 
     @State private var page1Slots: [WatchAction] = Array(repeating: .empty, count: 5)
     @State private var page2Slots: [WatchAction] = Array(repeating: .empty, count: 5)
+    @State private var page3Slots: [WatchAction] = Array(repeating: .empty, count: 5)
+    @State private var page4Slots: [WatchAction] = Array(repeating: .empty, count: 5)
+    @State private var page5Slots: [WatchAction] = Array(repeating: .empty, count: 5)
     @State private var selectedPage: Int = 0
     @State private var showingSaveAlert = false
     @State private var newPresetName = ""
@@ -225,18 +228,21 @@ struct WatchAppSettingsView: View {
                         .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
-                    VStack(spacing: 16) {
-                        Picker("Page", selection: $selectedPage) {
-                            Text("Page 1").tag(0)
-                            Text("Page 2").tag(1)
+                    VStack(spacing: 8) {
+                        Text("Page \(selectedPage + 1) of 5")
+                            .customFont(.subheadline, weight: .medium, appFont: settings.appFont)
+                            .foregroundStyle(.secondary)
+                            
+                        TabView(selection: $selectedPage) {
+                            WatchPreviewCanvas(slots: $page1Slots, backgroundStyle: settings.watchBackgroundStyle, onChange: saveSlots).tag(0)
+                            WatchPreviewCanvas(slots: $page2Slots, backgroundStyle: settings.watchBackgroundStyle, onChange: saveSlots).tag(1)
+                            WatchPreviewCanvas(slots: $page3Slots, backgroundStyle: settings.watchBackgroundStyle, onChange: saveSlots).tag(2)
+                            WatchPreviewCanvas(slots: $page4Slots, backgroundStyle: settings.watchBackgroundStyle, onChange: saveSlots).tag(3)
+                            WatchPreviewCanvas(slots: $page5Slots, backgroundStyle: settings.watchBackgroundStyle, onChange: saveSlots).tag(4)
                         }
-                        .pickerStyle(.segmented)
-
-                        WatchPreviewCanvas(
-                            slots: selectedPage == 0 ? $page1Slots : $page2Slots,
-                            backgroundStyle: settings.watchBackgroundStyle,
-                            onChange: saveSlots
-                        )
+                        .tabViewStyle(.page(indexDisplayMode: .always))
+                        .frame(height: 320)
+                        .indexViewStyle(.page(backgroundDisplayMode: .always))
                     }
                     .padding(16)
                     .background(
@@ -304,6 +310,9 @@ struct WatchAppSettingsView: View {
                                 Button {
                                     page1Slots = padded(preset.page1)
                                     page2Slots = padded(preset.page2)
+                                    if let p3 = preset.page3 { page3Slots = padded(p3) } else { page3Slots = Array(repeating: .empty, count: 5) }
+                                    if let p4 = preset.page4 { page4Slots = padded(p4) } else { page4Slots = Array(repeating: .empty, count: 5) }
+                                    if let p5 = preset.page5 { page5Slots = padded(p5) } else { page5Slots = Array(repeating: .empty, count: 5) }
                                     saveSlots()
                                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 } label: {
@@ -371,18 +380,24 @@ struct WatchAppSettingsView: View {
     private func loadSlots() {
         page1Slots = padded(settings.watchPage1)
         page2Slots = padded(settings.watchPage2)
+        page3Slots = padded(settings.watchPage3)
+        page4Slots = padded(settings.watchPage4)
+        page5Slots = padded(settings.watchPage5)
     }
 
     private func saveSlots() {
         settings.watchPage1 = page1Slots
         settings.watchPage2 = page2Slots
+        settings.watchPage3 = page3Slots
+        settings.watchPage4 = page4Slots
+        settings.watchPage5 = page5Slots
         model.syncToWatch()
     }
 
     private func saveCurrentAsPreset() {
         let name = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        let preset = WatchPreset(name: name, page1: page1Slots, page2: page2Slots)
+        let preset = WatchPreset(name: name, page1: page1Slots, page2: page2Slots, page3: page3Slots, page4: page4Slots, page5: page5Slots)
         settings.watchPresets.append(preset)
         newPresetName = ""
     }

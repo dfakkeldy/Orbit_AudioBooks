@@ -62,6 +62,9 @@ class WatchViewModel: NSObject, WCSessionDelegate {
 
     var page1Slots: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
     var page2Slots: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
+    var page3Slots: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
+    var page4Slots: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
+    var page5Slots: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
 
     // Progress indicator configuration (synced from iPhone)
     var linearBarMode: String = "total"
@@ -212,6 +215,18 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         } else if let raw = defaults.string(forKey: "watchPage2") {
             // Migration from old comma-separated format
             page2Slots = padded(parseSlots(raw))
+        }
+        if let data = defaults.data(forKey: "watchPage3"),
+           let decoded = try? JSONDecoder().decode([WatchAction].self, from: data) {
+            page3Slots = padded(decoded)
+        }
+        if let data = defaults.data(forKey: "watchPage4"),
+           let decoded = try? JSONDecoder().decode([WatchAction].self, from: data) {
+            page4Slots = padded(decoded)
+        }
+        if let data = defaults.data(forKey: "watchPage5"),
+           let decoded = try? JSONDecoder().decode([WatchAction].self, from: data) {
+            page5Slots = padded(decoded)
         }
 
         linearBarMode = defaults.string(forKey: "linearBarMode") ?? "total"
@@ -388,6 +403,21 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                let decoded = try? JSONDecoder().decode([WatchAction].self, from: watchPage2Data) {
                 self.page2Slots = self.padded(decoded)
                 self.defaults.set(watchPage2Data, forKey: "watchPage2")
+            }
+            if let watchPage3Data = state["watchPage3"] as? Data,
+               let decoded = try? JSONDecoder().decode([WatchAction].self, from: watchPage3Data) {
+                self.page3Slots = self.padded(decoded)
+                self.defaults.set(watchPage3Data, forKey: "watchPage3")
+            }
+            if let watchPage4Data = state["watchPage4"] as? Data,
+               let decoded = try? JSONDecoder().decode([WatchAction].self, from: watchPage4Data) {
+                self.page4Slots = self.padded(decoded)
+                self.defaults.set(watchPage4Data, forKey: "watchPage4")
+            }
+            if let watchPage5Data = state["watchPage5"] as? Data,
+               let decoded = try? JSONDecoder().decode([WatchAction].self, from: watchPage5Data) {
+                self.page5Slots = self.padded(decoded)
+                self.defaults.set(watchPage5Data, forKey: "watchPage5")
             }
             if let linearBarMode = state["linearBarMode"] as? String {
                 self.linearBarMode = linearBarMode

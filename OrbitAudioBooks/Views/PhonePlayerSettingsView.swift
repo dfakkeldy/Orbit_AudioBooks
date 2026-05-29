@@ -7,7 +7,10 @@ struct PhonePlayerSettingsView: View {
     @Environment(SettingsManager.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
+    enum ConfigMode { case tap, longPress }
+    @State private var configMode: ConfigMode = .tap
     @State private var slots: [WatchAction] = Array(repeating: .empty, count: 5)
+    @State private var longPressSlots: [WatchAction] = Array(repeating: .empty, count: 5)
     @State private var showingSaveAlert = false
     @State private var newPresetName = ""
 
@@ -63,9 +66,17 @@ struct PhonePlayerSettingsView: View {
                         .customFont(.title3, weight: .semibold, appFont: settings.appFont)
                         .foregroundStyle(.secondary)
 
+                    Picker("Configure", selection: $configMode) {
+                        Text("Tap Actions").tag(ConfigMode.tap)
+                        Text("Long Press").tag(ConfigMode.longPress)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+
                     VStack(spacing: 16) {
                         PhonePreviewCanvas(
-                            slots: $slots,
+                            slots: configMode == .tap ? $slots : $longPressSlots,
                             onChange: saveSlots
                         )
                     }
@@ -135,6 +146,11 @@ struct PhonePlayerSettingsView: View {
                                 
                                 Button {
                                     slots = padded(preset.slots)
+                                    if let lps = preset.longPressSlots {
+                                        longPressSlots = padded(lps)
+                                    } else {
+                                        longPressSlots = Array(repeating: .empty, count: 5)
+                                    }
                                     saveSlots()
                                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 } label: {
@@ -177,9 +193,9 @@ struct PhonePlayerSettingsView: View {
                     Text("Enter a name for this phone layout configuration.")
                 }
 
-                // MARK: Reset Button
                 Button {
                     slots = [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack]
+                    longPressSlots = Array(repeating: .empty, count: 5)
                     saveSlots()
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 } label: {
@@ -201,16 +217,18 @@ struct PhonePlayerSettingsView: View {
 
     private func loadSlots() {
         slots = padded(settings.phonePage)
+        longPressSlots = padded(settings.phoneLongPressPage)
     }
 
     private func saveSlots() {
         settings.phonePage = slots
+        settings.phoneLongPressPage = longPressSlots
     }
 
     private func saveCurrentAsPreset() {
         let name = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        let preset = PhonePreset(name: name, slots: slots)
+        let preset = PhonePreset(name: name, slots: slots, longPressSlots: longPressSlots)
         settings.phonePresets.append(preset)
         newPresetName = ""
     }

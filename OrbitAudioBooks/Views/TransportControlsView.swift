@@ -10,7 +10,8 @@ struct TransportControlsView: View {
             Spacer()
             ForEach(0..<5, id: \.self) { index in
                 let action = actionAt(index)
-                buttonForAction(action, isCompact: isCompact)
+                let longPressAction = longPressActionAt(index)
+                buttonForAction(action, longPressAction: longPressAction, isCompact: isCompact)
                 Spacer()
             }
         }
@@ -26,14 +27,26 @@ struct TransportControlsView: View {
         return .empty
     }
 
+    private func longPressActionAt(_ index: Int) -> WatchAction {
+        let page = settings.phoneLongPressPage
+        if page.indices.contains(index) {
+            return page[index]
+        }
+        return .empty
+    }
+
     @ViewBuilder
-    private func buttonForAction(_ action: WatchAction, isCompact: Bool) -> some View {
+    private func buttonForAction(_ action: WatchAction, longPressAction: WatchAction, isCompact: Bool) -> some View {
         switch action {
         case .playPause:
-            Button {
-                model.togglePlayPause()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    model.togglePlayPause()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: isCompact ? 36 : 44, weight: .bold))
                     .foregroundStyle(.primary)
@@ -43,10 +56,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(model.isPlaying ? Text("Pause") : Text("Play"))
 
         case .skipBackward:
-            Button {
-                let didJumpToBookmark = model.skipBackward30()
-                UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    let didJumpToBookmark = model.skipBackward30()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: WatchAction.skipBackward.dynamicIconName(forDuration: settings.seekBackwardDuration))
                     .font(.system(size: isCompact ? 24 : 28, weight: .regular))
                     .foregroundStyle(.primary)
@@ -56,10 +73,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(Text("Skip back \(settings.seekBackwardDuration) seconds"))
 
         case .skipForward:
-            Button {
-                let didJumpToBookmark = model.skipForward30()
-                UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    let didJumpToBookmark = model.skipForward30()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: WatchAction.skipForward.dynamicIconName(forDuration: settings.seekForwardDuration))
                     .font(.system(size: isCompact ? 24 : 28, weight: .regular))
                     .foregroundStyle(.primary)
@@ -69,10 +90,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(Text("Skip forward \(settings.seekForwardDuration) seconds"))
 
         case .previousTrack:
-            Button {
-                let didJumpToBookmark = model.skipBackwardNavigation()
-                UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    let didJumpToBookmark = model.skipBackwardNavigation()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: "backward.end.fill")
                     .font(.system(size: isCompact ? 20 : 24, weight: .semibold))
                     .foregroundStyle(.primary)
@@ -82,10 +107,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(model.chapters.count >= 2 ? Text("Previous chapter") : Text("Previous track"))
 
         case .nextTrack:
-            Button {
-                let didJumpToBookmark = model.skipForwardNavigation()
-                UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    let didJumpToBookmark = model.skipForwardNavigation()
+                    UIImpactFeedbackGenerator(style: didJumpToBookmark ? .medium : .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: "forward.end.fill")
                     .font(.system(size: isCompact ? 20 : 24, weight: .semibold))
                     .foregroundStyle(.primary)
@@ -95,10 +124,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(model.chapters.count >= 2 ? Text("Next chapter") : Text("Next track"))
 
         case .previousSection:
-            Button {
-                model.previousSectionOrRestart()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    model.previousSectionOrRestart()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: "backward.fill")
                     .font(.system(size: isCompact ? 20 : 24, weight: .semibold))
                     .foregroundStyle(.primary)
@@ -108,10 +141,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(Text("Previous section"))
 
         case .nextSection:
-            Button {
-                model.nextSection()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    model.nextSection()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: "forward.fill")
                     .font(.system(size: isCompact ? 20 : 24, weight: .semibold))
                     .foregroundStyle(.primary)
@@ -121,10 +158,14 @@ struct TransportControlsView: View {
             .accessibilityLabel(Text("Next section"))
 
         case .loopMode:
-            Button {
-                model.cycleLoopMode()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    model.cycleLoopMode()
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 ZStack {
                     switch model.loopMode {
                     case .off:
@@ -158,16 +199,20 @@ struct TransportControlsView: View {
             }()))
 
         case .speed:
-            Button {
-                let speeds: [Float] = [1.0, 1.25, 1.5, 2.0, 3.0]
-                if let index = speeds.firstIndex(of: model.speed) {
-                    let nextIndex = (index + 1) % speeds.count
-                    model.setSpeed(speeds[nextIndex])
-                } else {
-                    model.setSpeed(1.0)
-                }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            } label: {
+            TransportButton(
+                tapAction: {
+                    let speeds: [Float] = [1.0, 1.25, 1.5, 2.0, 3.0]
+                    if let index = speeds.firstIndex(of: model.speed) {
+                        let nextIndex = (index + 1) % speeds.count
+                        model.setSpeed(speeds[nextIndex])
+                    } else {
+                        model.setSpeed(1.0)
+                    }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Text(speedLabel)
                     .font(.system(size: isCompact ? 14 : 16, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
@@ -179,14 +224,19 @@ struct TransportControlsView: View {
 
         case .sleepTimer:
             sleepTimerMenu
+                .phoneLongPressGesture(action: longPressAction, model: model) // Fallback for Menu
 
         case .bookmark:
-            Button {
-                if let draft = model.bookmarkDraftAtCurrentTime() {
-                    model.activeBookmarkDraft = draft
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-            } label: {
+            TransportButton(
+                tapAction: {
+                    if let draft = model.bookmarkDraftAtCurrentTime() {
+                        model.activeBookmarkDraft = draft
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                },
+                longPressAction: longPressAction,
+                model: model
+            ) {
                 Image(systemName: "bookmark.fill")
                     .font(.system(size: isCompact ? 20 : 24, weight: .semibold))
                     .foregroundStyle(.primary)
