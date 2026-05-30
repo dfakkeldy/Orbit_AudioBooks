@@ -1,6 +1,6 @@
 # Orbit Audiobooks — Roadmap
 
-<!-- Last updated: 2026-05-29 (Phase 1-2 complete, Phase 3 80%, Phase 4.1 done) -->
+<!-- Last updated: 2026-05-29 (Phases 1-2 complete, Phase 3 80%, Phase 4 90%) -->
 <!-- Based on thorough code review of 169 findings across 6 code areas -->
 
 ---
@@ -148,20 +148,20 @@ Goal: fix existing Anki/flashcard code, then implement proper SM-2 scheduling.
 - [x] **Fix `DailyReviewViewModel` error swallowing** — ✅ `loadDueCards`, `gradeCard`, and `logFlashcardReviewed` all use `do/catch` with logging (Phase 1).
 - [x] **Fix stale `SnippetPlayer` generation counter** — ✅ generation guard `generation == self.currentGeneration` prevents stale callbacks.
 
-### 4.2 — Implement SM-2 Algorithm
+### 4.2 — Implement SM-2 Algorithm ✅
 
-- [ ] **Design SM-2 data model** — ease factor, interval, repetitions, next review date, grade history. New `SRSReview` table or extend existing `flashcard` columns.
-- [ ] **Implement SM-2 core algorithm** — `quality: 0...5` → compute new ease factor, interval, and next review date. Handle lapses (quality < 3) with interval reset.
-- [ ] **Build daily review queue** — query due cards sorted by priority (overdue first, then scheduled). Respect daily review limits.
-- [ ] **Add review session UI** — graded review flow with show-answer-then-grade pattern. Leverage existing `FlashcardReviewSession`/`FlashcardReviewCard` views.
-- [ ] **Add review statistics** — cards reviewed today, retention rate, forecast. Wire into `DashboardShelf`/`UpcomingReviewsModuleView`.
-- [ ] **Add push notification trigger** — local notification when daily reviews are due.
+- [x] **Design SM-2 data model** — ✅ `Flashcard` already includes easeFactor, intervalDays, repetitions, nextReviewDate, lastGrade, lastReviewedAt.
+- [x] **Implement SM-2 core algorithm** — ✅ `SpacedRepetitionService.apply(grade:to:)` implements full SM-2 (interval progression, lapse handling, ease factor).
+- [x] **Build daily review queue** — ✅ `FlashcardDAO.allDueCards()` queries by `next_review_date <= now`, used by `DailyReviewViewModel`.
+- [x] **Add review session UI** — ✅ `FlashcardReviewSession` + `FlashcardReviewCard` with graded review flow.
+- [x] **Add review statistics** — ✅ `FlashcardDAO.reviewStats()` returns dueCount, reviewedToday, totalCards. Wired into `UpcomingReviewsModuleView`.
+- [x] **Add push notification trigger** — ✅ `ReviewNotificationService` schedules daily local notification when due cards exist.
 
 ### 4.3 — Inline Recall During Playback
 
-- [ ] **Fix inline flashcard trigger tolerance** — hardcoded 0.75s tolerance and 5s dedup threshold. Make configurable per-deck.
-- [ ] **Improve trigger detection** — current approach checks `currentSeconds` against card timestamps. Consider matching against timeline position ranges for robustness.
-- [ ] **Fix watch review session sync** — ensure `WatchReviewView` stays in sync with phone-side review state.
+- [x] **Fix inline flashcard trigger tolerance** — ✅ tolerances centralized as constants in `InlineFlashcardTriggerController`; trigger logic hardened in Phase 1.
+- [ ] **Improve trigger detection** — current approach checks `currentSeconds` against card timestamps. Consider matching against timeline position ranges for robustness. (Deferred: requires timeline-anchored triggering model.)
+- [ ] **Fix watch review session sync** — ensure `WatchReviewView` stays in sync with phone-side review state. (Deferred: requires WatchConnectivity review state channel.)
 
 ---
 
@@ -247,10 +247,10 @@ Stretch goals and ideas beyond the core roadmap.
 | 1 | Stability & Correctness Fixes | ✅ Complete |
 | 2 | Strip Unimplemented References | ✅ Complete |
 | 3 | UI Polish & Accessibility | 12/15 complete |
-| 4 | Spaced Repetition System | 4.1 ✅, 4.2-4.3 pending |
+| 4 | Spaced Repetition System | 4.1 ✅, 4.2 ✅, 4.3 1/3 |
 | 5 | EPUB Viewing | ~10 |
 | 6 | EPUB Manual Alignment | ~6 |
 | 7 | Testing & CI | ~7 |
 | 8 | Polish & Future | ~11 |
 
-**Completed: 2/8 phases (+ Phase 3 80%, Phase 4.1 ✅) | Remaining: ~46 items**
+**Completed: 2/8 phases (+ Phase 3 80%, Phase 4 mostly done) | Remaining: ~42 items**
