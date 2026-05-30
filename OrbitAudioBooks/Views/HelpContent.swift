@@ -23,6 +23,13 @@ enum HelpContent {
             If a .transcript.json file with the same name as your audio file is in the same folder, it is loaded automatically and available as a scrolling transcript overlay.
 
             Your last opened book is restored automatically when you relaunch the app.
+
+            **Keeping files available offline:** Files stored in iCloud Drive or other cloud services may be automatically removed from your device to free up space. To ensure your audiobooks are always available:
+
+            • In the Files app, long-press the folder containing your audiobooks and select "Keep Downloaded." This pins the files to your device so they never get evicted.
+            • For the most reliable experience, store your audiobooks in an "On My iPhone" / "On My iPad" folder rather than iCloud Drive. These folders are always local and never subject to cloud eviction.
+
+            If you open Orbit and your book doesn't resume, check that your files are still downloaded in the Files app.
             """
         ),
         HelpSection(

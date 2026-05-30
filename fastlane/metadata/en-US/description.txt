@@ -18,3 +18,6 @@ CUSTOM APPLE WATCH EXPERIENCE
 Leave your phone in your pocket. The Orbit watchOS app includes a drag-and-drop designer, allowing you to completely customize the buttons and layout on your wrist. Assign the Digital Crown to control volume or scrub through the audio, right from your Watch.
 
 Join the future of audio learning. Download Orbit today and take control of your listening.
+
+OFFLINE ACCESS TIP
+For the best experience, store your audiobooks in an "On My iPhone" or "On My iPad" folder. If you use iCloud Drive, long-press your audiobook folder in the Files app and choose "Keep Downloaded" to ensure your books are always available — even without an internet connection.
