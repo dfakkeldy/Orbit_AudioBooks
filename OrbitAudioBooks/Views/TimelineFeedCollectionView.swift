@@ -36,6 +36,8 @@ struct TimelineFeedCollectionView: UIViewRepresentable {
         case searchSimilar
         case hide
         case unhide
+        case eraseAnchor
+        case resetAlignment
     }
 
     /// The first due Anki card currently visible in the feed, for sticky header display.
@@ -445,6 +447,24 @@ struct TimelineFeedCollectionView: UIViewRepresentable {
                                 parent?.onEPUBBlockAction?(item, .unhide)
                             })
                         }
+                        
+                        if item.alignmentStatus == "lockedAnchor" {
+                            children.append(UIAction(
+                                title: "Erase Anchor",
+                                image: UIImage(systemName: "link.badge.minus"),
+                                attributes: .destructive
+                            ) { _ in
+                                parent?.onEPUBBlockAction?(item, .eraseAnchor)
+                            })
+                        }
+                        
+                        children.append(UIAction(
+                            title: "Reset Alignment",
+                            image: UIImage(systemName: "exclamationmark.arrow.triangle.2.circlepath"),
+                            attributes: .destructive
+                        ) { _ in
+                            parent?.onEPUBBlockAction?(item, .resetAlignment)
+                        })
                     }
 
                     // Bookmark actions
@@ -759,6 +779,7 @@ final class TextSegmentCell: UICollectionViewCell {
     private let handleLabel = UILabel()
     private let dotLabel = UILabel()
     private let timestampLabel = UILabel()
+    private let anchorIcon = UIImageView()
     private let bodyLabel = UILabel()
     private let headerStack = UIStackView()
     private let rightStack = UIStackView()
@@ -800,6 +821,12 @@ final class TextSegmentCell: UICollectionViewCell {
 
         timestampLabel.font = monospacedDigitFont(forTextStyle: .caption1)
         timestampLabel.textColor = .secondaryLabel
+        
+        anchorIcon.image = UIImage(systemName: "link.circle")
+        anchorIcon.tintColor = .systemGreen
+        anchorIcon.translatesAutoresizingMaskIntoConstraints = false
+        anchorIcon.isHidden = true
+        anchorIcon.contentMode = .scaleAspectFit
 
         headerStack.axis = .horizontal
         headerStack.spacing = 4
@@ -807,6 +834,8 @@ final class TextSegmentCell: UICollectionViewCell {
         headerStack.addArrangedSubview(handleLabel)
         headerStack.addArrangedSubview(dotLabel)
         headerStack.addArrangedSubview(timestampLabel)
+        headerStack.addArrangedSubview(anchorIcon)
+        headerStack.setCustomSpacing(4, after: timestampLabel)
 
         bodyLabel.font = .preferredFont(forTextStyle: .body)
         bodyLabel.textColor = .label
@@ -845,6 +874,7 @@ final class TextSegmentCell: UICollectionViewCell {
         self.item = item
         bodyLabel.text = item.textPayload ?? item.title
         timestampLabel.text = formatHMS(item.audioStartTime)
+        anchorIcon.isHidden = item.alignmentStatus != "lockedAnchor"
         contentView.alpha = isHistory ? 0.65 : 1.0
 
         rebuildActions(for: item)
@@ -908,6 +938,7 @@ final class ChapterMarkerCell: UICollectionViewCell {
     private let handleLabel = UILabel()
     private let dotLabel = UILabel()
     private let timestampLabel = UILabel()
+    private let anchorIcon = UIImageView()
     private let titleLabel = UILabel()
     private let durationLabel = UILabel()
     private let headerStack = UIStackView()
@@ -951,12 +982,20 @@ final class ChapterMarkerCell: UICollectionViewCell {
         timestampLabel.font = monospacedDigitFont(forTextStyle: .caption1)
         timestampLabel.textColor = .secondaryLabel
 
+        anchorIcon.image = UIImage(systemName: "link.circle")
+        anchorIcon.tintColor = .systemGreen
+        anchorIcon.translatesAutoresizingMaskIntoConstraints = false
+        anchorIcon.isHidden = true
+        anchorIcon.contentMode = .scaleAspectFit
+
         headerStack.axis = .horizontal
         headerStack.spacing = 4
         headerStack.alignment = .firstBaseline
         headerStack.addArrangedSubview(handleLabel)
         headerStack.addArrangedSubview(dotLabel)
         headerStack.addArrangedSubview(timestampLabel)
+        headerStack.addArrangedSubview(anchorIcon)
+        headerStack.setCustomSpacing(4, after: timestampLabel)
 
         titleLabel.font = .preferredFont(forTextStyle: .headline)
         titleLabel.textColor = .label
@@ -1005,6 +1044,7 @@ final class ChapterMarkerCell: UICollectionViewCell {
         }
         durationLabel.isHidden = false
         timestampLabel.text = formatHMS(item.audioStartTime)
+        anchorIcon.isHidden = item.alignmentStatus != "lockedAnchor"
         contentView.alpha = isHistory ? 0.65 : 1.0
 
         rebuildActions(for: item)
@@ -1358,6 +1398,7 @@ final class ImageAssetCell: UICollectionViewCell {
     private let handleLabel = UILabel()
     private let dotLabel = UILabel()
     private let timestampLabel = UILabel()
+    private let anchorIcon = UIImageView()
     private let assetImageView = UIImageView()
     private let captionLabel = UILabel()
     private let headerStack = UIStackView()
@@ -1402,12 +1443,20 @@ final class ImageAssetCell: UICollectionViewCell {
         timestampLabel.font = monospacedDigitFont(forTextStyle: .caption1)
         timestampLabel.textColor = .secondaryLabel
 
+        anchorIcon.image = UIImage(systemName: "link.circle")
+        anchorIcon.tintColor = .systemGreen
+        anchorIcon.translatesAutoresizingMaskIntoConstraints = false
+        anchorIcon.isHidden = true
+        anchorIcon.contentMode = .scaleAspectFit
+
         headerStack.axis = .horizontal
         headerStack.spacing = 4
         headerStack.alignment = .firstBaseline
         headerStack.addArrangedSubview(handleLabel)
         headerStack.addArrangedSubview(dotLabel)
         headerStack.addArrangedSubview(timestampLabel)
+        headerStack.addArrangedSubview(anchorIcon)
+        headerStack.setCustomSpacing(4, after: timestampLabel)
 
         assetImageView.contentMode = .scaleAspectFit
         assetImageView.clipsToBounds = true
@@ -1454,6 +1503,10 @@ final class ImageAssetCell: UICollectionViewCell {
     func configure(_ item: TimelineItem, isHistory: Bool = false) {
         self.item = item
         captionLabel.text = item.title
+        timestampLabel.text = formatHMS(item.audioStartTime)
+        anchorIcon.isHidden = item.alignmentStatus != "lockedAnchor"
+        contentView.alpha = isHistory ? 0.65 : 1.0
+
         if let path = item.imagePath,
            let image = UIImage(contentsOfFile: path) {
             assetImageView.image = image

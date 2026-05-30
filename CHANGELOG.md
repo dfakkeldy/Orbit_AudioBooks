@@ -5,6 +5,11 @@ All notable changes to Orbit Audiobooks.
 ## [Unreleased]
 
 ### Added
+- **Proportional word-count alignment (Schema V8):** `word_count` column on `epub_block` enables alignment interpolation weighted by paragraph content length rather than raw sequence index. Longer paragraphs get proportionally wider time ranges; shorter ones are more tightly positioned. Improves accuracy for chapters with uneven prose/dialogue mixing.
+- **Anchor management:** "Erase Anchor" removes a single locked anchor from a block; "Reset Alignment" clears all anchors for the current audiobook. Both trigger timeline recalculation. Available via context menu on locked-anchor cards in both the Reader and Timeline feeds.
+- **Reader-specific bottom toolbar:** When the Read tab is active, `BottomToolbarView` switches to reader-optimized controls (skip back, play/pause, skip forward, timeline, bookmark) instead of the standard transport layout. Skip durations use configurable seek settings with dynamic SF Symbol naming.
+- **Anchor status indicators:** Locked-anchor cards show a green badge — a timestamp label (Reader feed) or 🔗 icon (Timeline feed) — distinguishing manually-aligned items from interpolated/estimated ones.
+- **Debug development assets:** Macbeth audiobook + EPUB bundle (`macbeth_m4b/`) under Development Assets, loadable via a `#if DEBUG` "Load Development Assets" button in Settings for instant reader pipeline testing.
 - Mini-player control bar (`PlayerControlBar`) on the Timeline tab — appears above the bottom toolbar when a book is loaded, showing artwork, title/chapter metadata, and play/pause. Tap to open the full NowPlaying player.
 - Configurable seek forward/backward durations (5–60s), synced between phone and watch.
 - **Watch expanded to 5 pages** — up to 25 customizable action slots (5 pages × 5 slots) with per-page configuration and TabView-style page swiping in settings. Empty pages auto-hide on the watch.
@@ -24,6 +29,7 @@ All notable changes to Orbit Audiobooks.
 - **Section disclosure groups in playlist**: logical chapters with sub-section data render as expandable `DisclosureGroup` rows, with tappable section rows and now-playing indicators.
 
 ### Changed
+- **Alignment interpolation now uses word-count-weighted proportional math** (Schema V8) instead of sequence-index-based linear interpolation. Results in more accurate timestamp estimates for paragraphs of varying lengths.
 - Settings, Book Settings, and Help toolbar buttons consolidated into a single "More" (`ellipsis.circle`) menu on both the NowPlaying tab and the NowPlaying top toolbar.
 - Simplified scrubber layout: time labels always below the slider.
 - Watch communication reliability improvements and playlist toggle UI polish.

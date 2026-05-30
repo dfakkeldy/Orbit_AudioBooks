@@ -236,6 +236,30 @@ final class TimelineFeedViewModel {
         }
     }
 
+    /// Erase the manual anchor for a block.
+    func eraseAnchor(blockID: String) {
+        guard let audiobookID else { return }
+        do {
+            let service = AlignmentService(db: timelineDAO.db, audiobookID: audiobookID)
+            try service.eraseAnchor(blockID: blockID)
+            Task { await loadInitialWindow(around: currentPosition) }
+        } catch {
+            lastError = error
+        }
+    }
+
+    /// Reset all alignment anchors.
+    func resetAlignment() {
+        guard let audiobookID else { return }
+        do {
+            let service = AlignmentService(db: timelineDAO.db, audiobookID: audiobookID)
+            try service.resetAlignment()
+            Task { await loadInitialWindow(around: currentPosition) }
+        } catch {
+            lastError = error
+        }
+    }
+
     /// Hide an EPUB block from the feed.
     func hideBlock(blockID: String, reason: String?) {
         guard let audiobookID else { return }

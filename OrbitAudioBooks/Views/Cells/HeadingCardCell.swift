@@ -21,6 +21,15 @@ final class HeadingCardCell: UICollectionViewCell {
         return view
     }()
 
+    private let anchorLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 10, weight: .bold)
+        label.textColor = .systemGreen
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.isHidden = true
+        return label
+    }()
+
     var isActiveBlock: Bool = false {
         didSet {
             activeBar.isHidden = !isActiveBlock
@@ -32,6 +41,7 @@ final class HeadingCardCell: UICollectionViewCell {
         super.init(frame: frame)
         contentView.addSubview(label)
         contentView.addSubview(activeBar)
+        contentView.addSubview(anchorLabel)
         contentView.layer.cornerRadius = 12
         contentView.clipsToBounds = true
 
@@ -40,6 +50,9 @@ final class HeadingCardCell: UICollectionViewCell {
             activeBar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
             activeBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
             activeBar.widthAnchor.constraint(equalToConstant: 3),
+
+            anchorLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            anchorLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
 
             label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 14),
             label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -14),
@@ -82,5 +95,10 @@ final class HeadingCardCell: UICollectionViewCell {
             searchRange = range.upperBound..<lowerText.endIndex
         }
         return attributed
+    }
+    
+    func setManuallyAligned(_ isManuallyAligned: Bool, timeString: String?) {
+        anchorLabel.isHidden = !isManuallyAligned
+        anchorLabel.text = timeString
     }
 }

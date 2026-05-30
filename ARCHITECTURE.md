@@ -3,7 +3,7 @@
 <!-- ⚠️  AUTO-GENERATED — do not edit directly. -->
 <!-- Regenerate with: `make architecture`                        -->
 
-**Last generated:** 2026-05-28 (manual sections updated for 5-page watch layouts, phone long-press actions, and toolbar menu consolidation)
+**Last generated:** 2026-05-30 (updated for word-count alignment, anchor management, Schema V8, and reader toolbar)
 
 This document maps the source-tree layout of the Xcode targets and Shared/
 module in the Orbit Audiobooks project. Folders are shown in the order
@@ -208,6 +208,9 @@ Database/Schema_V2.swift
 Database/Schema_V3.swift
 Database/Schema_V4.swift
 Database/Schema_V5.swift
+Database/Schema_V6.swift
+Database/Schema_V7.swift
+Database/Schema_V8.swift
 Database/TimelineItem.swift
 Database/TrackRecord.swift
 Database/TranscriptionRecord.swift
@@ -249,11 +252,20 @@ Alignment is now performed entirely in-app, without any external tools or API ca
 3. **Manual refinement:** The user long-presses any card in the Reader and chooses "Align to Now" to lock that block to the current playback position. Each locked anchor improves the accuracy of neighboring blocks through linear interpolation.
 4. **Timeline recalculation:** `AlignmentService.recalculateTimeline()` runs in a single DB transaction, updating all affected `timeline_item` rows with new interpolated timestamps.
 
+**Word-count proportional interpolation (Schema V8):**
+
+Earlier alignment used sequence-index-based linear interpolation, which assumed uniform spacing between blocks. Schema V8 introduces `word_count` on `epub_block` to weight block positions proportionally by content length. The algorithm:
+
+1. Computes a cumulative `wordPosition` for each block (running sum of half-word-counts, placing each block's "center" at its proportional position within the chapter).
+2. Virtual boundary anchors at chapter start/end use the chapter's word-position range instead of sequence indices.
+3. Interpolation fraction = `(blockPos − prevPos) / (nextPos − prevPos)` using word positions rather than sequence indices.
+4. This produces more accurate timestamp estimates for chapters with uneven paragraph lengths (e.g., long prose followed by short dialogue).
+
 **Key types:**
 
-- `AlignmentService` — Creates anchors and recalculates timeline via linear interpolation between locked and virtual boundary anchors
+- `AlignmentService` — Creates anchors and recalculates timeline via word-count-weighted proportional interpolation between locked and virtual boundary anchors. Supports `eraseAnchor(blockID:)` and `resetAlignment()` for anchor management.
 - `AlignmentAnchorRecord` — A user-created lock point tying an EPUB block to an audio time
-- `EPubBlockRecord` — Database row for a parsed EPUB block (heading, paragraph, or image)
+- `EPubBlockRecord` — Database row for a parsed EPUB block (heading, paragraph, or image). Includes `wordCount` (V8) for proportional math.
 - `TimelineItem` — Materialized row linking blocks to audio timestamps with `timestamp_source` and `alignment_status`
 - `TimestampSource` — Enum: `.lockedAnchor`, `.interpolated`, `.estimated`, `.none`
 - `AlignmentStatus` — Enum: `.lockedAnchor`, `.interpolated`, `.estimated`, `.unaligned`, `.omitted`
@@ -266,18 +278,16 @@ The Reader tab renders EPUB content as a feed of styled cards aligned to the aud
 
 **Dual-write synchronization:** When `BookmarkDAO` or `FlashcardDAO` creates, updates, or deletes a record, it also writes to `timeline_item` with the corresponding source tracking columns. This keeps the feed in sync without polling or triggers.
 
-**V5 Schema: EPUB block alignment**
+**Schema evolution: EPUB block alignment**
 
-Schema_V5 introduces two new tables and extends `timeline_item` with alignment metadata:
-
-| Table | Purpose |
+| Schema | Change |
 |---|---|
-| `epub_block` | Parsed EPUB structure — headings, paragraphs, sentences, images in reading order |
-| `alignment_anchor` | User-created lock points tying EPUB blocks to audio timestamps |
+| V5 | `epub_block` and `alignment_anchor` tables; extends `timeline_item` with `epub_block_id`, `timestamp_source`, `alignment_status`, `alignment_confidence` |
+| V6 | Minor schema refinements |
+| V7 | `html_content` (TEXT) and `card_color` (TEXT) columns on `epub_block` — preserves inner HTML for rich text rendering and per-card tint overrides |
+| V8 | `word_count` (INTEGER) column on `epub_block` — enables proportional interpolation weighted by paragraph word length instead of raw sequence index |
 
-New `timeline_item` columns: `epub_block_id`, `timestamp_source`, `alignment_status`, `alignment_confidence`.
-
-Indexes: `idx_epub_block_sequence` (audiobook_id, sequence_index), `idx_epub_block_chapter` (audiobook_id, chapter_index), `idx_epub_block_hidden` (audiobook_id, is_hidden), `idx_alignment_anchor_time` (audiobook_id, audio_time), `idx_alignment_anchor_block` (audiobook_id, epub_block_id).
+Key indexes: `idx_epub_block_sequence` (audiobook_id, sequence_index), `idx_epub_block_chapter` (audiobook_id, chapter_index), `idx_epub_block_hidden` (audiobook_id, is_hidden), `idx_alignment_anchor_time` (audiobook_id, audio_time), `idx_alignment_anchor_block` (audiobook_id, epub_block_id).
 
 **Alignment pipeline:**
 
@@ -292,8 +302,9 @@ EPUB (directory or .epub file)
 User anchors (manual)
   └─ AlignmentService
        ├── moveBlockToCurrentTime / anchorSearchResult / anchorChapterStart/End
+       ├── eraseAnchor(blockID:) / resetAlignment()   ← new anchor management
        ├── hideBlock / unhideBlock
-       └── recalculateTimeline (linear interpolation between locked anchors)
+       └── recalculateTimeline (word-count-weighted proportional interpolation)
 ```
 
 **Reader UI architecture:**
@@ -305,14 +316,21 @@ ReaderTab (SwiftUI)
   ├── Hint banners              ← context menu tip (one-time), alignment guidance (until first anchor)
   └── ReaderFeedCollectionView  ← UICollectionView via UIViewRepresentable
        ├── 4 cell types: HeadingCardCell, ParagraphCardCell, ImageCardCell, ChapterDividerCell
+       ├── Anchor labels         ← green "locked" badge on manually-aligned cards (Heading/Paragraph)
        ├── Active block tracking — blue bar on the card matching current playback position
        ├── Auto-scroll — follows playhead via binary search on timeline cache; disengages on manual scroll
-       ├── Context menu — long-press any card for align-to-now, change color, bookmark, copy, save image
+       ├── Force-scroll trigger  ← counter-based invalidation for repeated scroll-to-same-block
+       ├── Context menu — long-press any card for:
+       │    ├── Align to Now / Align to 5s Ago / Align to Chapter Start/End (headings)
+       │    ├── Erase Anchor (if lockedAnchor) / Reset Alignment (all anchors)
+       │    ├── Change Color / Save Bookmark / Copy Text / Save Image
        └── NSDiffableDataSourceSnapshot<String> — identity from ReaderCardItem.id
             └─ ReaderFeedViewModel (@Observable)
                  ├── Loads blocks from EPubBlockDAO, grouped by chapter
                  ├── Search: filters to matching blocks via blockDAO.searchBlocks()
                  ├── Active block: binary search on timelineCache for O(log N) lookup
+                 ├── alignmentStatusByBlockID: [String: String] — per-block status for anchor badge display
+                 ├── audioStartTimeByBlockID: [String: TimeInterval] — per-block timestamp for anchor labels
                  └── Data: [ReaderCardSection] — sections contain [ReaderCardItem] (chapterHeader or block)
 ```
 
@@ -420,7 +438,7 @@ The Reader uses a tap/long-press interaction model on card cells:
 |---|---|---|
 | **Tap** | Paragraph / heading card | Seek playback to the block's audio timestamp |
 | **Tap** | Image card | Open image in system viewer |
-| **Long press** | Any card | Context menu: Align to Now, Align to 5s Ago, Align to Chapter (headings only), Change Color, Save Bookmark, Copy Text, Save Image (images only) |
+| **Long press** | Any card | Context menu: Align to Now, Align to 5s Ago, Align to Chapter (headings only), Erase Anchor (locked anchors), Reset Alignment (all anchors), Change Color, Save Bookmark, Copy Text, Save Image (images only) |
 
 **Active block tracking:** The paragraph currently matching the audio playback position is highlighted with a blue leading bar (`activeBar`) on its card. The ReaderFeedViewModel performs a binary search on a cached `[(start, end, blockID)]` array for O(log N) lookup each time the playback position changes.
 
@@ -455,4 +473,41 @@ The ingestion layer (`TimelineIngestionFactory`) converts `nil` timestamps from 
 - Both types render inline in correct EPUB reading order, preserving the author's intended structure even when the audiobook narration skips content.
 
 **Orphan threshold:** A marker is classified as "orphaned" (un-timestamped) when its `epubCharOffset` is more than 50 characters from the nearest alignment range boundary. This threshold prevents spurious un-timestamped items from minor alignment jitter while catching genuinely unmatched EPUB content.
+
+### Reader-Specific Toolbar Controls
+
+When the user is on the Reader tab (`selectedTab == .read`), `BottomToolbarView` switches from the standard transport layout (loop, speed, sleep timer) to a simplified playback control set optimized for reading with audio:
+
+```
+BottomToolbarView (Reader mode)
+├── skipBackwardButton  ← configurable duration (e.g., "gobackward.15")
+├── playPauseButton     ← centered play/pause toggle
+├── skipForwardButton   ← configurable duration (e.g., "goforward.30")
+├── timelineButton      ← quick access to full timeline
+└── addBookmarkButton   ← bookmark at current position
+```
+
+The skip durations are read from `SettingsManager.seekBackwardDuration` / `seekForwardDuration` and displayed with dynamic SF Symbol naming (`gobackward.\(duration)` / `goforward.\(duration)`).
+
+### Anchor Status Indicators on Cards
+
+**Reader feed cards:**
+- `HeadingCardCell` and `ParagraphCardCell` include a green `anchorLabel` (top-right corner) that displays the anchored timestamp when `alignmentStatus == "lockedAnchor"`. The `setManuallyAligned(_:timeString:)` method controls visibility.
+- The alignment status and audio start time caches are maintained in `ReaderFeedViewModel` (`alignmentStatusByBlockID`, `audioStartTimeByBlockID`) and passed through `ReaderFeedCollectionView` to the coordinator for cell configuration.
+
+**Timeline feed cells:**
+- `TextSegmentCell`, `ChapterMarkerCell`, and `ImageAssetCell` each include an `anchorIcon` (`UIImageView` with `link.circle` SF Symbol, tinted green) in their header stack. The icon is shown when `item.alignmentStatus == "lockedAnchor"`.
+- Context menus on locked-anchor items include "Erase Anchor" (destructive); all items offer "Reset Alignment" (destructive, clears all anchors).
+
+### Debug Development Assets
+
+The project includes a development assets bundle for testing the EPUB reader pipeline:
+
+```
+OrbitAudioBooks/Development Assets/macbeth_m4b/
+├── macbeth.epub           ← Shakespeare's Macbeth (EPUB)
+└── William Shakespeare - Macbeth.m4b  ← matching audiobook
+```
+
+In `#if DEBUG` builds, `SettingsView` exposes a "Load Development Assets" button under a "Debug Menu" section. This invokes `PlayerModel.loadFolder()` with the main bundle URL, loading the Macbeth audiobook and EPUB for immediate testing of the reader, alignment, and search features without requiring external file selection.
 

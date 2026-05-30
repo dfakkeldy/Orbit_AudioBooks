@@ -10,9 +10,12 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
     @Binding var topChapterTitle: String?
     @Binding var topSectionTitle: String?
     let settings: ReaderSettings
+    var alignmentStatusByBlockID: [String: String] = [:]
+    var audioStartTimeByBlockID: [String: TimeInterval] = [:]
     var searchQuery: String? = nil
     var pulseBlockID: String? = nil
     var forceScrollBlockID: String? = nil
+    var forceScrollTrigger: Int = 0
     var onTapBlock: ((String) -> Void)?
     var onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?
 
@@ -58,6 +61,8 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         context.coordinator.onTapBlock = onTapBlock
         context.coordinator.onContextMenu = onContextMenu
         context.coordinator.settings = settings
+        context.coordinator.alignmentStatusByBlockID = alignmentStatusByBlockID
+        context.coordinator.audioStartTimeByBlockID = audioStartTimeByBlockID
         context.coordinator.activeBlockID = activeBlockID
         context.coordinator.searchQuery = searchQuery
 
@@ -68,8 +73,9 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
             context.coordinator.pulseBlockID = nil
         }
 
-        if let forceID = forceScrollBlockID, forceID != context.coordinator.lastForceScrolledID {
+        if let forceID = forceScrollBlockID, (forceID != context.coordinator.lastForceScrolledID || forceScrollTrigger != context.coordinator.lastForceScrollTrigger) {
             context.coordinator.lastForceScrolledID = forceID
+            context.coordinator.lastForceScrollTrigger = forceScrollTrigger
             if let dataSource = context.coordinator.dataSource,
                let indexPath = dataSource.indexPath(for: "b-\(forceID)") {
                 DispatchQueue.main.async {
@@ -112,6 +118,8 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         var topChapterTitle: Binding<String?>
         var topSectionTitle: Binding<String?>
         var settings: ReaderSettings = ReaderSettings(fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8")
+        var alignmentStatusByBlockID: [String: String] = [:]
+        var audioStartTimeByBlockID: [String: TimeInterval] = [:]
         var searchQuery: String? = nil
         var pulseBlockID: String? = nil
         var dataSource: UICollectionViewDiffableDataSource<String, String>?
@@ -119,6 +127,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         var activeBlockID: String?
         var lastScrolledBlockID: String?
         var lastForceScrolledID: String?
+        var lastForceScrollTrigger: Int = 0
 
         init(onTapBlock: ((String) -> Void)?, onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?, isHeaderVisible: Binding<Bool>, autoScrollEnabled: Binding<Bool>, topChapterTitle: Binding<String?>, topSectionTitle: Binding<String?>) {
             self.onTapBlock = onTapBlock
@@ -158,6 +167,9 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
                     headingCell.configure(with: block.text ?? "", font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
                     headingCell.isActiveBlock = (block.id == activeBlockID)
+                    let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"
+                    let timeString = isAnchored ? (audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "") : nil
+                    headingCell.setManuallyAligned(isAnchored, timeString: timeString)
                     return headingCell
 
                 case EPubBlockRecord.Kind.image.rawValue:
@@ -176,6 +188,9 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
                     paraCell.configure(with: block, font: font, tint: cardTint, lineSpacing: settings.lineSpacing, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
                     paraCell.isActiveBlock = (block.id == activeBlockID)
+                    let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"
+                    let timeString = isAnchored ? (audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "") : nil
+                    paraCell.setManuallyAligned(isAnchored, timeString: timeString)
                     return paraCell
                 }
             }

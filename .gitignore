@@ -65,6 +65,18 @@ __pycache__/
 .bundle/
 vendor/bundle/
 
+# --- Development Assets (large media files) ---
+*.m4b
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.ogg
+*.opus
+*.wma
+*.aiff
+*.wav
+
 # --- Dev tool configs ---
 .agents/
 .antigravitycli/

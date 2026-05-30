@@ -160,6 +160,7 @@ struct EPUBImportService {
         var blocks: [EPubBlockRecord] = []
 
         for (blockIdx, textBlock) in parser.textBlocks.enumerated() {
+            let wordCount = textBlock.text?.split(whereSeparator: { $0.isWhitespace }).count ?? 0
             let block = EPubBlockRecord(
                 id: "epub-\(audiobookID)-s\(spineIndex)-b\(blockIdx)",
                 audiobookID: audiobookID,
@@ -175,6 +176,7 @@ struct EPUBImportService {
                 chapterIndex: nil,
                 isHidden: false,
                 hiddenReason: nil,
+                wordCount: max(1, wordCount), // minimum 1 for proportional math
                 createdAt: ISO8601DateFormatter().string(from: Date()),
                 modifiedAt: nil
             )

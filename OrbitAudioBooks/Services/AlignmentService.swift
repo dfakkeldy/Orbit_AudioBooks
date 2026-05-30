@@ -70,6 +70,22 @@ struct AlignmentService {
         try recalculateTimeline()
     }
 
+    /// Erases the anchor for the given block ID and recalculates alignment.
+    func eraseAnchor(blockID: String) throws {
+        if let existing = try anchorDAO.anchor(for: audiobookID, epubBlockID: blockID) {
+            try anchorDAO.delete(id: existing.id)
+            try recalculateTimeline()
+        }
+    }
+
+    /// Resets all alignment anchors for this audiobook.
+    func resetAlignment() throws {
+        try timelineDAO.db.write { db in
+            try db.execute(sql: "DELETE FROM alignment_anchor WHERE audiobook_id = ?", arguments: [audiobookID])
+        }
+        try recalculateTimeline()
+    }
+
     /// Sets a chapter start anchor.
     func anchorChapterStart(blockID: String, chapterIndex: Int, time: TimeInterval) throws {
         let anchor = AlignmentAnchorRecord(
@@ -132,6 +148,7 @@ struct AlignmentService {
         let sequenceIndex: Int
         let audioTime: TimeInterval
         let isVirtual: Bool
+        let wordPosition: Double
     }
 
     /// Recalculates all affected `timeline_item` rows in one transaction.
@@ -179,6 +196,17 @@ struct AlignmentService {
 
         let sortedChapters = chapters.sorted { $0.sortOrder < $1.sortOrder }
 
+        // Pre-compute word positions for proportional interpolation
+        let sortedAllBlocks = blocks.sorted { $0.sequenceIndex < $1.sequenceIndex }
+        var wordPositionByBlockID: [String: Double] = [:]
+        var cumulativeWordCount: Double = 0
+        for block in sortedAllBlocks {
+            let weight = Double(max(1, block.wordCount ?? 1))
+            let center = cumulativeWordCount + weight / 2.0
+            wordPositionByBlockID[block.id] = center
+            cumulativeWordCount += weight
+        }
+
         // Single transaction: all alignment writes batched together.
         try timelineDAO.db.write { db in
             var processedBlockIDs = Set<String>()
@@ -191,16 +219,23 @@ struct AlignmentService {
                 guard let firstBlock = sortedBlocks.first,
                       let lastBlock = sortedBlocks.last else { continue }
 
+                let weightFirst = Double(max(1, firstBlock.wordCount ?? 1))
+                let weightLast = Double(max(1, lastBlock.wordCount ?? 1))
+                let startPos = (wordPositionByBlockID[firstBlock.id] ?? 0) - (weightFirst / 2.0)
+                let endPos = (wordPositionByBlockID[lastBlock.id] ?? 0) + (weightLast / 2.0)
+
                 // Build virtual boundary anchors.
                 let virtualStart = AnchorPoint(
                     sequenceIndex: firstBlock.sequenceIndex - 1,
                     audioTime: chapter.startSeconds,
-                    isVirtual: true
+                    isVirtual: true,
+                    wordPosition: startPos
                 )
                 let virtualEnd = AnchorPoint(
                     sequenceIndex: lastBlock.sequenceIndex + 1,
                     audioTime: chapter.endSeconds,
-                    isVirtual: true
+                    isVirtual: true,
+                    wordPosition: endPos
                 )
 
                 // Collect manual anchors belonging to blocks in this chapter.
@@ -210,7 +245,8 @@ struct AlignmentService {
                     return AnchorPoint(
                         sequenceIndex: blk.sequenceIndex,
                         audioTime: anchor.audioTime,
-                        isVirtual: false
+                        isVirtual: false,
+                        wordPosition: wordPositionByBlockID[blk.id] ?? 0
                     )
                 }
 
@@ -275,10 +311,10 @@ struct AlignmentService {
                         continue
                     }
 
-                    let prevSeq = Double(prev.sequenceIndex)
-                    let nextSeq = Double(next.sequenceIndex)
-                    let blockSeqD = Double(blockSeq)
-                    let fraction = (blockSeqD - prevSeq) / (nextSeq - prevSeq)
+                    let prevPos = prev.wordPosition
+                    let nextPos = next.wordPosition
+                    let blockPos = wordPositionByBlockID[block.id] ?? 0
+                    let fraction = (nextPos > prevPos) ? (blockPos - prevPos) / (nextPos - prevPos) : 0
                     let audioStart = prev.audioTime + fraction * (next.audioTime - prev.audioTime)
 
                     // "Virtual boundary taints": if either bracket is virtual → estimated.
@@ -326,14 +362,14 @@ struct AlignmentService {
                               anchoredBlocks: anchoredBlocks,
                               anchorTimes: anchorTimeByBlockID
                           ) {
-                    let prevSeq = Double(prev.sequenceIndex)
-                    let nextSeq = Double(next.sequenceIndex)
-                    let blockSeq = Double(block.sequenceIndex)
+                    let prevPos = wordPositionByBlockID[prev.id] ?? 0
+                    let nextPos = wordPositionByBlockID[next.id] ?? 0
+                    let blockPos = wordPositionByBlockID[block.id] ?? 0
                     guard let prevTime = anchorTimeByBlockID[prev.id],
                           let nextTime = anchorTimeByBlockID[next.id] else {
                         continue
                     }
-                    let fraction = (blockSeq - prevSeq) / (nextSeq - prevSeq)
+                    let fraction = (nextPos > prevPos) ? (blockPos - prevPos) / (nextPos - prevPos) : 0
                     audioStart = prevTime + fraction * (nextTime - prevTime)
                     timestampSrc = TimestampSource.interpolated.rawValue
                     alignStatus = AlignmentStatus.interpolated.rawValue

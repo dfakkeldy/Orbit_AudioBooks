@@ -19,6 +19,7 @@ struct ReaderTab: View {
     @State private var topSectionTitle: String? = nil
     @State private var pulseBlockID: String? = nil
     @State private var forceScrollBlockID: String? = nil
+    @State private var forceScrollTrigger: Int = 0
     @AppStorage("hasSeenReaderContextMenuHint") private var hasSeenContextMenuHint = false
     @State private var showAlignmentBanner = false
     @State private var hasDismissedAlignmentBanner = false
@@ -39,6 +40,7 @@ struct ReaderTab: View {
                                 autoScrollEnabled = true
                                 if let activeID = viewModel?.activeBlockID {
                                     forceScrollBlockID = activeID
+                                    forceScrollTrigger += 1
                                 }
                             },
                             onTOCTap: { showTOC = true },
@@ -101,9 +103,12 @@ struct ReaderTab: View {
                         topChapterTitle: $topChapterTitle,
                         topSectionTitle: $topSectionTitle,
                         settings: readerSettings,
+                        alignmentStatusByBlockID: vm.alignmentStatusByBlockID,
+                        audioStartTimeByBlockID: vm.audioStartTimeByBlockID,
                         searchQuery: searchText.isEmpty ? nil : searchText,
                         pulseBlockID: pulseBlockID,
                         forceScrollBlockID: forceScrollBlockID,
+                        forceScrollTrigger: forceScrollTrigger,
                         onTapBlock: { blockID in
                             seekToBlock(blockID)
                         },
@@ -143,6 +148,7 @@ struct ReaderTab: View {
                     onSelect: { blockID in
                         seekToBlockAndScroll(blockID)
                         forceScrollBlockID = blockID
+                        forceScrollTrigger += 1
                         showTOC = false
                     }
                 )
@@ -276,10 +282,39 @@ struct ReaderTab: View {
         }
     }
 
+    private func eraseAnchor(_ blockID: String) {
+        guard let db = model.databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        do {
+            try alignmentService.eraseAnchor(blockID: blockID)
+            viewModel?.reload()
+            haptic.impactOccurred()
+        } catch {
+            let errorHaptic = UINotificationFeedbackGenerator()
+            errorHaptic.notificationOccurred(.error)
+        }
+    }
+
+    private func resetAlignment() {
+        guard let db = model.databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        do {
+            try alignmentService.resetAlignment()
+            viewModel?.reload()
+            haptic.impactOccurred()
+        } catch {
+            let errorHaptic = UINotificationFeedbackGenerator()
+            errorHaptic.notificationOccurred(.error)
+        }
+    }
+
     private func buildContextMenu(block: EPubBlockRecord) -> UIContextMenuConfiguration? {
         let blockID = block.id
         let kind = EPubBlockRecord.Kind(rawValue: block.blockKind)
         let isHeading = kind == .heading
+        let status = viewModel?.alignmentStatusByBlockID[blockID]
 
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
             var actions: [UIAction] = []
@@ -317,6 +352,22 @@ struct ReaderTab: View {
                 }
                 actions.append(alignChapterAction)
             }
+            
+            if status == "lockedAnchor" {
+                let eraseAction = UIAction(
+                    title: "Erase Anchor", image: UIImage(systemName: "link.badge.minus"), attributes: .destructive
+                ) { _ in
+                    eraseAnchor(blockID)
+                }
+                actions.append(eraseAction)
+            }
+            
+            let resetAction = UIAction(
+                title: "Reset Alignment", image: UIImage(systemName: "exclamationmark.arrow.triangle.2.circlepath"), attributes: .destructive
+            ) { _ in
+                resetAlignment()
+            }
+            actions.append(resetAction)
             
             let saveBookmarkAction = UIAction(
                 title: "Save Bookmark", image: UIImage(systemName: "bookmark.fill")

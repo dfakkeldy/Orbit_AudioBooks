@@ -130,15 +130,19 @@ enum HelpContent {
             body: """
             If you add an EPUB file alongside your audiobook (in the same folder, with the same name), the Reader tab becomes available. This turns your audiobook into a fully searchable, browsable book.
 
-            **Automatic alignment:** When you first open an EPUB, the app automatically aligns each chapter to the corresponding audio chapter. Paragraphs are spaced evenly within each chapter — this gives a good starting point that you can refine.
+            **Automatic alignment:** When you first open an EPUB, the app automatically aligns each chapter to the corresponding audio chapter. Paragraphs are spaced proportionally within each chapter based on their word count — longer paragraphs get wider time ranges for more accurate estimates.
 
-            **Manual alignment:** Long-press any paragraph card and choose "Align to Now" to lock that paragraph to the current playback position. This makes the alignment exact. The more paragraphs you lock, the more precise the alignment becomes. You can also use "Align to Chapter" on heading cards to match them to a specific chapter boundary.
+            **Manual alignment:** Long-press any paragraph card and choose "Align to Now" to lock that paragraph to the current playback position. This makes the alignment exact. The more paragraphs you lock, the more precise the alignment becomes. You can also use "Align to Chapter Start/End" on heading cards to match them to specific chapter boundaries. Locked-anchor cards show a green badge with the anchored timestamp.
+
+            **Anchor management:** Long-press a locked-anchor card and choose "Erase Anchor" to remove a single anchor, or "Reset Alignment" to clear all anchors for the current book. Both automatically recalculate surrounding timestamps based on remaining anchors.
 
             **Search:** Pull down or tap the header to reveal the search bar. Type any phrase to instantly filter the entire book to matching paragraphs. Matching words are highlighted in yellow.
 
             **Table of Contents:** Tap the list icon in the reader header to browse the book's full table of contents. Tap any entry to jump to that section.
 
-            **Auto-scroll:** The reader can follow playback automatically. When auto-scroll is on, the current paragraph highlights with a blue bar and the view scrolls to keep it centered. Scroll manually to pause auto-follow; tap the calendar icon to re-enable it.
+            **Auto-scroll:** The reader can follow playback automatically. When auto-scroll is on, the current paragraph highlights with a blue bar and the view scrolls to keep it centered. Scroll manually to pause auto-follow; tap the scroll-to-active button (↓) in the header to re-enable it.
+
+            **Reader toolbar:** When the Reader tab is active, the bottom toolbar switches to reader-optimized controls: skip back, play/pause, skip forward (with your configured seek durations), timeline, and bookmark. This keeps essential playback controls at your fingertips while reading.
 
             **Card colors:** Long-press any card and choose "Change Color" to highlight it. Use this to color-code important passages, mark sections to revisit, or organize your study notes.
 

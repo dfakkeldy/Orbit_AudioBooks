@@ -18,6 +18,11 @@ final class ReaderFeedViewModel {
 
     /// Cache mapping time ranges to block IDs for fast O(log N) lookup during playback.
     private var timelineCache: [(start: TimeInterval, end: TimeInterval, blockID: String)] = []
+    
+    /// Cache of alignment statuses by block ID.
+    private(set) var alignmentStatusByBlockID: [String: String] = [:]
+    /// Cache of audio start times by block ID (used for UI display of anchors).
+    private(set) var audioStartTimeByBlockID: [String: TimeInterval] = [:]
 
     /// All cards in the feed grouped by sections.
     private(set) var sections: [ReaderCardSection] = []
@@ -104,20 +109,39 @@ final class ReaderFeedViewModel {
             }
             
             // Rebuild timeline cache for fast active block lookup
-            timelineCache = try db.read { db in
+            let rows = try db.read { db in
                 try Row.fetchAll(db, sql: """
-                    SELECT ti.audio_start_time, ti.audio_end_time, ti.epub_block_id
+                    SELECT ti.audio_start_time, ti.audio_end_time, ti.epub_block_id, ti.alignment_status
                     FROM timeline_item ti
-                    WHERE ti.audiobook_id = ? AND ti.epub_block_id IS NOT NULL
+                    WHERE ti.audiobook_id = ? AND ti.epub_block_id IS NOT NULL AND ti.audio_start_time >= 0
                     ORDER BY ti.audio_start_time
                     """, arguments: [audiobookID])
-                .compactMap { row in
-                    guard let start: TimeInterval = row["audio_start_time"],
-                          let end: TimeInterval = row["audio_end_time"],
-                          let blockID: String = row["epub_block_id"] else { return nil }
-                    return (start, end, blockID)
+            }
+            
+            var newTimeline: [(start: TimeInterval, end: TimeInterval, blockID: String)] = []
+            var newAlignmentStatus: [String: String] = [:]
+            var newAudioStartTime: [String: TimeInterval] = [:]
+            for (i, row) in rows.enumerated() {
+                guard let start: TimeInterval = row["audio_start_time"],
+                      let blockID: String = row["epub_block_id"] else { continue }
+                      
+                let end: TimeInterval
+                if let explicitEnd: TimeInterval = row["audio_end_time"] {
+                    end = explicitEnd
+                } else if i + 1 < rows.count, let nextStart: TimeInterval = rows[i + 1]["audio_start_time"] {
+                    end = nextStart
+                } else {
+                    end = start + 3600 // Large fallback for the last item
+                }
+                newTimeline.append((start, end, blockID))
+                newAudioStartTime[blockID] = start
+                if let status: String = row["alignment_status"] {
+                    newAlignmentStatus[blockID] = status
                 }
             }
+            timelineCache = newTimeline
+            alignmentStatusByBlockID = newAlignmentStatus
+            audioStartTimeByBlockID = newAudioStartTime
         } catch {
             logger.error("Failed to load reader blocks: \(error.localizedDescription)")
         }

@@ -2,21 +2,34 @@ import SwiftUI
 
 struct BottomToolbarView: View {
     @Environment(PlayerModel.self) private var model
+    @Environment(SettingsManager.self) private var settings
     var onCreateBookmark: ((BookmarkDraft) -> Void)?
 
     var body: some View {
         VStack(spacing: 8) {
             // Playback controls row
             HStack {
-                loopModeButton
-                Spacer()
-                speedButton
-                Spacer()
-                sleepTimerMenu
-                Spacer()
-                timelineButton
-                Spacer()
-                addBookmarkButton
+                if model.selectedTab == .read {
+                    skipBackwardButton
+                    Spacer()
+                    playPauseButton
+                    Spacer()
+                    skipForwardButton
+                    Spacer()
+                    timelineButton
+                    Spacer()
+                    addBookmarkButton
+                } else {
+                    loopModeButton
+                    Spacer()
+                    speedButton
+                    Spacer()
+                    sleepTimerMenu
+                    Spacer()
+                    timelineButton
+                    Spacer()
+                    addBookmarkButton
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -212,4 +225,47 @@ struct BottomToolbarView: View {
         .disabled(model.tracks.isEmpty)
     }
 
+    // MARK: - EPUB Player Controls
+
+    private var skipBackwardButton: some View {
+        Button {
+            _ = model.skipBackward30()
+            Haptic.play(.light)
+        } label: {
+            Image(systemName: "gobackward.\(Int(settings.seekBackwardDuration))")
+                .font(.title2)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text("Skip backward \(Int(settings.seekBackwardDuration)) seconds"))
+        .disabled(model.tracks.isEmpty)
+    }
+
+    private var playPauseButton: some View {
+        Button {
+            model.togglePlayPause()
+            Haptic.play(.medium)
+        } label: {
+            Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+                .font(.title)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text(model.isPlaying ? "Pause" : "Play"))
+        .disabled(model.tracks.isEmpty)
+    }
+
+    private var skipForwardButton: some View {
+        Button {
+            _ = model.skipForward30()
+            Haptic.play(.light)
+        } label: {
+            Image(systemName: "goforward.\(Int(settings.seekForwardDuration))")
+                .font(.title2)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text("Skip forward \(Int(settings.seekForwardDuration)) seconds"))
+        .disabled(model.tracks.isEmpty)
+    }
 }

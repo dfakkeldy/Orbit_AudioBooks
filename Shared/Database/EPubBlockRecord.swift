@@ -18,6 +18,7 @@ struct EPubBlockRecord: Identifiable, Equatable, Hashable, Sendable, Codable, Fe
     var chapterIndex: Int?
     var isHidden: Bool
     var hiddenReason: String?
+    var wordCount: Int?
     var createdAt: String?
     var modifiedAt: String?
 
@@ -38,6 +39,7 @@ struct EPubBlockRecord: Identifiable, Equatable, Hashable, Sendable, Codable, Fe
         case chapterIndex = "chapter_index"
         case isHidden = "is_hidden"
         case hiddenReason = "hidden_reason"
+        case wordCount = "word_count"
         case createdAt = "created_at"
         case modifiedAt = "modified_at"
     }

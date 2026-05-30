@@ -93,6 +93,9 @@ final class DatabaseService {
         migrator.registerMigration("v7_epub_reader_columns") { db in
             try MainActor.assumeIsolated { try Schema_V7.migrate(db) }
         }
+        migrator.registerMigration("v8_epub_block_word_count") { db in
+            try MainActor.assumeIsolated { try Schema_V8.migrate(db) }
+        }
         try migrator.migrate(writer)
     }
 

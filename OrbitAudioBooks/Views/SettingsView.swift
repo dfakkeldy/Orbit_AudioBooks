@@ -94,6 +94,19 @@ struct SettingsView: View {
                     }
                 }
 
+                #if DEBUG
+                Section {
+                    Button("Load Development Assets") {
+                        model.loadFolder(Bundle.main.bundleURL)
+                        dismiss()
+                    }
+                } header: {
+                    Text("Debug Menu")
+                } footer: {
+                    Text("Loads audio files from Development Assets into the player.")
+                }
+                #endif
+
                 Section {
                     NavigationLink("Help") {
                         HelpView()
