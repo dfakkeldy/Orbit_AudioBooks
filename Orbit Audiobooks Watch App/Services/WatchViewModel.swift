@@ -85,7 +85,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     /// Top words for the current chapter, received from the iPhone.
     var currentWordCloud: [WordFrequency] = []
 
-    let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0]
+    let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0, 3.0]
     var currentSpeedIndex: Int = 0
     var playbackSpeed: Double { availableSpeeds[currentSpeedIndex] }
 

@@ -3,7 +3,7 @@ import SwiftUI
 struct SpeedCardView: View {
     @Environment(PlayerModel.self) private var model
 
-    private let speeds: [Float] = [1.0, 1.25, 1.5, 2.0]
+    private let speeds: [Float] = SettingsManager.Defaults.speedPresets
 
     var body: some View {
         Button {

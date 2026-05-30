@@ -107,8 +107,15 @@ struct MacContentView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.message = String(localized: "Select an audiobook file or folder containing audio files.")
-        let audioTypes: [UTType] = [.audio, .mp3, .mpeg4Audio]
-            .compactMap { $0 }
+        let audioTypes: [UTType] = [
+            .audio, .mp3, .mpeg4Audio,
+            UTType(filenameExtension: "aiff") ?? .audio,
+            UTType(filenameExtension: "aac") ?? .audio,
+            UTType(filenameExtension: "ogg") ?? .audio,
+            UTType(filenameExtension: "opus") ?? .audio,
+            UTType(filenameExtension: "wma") ?? .audio,
+            UTType(filenameExtension: "flac") ?? .audio,
+        ]
         panel.allowedContentTypes = audioTypes
         if panel.runModal() == .OK, let url = panel.url {
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false

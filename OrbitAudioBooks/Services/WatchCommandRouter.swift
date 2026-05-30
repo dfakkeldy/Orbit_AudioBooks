@@ -92,7 +92,7 @@ final class WatchCommandRouter {
                     if let newSpeed = message["playbackSpeed"] as? Double {
                         facade.setSpeed(Float(newSpeed))
                     } else {
-                        let speeds: [Float] = [1.0, 1.25, 1.5, 2.0]
+                        let speeds = SettingsManager.Defaults.speedPresets
                         let idx = speeds.firstIndex(of: facade.speed) ?? -1
                         let next = speeds[(idx + 1) % speeds.count]
                         facade.setSpeed(next)

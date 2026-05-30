@@ -98,17 +98,17 @@ struct NowPlayingTab: View {
         }
     }
 
-    private func chapterProgressText() -> String {
-        let chapterIndex = (model.currentChapterIndex ?? 0) + 1
-        let chapterCount = model.chapters.count
-        
+    /// Returns a localized (elapsed, remaining) pair for book-level progress,
+    /// accounting for multi-M4B offsets and playback speed.
+    private func bookProgressParts() -> (elapsed: String, remaining: String) {
         let speed = model.speed > 0 ? Double(model.speed) : 1.0
         let currentSeconds = model.currentPlaybackTime
         let totalBookDuration = model.isMultiM4B ? model.totalBookDuration : (model.durationSeconds ?? 0)
 
         let elapsedSeconds: Double
         if model.isMultiM4B {
-            let bookOffset = model.m4bBooks.indices.contains(model.currentIndex) ? model.m4bBooks[model.currentIndex].cumulativeStartOffset : 0
+            let bookOffset = model.m4bBooks.indices.contains(model.currentIndex)
+                ? model.m4bBooks[model.currentIndex].cumulativeStartOffset : 0
             elapsedSeconds = bookOffset + currentSeconds
         } else {
             elapsedSeconds = currentSeconds
@@ -118,35 +118,20 @@ struct NowPlayingTab: View {
         let scaledDuration = totalBookDuration / speed
         let scaledRemaining = max(0, scaledDuration - scaledElapsed)
 
-        let elapsedStr = formatHhMm(scaledElapsed)
-        let remainingStr = formatHhMm(scaledRemaining)
-        
-        return String(localized: "Chapter \(chapterIndex) of \(chapterCount), \(elapsedStr) elapsed, \(remainingStr) remaining")
+        return (formatHhMm(scaledElapsed), formatHhMm(scaledRemaining))
+    }
+
+    private func chapterProgressText() -> String {
+        let chapterIndex = (model.currentChapterIndex ?? 0) + 1
+        let chapterCount = model.chapters.count
+        let parts = bookProgressParts()
+        return String(localized: "Chapter \(chapterIndex) of \(chapterCount), \(parts.elapsed) elapsed, \(parts.remaining) remaining")
     }
 
     private func trackProgressText() -> String {
         let trackIndex = model.currentIndex + 1
         let trackCount = model.tracks.count
-        
-        let speed = model.speed > 0 ? Double(model.speed) : 1.0
-        let currentSeconds = model.currentPlaybackTime
-        let totalBookDuration = model.isMultiM4B ? model.totalBookDuration : (model.durationSeconds ?? 0)
-
-        let elapsedSeconds: Double
-        if model.isMultiM4B {
-            let bookOffset = model.m4bBooks.indices.contains(model.currentIndex) ? model.m4bBooks[model.currentIndex].cumulativeStartOffset : 0
-            elapsedSeconds = bookOffset + currentSeconds
-        } else {
-            elapsedSeconds = currentSeconds
-        }
-
-        let scaledElapsed = elapsedSeconds / speed
-        let scaledDuration = totalBookDuration / speed
-        let scaledRemaining = max(0, scaledDuration - scaledElapsed)
-
-        let elapsedStr = formatHhMm(scaledElapsed)
-        let remainingStr = formatHhMm(scaledRemaining)
-        
-        return String(localized: "Track \(trackIndex) of \(trackCount), \(elapsedStr) elapsed, \(remainingStr) remaining")
+        let parts = bookProgressParts()
+        return String(localized: "Track \(trackIndex) of \(trackCount), \(parts.elapsed) elapsed, \(parts.remaining) remaining")
     }
 }

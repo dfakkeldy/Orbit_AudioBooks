@@ -24,7 +24,9 @@ final class NowPlayingController {
         skipBackward: @escaping () -> Void,
         skipForward: @escaping () -> Void = {},
         previousTrack: @escaping () -> Void = {},
-        seek: @escaping (TimeInterval) -> Void = { _ in }
+        seek: @escaping (TimeInterval) -> Void = { _ in },
+        skipBackwardInterval: Int = 30,
+        skipForwardInterval: Int = 30
     ) {
         guard !didConfigureRemoteCommands else { return }
         didConfigureRemoteCommands = true
@@ -36,9 +38,9 @@ final class NowPlayingController {
         center.togglePlayPauseCommand.isEnabled = true
         center.nextTrackCommand.isEnabled = true
         center.skipBackwardCommand.isEnabled = true
-        center.skipBackwardCommand.preferredIntervals = [30]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipBackwardInterval)]
         center.skipForwardCommand.isEnabled = true
-        center.skipForwardCommand.preferredIntervals = [30]
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skipForwardInterval)]
         center.previousTrackCommand.isEnabled = true
         center.changePlaybackPositionCommand.isEnabled = true
 

@@ -24,6 +24,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let crownVolumeSensitivity = 0.05
         static let crownScrubSensitivity = 0.5
         static let defaultPlaybackSpeed = 1.25
+        static let speedPresets: [Float] = [1.0, 1.25, 1.5, 2.0, 3.0]
         static let watchPage1: [WatchAction] = [.empty, .empty, .skipBackward, .playPause, .skipForward]
         static let watchPage2: [WatchAction] = [.loopMode, .empty, .speed, .sleepTimer, .bookmark]
         static let watchPage3: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
