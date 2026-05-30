@@ -1,6 +1,6 @@
 # Orbit Audiobooks — Roadmap
 
-<!-- Last updated: 2026-05-29 (Phase 1 & 2 complete, Phase 3 80%) -->
+<!-- Last updated: 2026-05-29 (Phase 1-2 complete, Phase 3 80%, Phase 4.1 done) -->
 <!-- Based on thorough code review of 169 findings across 6 code areas -->
 
 ---
@@ -137,16 +137,16 @@ Goal: improve fit-and-finish, Dynamic Type support, and accessibility compliance
 
 Goal: fix existing Anki/flashcard code, then implement proper SM-2 scheduling.
 
-### 4.1 — Fix Existing Flashcard Code
+### 4.1 — Fix Existing Flashcard Code ✅
 
-- [ ] **Fix silent flashcard grade failures** — `try? FlashcardDAO.grade()` in `InlineFlashcardTriggerController` swallows errors. Add logging and user feedback.
-- [ ] **Fix silent flashcard load failures** — `try? FlashcardDAO.flashcards()` returns `[]` on error, appearing as "no cards due."
-- [ ] **Fix `SnippetPlayer` silent completion failure** — when audio unreadable or segment zero-length, `onPlaybackDidEnd` never fires. Caller remains in "playing" state.
-- [ ] **Fix flashcard `created_at`/`modified_at` dead columns** — columns exist in schema but struct ignores them. Wire up properly.
-- [ ] **Fix `flashcardDeckImport.triggerTiming` as free-form String** — should be a String-backed enum (`beginning`, `end`, `manualOnly`).
-- [ ] **Fix `logFlashcardReviewed` silent logging failures** — review history silently lost.
-- [ ] **Fix `DailyReviewViewModel` error swallowing** — both JSON serialization and DAO logging use `try?`.
-- [ ] **Fix stale `SnippetPlayer` generation counter** — race condition noted in CHANGELOG (generation counter for stale completion). Verify fix is complete.
+- [x] **Fix silent flashcard grade failures** — ✅ `PlayerModel.gradeFlashcard` now uses `do/catch` with `os_log`. `InlineFlashcardTriggerController` and `DailyReviewViewModel` already hardened in Phase 1.
+- [x] **Fix silent flashcard load failures** — ✅ watch state and `TimelineTab.refreshDueCount` now use `do/catch` with error logging.
+- [x] **Fix `SnippetPlayer` silent completion failure** — ✅ all failure paths (file read, zero-length, engine start) already call `onPlaybackDidEnd?()`.
+- [x] **Fix flashcard `created_at`/`modified_at` dead columns** — ✅ set on creation (`FlashcardCreationSheet`, `DeckImportService`) and on grading (`SpacedRepetitionService.apply`).
+- [x] **Fix `flashcardDeckImport.triggerTiming` as free-form String** — ✅ introduced `FlashcardTriggerTiming` String-backed enum with `.beginning`, `.end`, `.manualOnly` cases.
+- [x] **Fix `logFlashcardReviewed` silent logging failures** — ✅ already uses `do/catch` with `logger.error` (Phase 1).
+- [x] **Fix `DailyReviewViewModel` error swallowing** — ✅ `loadDueCards`, `gradeCard`, and `logFlashcardReviewed` all use `do/catch` with logging (Phase 1).
+- [x] **Fix stale `SnippetPlayer` generation counter** — ✅ generation guard `generation == self.currentGeneration` prevents stale callbacks.
 
 ### 4.2 — Implement SM-2 Algorithm
 
@@ -247,10 +247,10 @@ Stretch goals and ideas beyond the core roadmap.
 | 1 | Stability & Correctness Fixes | ✅ Complete |
 | 2 | Strip Unimplemented References | ✅ Complete |
 | 3 | UI Polish & Accessibility | 12/15 complete |
-| 4 | Spaced Repetition System | ~14 |
+| 4 | Spaced Repetition System | 4.1 ✅, 4.2-4.3 pending |
 | 5 | EPUB Viewing | ~10 |
 | 6 | EPUB Manual Alignment | ~6 |
 | 7 | Testing & CI | ~7 |
 | 8 | Polish & Future | ~11 |
 
-**Completed: 2/8 phases (+ Phase 3 at 80%) | Remaining: ~54 items**
+**Completed: 2/8 phases (+ Phase 3 80%, Phase 4.1 ✅) | Remaining: ~46 items**
