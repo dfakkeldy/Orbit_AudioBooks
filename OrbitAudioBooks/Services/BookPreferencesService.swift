@@ -18,6 +18,20 @@ struct BookPreferencesService {
         "book_volumeBoost_\(audiobookID)"
     }
 
+    // MARK: - Reader settings
+
+    static func readerFontSizeKey(for audiobookID: String) -> String {
+        "book_readerFontSize_\(audiobookID)"
+    }
+
+    static func readerLineSpacingKey(for audiobookID: String) -> String {
+        "book_readerLineSpacing_\(audiobookID)"
+    }
+
+    static func readerCardTintKey(for audiobookID: String) -> String {
+        "book_readerCardTint_\(audiobookID)"
+    }
+
     // MARK: - Load
 
     static func loadOverrides(for audiobookID: String) -> (font: String?, bookmarks: String?, volumeBoost: String?) {

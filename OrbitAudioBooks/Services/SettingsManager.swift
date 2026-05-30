@@ -45,6 +45,9 @@ final class SettingsManager: SettingsManagerProtocol {
         static let seekBackwardDuration = 30
         static let seekForwardDuration = 30
         static let playerLayoutStyle = "default"
+        static let readerFontSize: Double = 17.0
+        static let readerLineSpacing: Double = 1.4
+        static let readerCardTint: String = "#F5F0E8"
     }
 
     private enum Keys {
@@ -86,6 +89,9 @@ final class SettingsManager: SettingsManagerProtocol {
         static let watchPresets = "watchPresets"
         static let phonePresets = "phonePresets"
         static let playerLayoutStyle = "playerLayoutStyle"
+        static let readerFontSize = "readerFontSize"
+        static let readerLineSpacing = "readerLineSpacing"
+        static let readerCardTint = "readerCardTint"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -152,6 +158,23 @@ final class SettingsManager: SettingsManagerProtocol {
     var watchBackgroundStyle: String { didSet { appGroupSet(watchBackgroundStyle, forKey: Keys.watchBackgroundStyle) } }
     var isHapticFeedbackEnabled: Bool { didSet { appGroupSet(isHapticFeedbackEnabled, forKey: Keys.isHapticFeedbackEnabled) } }
     var volumeBoostGain: Float { didSet { defaults.set(volumeBoostGain, forKey: Keys.volumeBoostGain) } }
+
+    // MARK: - Reader
+
+    var readerFontSize: Double {
+        get { defaults.double(forKey: Keys.readerFontSize).nonZero ?? Defaults.readerFontSize }
+        set { defaults.set(newValue, forKey: Keys.readerFontSize) }
+    }
+
+    var readerLineSpacing: Double {
+        get { defaults.double(forKey: Keys.readerLineSpacing).nonZero ?? Defaults.readerLineSpacing }
+        set { defaults.set(newValue, forKey: Keys.readerLineSpacing) }
+    }
+
+    var readerCardTint: String {
+        get { defaults.string(forKey: Keys.readerCardTint) ?? Defaults.readerCardTint }
+        set { defaults.set(newValue, forKey: Keys.readerCardTint) }
+    }
     var watchQuickBookmarkTimeoutSeconds: Int {
         didSet {
             let clampedValue = max(1, watchQuickBookmarkTimeoutSeconds)
@@ -303,7 +326,10 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.phoneLongPressPage: (try? JSONEncoder().encode(Defaults.phoneLongPressPage)) ?? Data(),
             Keys.seekBackwardDuration: Defaults.seekBackwardDuration,
             Keys.seekForwardDuration: Defaults.seekForwardDuration,
-            Keys.playerLayoutStyle: Defaults.playerLayoutStyle
+            Keys.playerLayoutStyle: Defaults.playerLayoutStyle,
+            Keys.readerFontSize: Defaults.readerFontSize,
+            Keys.readerLineSpacing: Defaults.readerLineSpacing,
+            Keys.readerCardTint: Defaults.readerCardTint
         ])
         appGroupDefaults.register(defaults: [
             Keys.crownAction: Defaults.crownAction,
@@ -347,4 +373,8 @@ final class SettingsManager: SettingsManagerProtocol {
     static func normalizedAppFont(_ appFont: String) -> String {
         appFont == legacySystemFontName ? systemFontName : appFont
     }
+}
+
+private extension Double {
+    var nonZero: Double? { self == 0 ? nil : self }
 }
