@@ -50,10 +50,37 @@ final class HeadingCardCell: UICollectionViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
-    func configure(with text: String, font: UIFont, tint: UIColor) {
-        label.text = text
-        label.font = font
-        contentView.backgroundColor = tint.withAlphaComponent(0.15)
-        label.textColor = UITraitCollection.current.userInterfaceStyle == .dark ? .white : .label
+    func configure(with text: String, font: UIFont, tint: UIColor, isExplicitHighlight: Bool, searchQuery: String? = nil) {
+        let plainText = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        if let query = searchQuery, !query.isEmpty {
+            label.attributedText = highlightedText(plainText, query: query, font: font, textColor: isExplicitHighlight ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? .white : .label))
+        } else {
+            label.text = plainText
+            label.font = font
+            label.textColor = isExplicitHighlight ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? .white : .label)
+        }
+        contentView.backgroundColor = isExplicitHighlight ? tint : tint.withAlphaComponent(0.15)
+    }
+
+    private func highlightedText(_ text: String, query: String, font: UIFont, textColor: UIColor) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: textColor
+        ])
+        let lowerText = text.lowercased()
+        let lowerQuery = query.lowercased()
+        var searchRange = lowerText.startIndex..<lowerText.endIndex
+        while let range = lowerText.range(of: lowerQuery, options: .caseInsensitive, range: searchRange) {
+            let nsRange = NSRange(range, in: text)
+            attributed.addAttribute(.backgroundColor, value: UIColor.systemYellow.withAlphaComponent(0.4), range: nsRange)
+            attributed.addAttribute(.font, value: UIFont.systemFont(ofSize: font.pointSize, weight: .bold), range: nsRange)
+            searchRange = range.upperBound..<lowerText.endIndex
+        }
+        return attributed
     }
 }

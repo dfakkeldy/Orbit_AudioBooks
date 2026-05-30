@@ -125,6 +125,31 @@ enum HelpContent {
             """
         ),
         HelpSection(
+            id: "epub-reader",
+            title: "EPUB Reader & Search",
+            body: """
+            If you add an EPUB file alongside your audiobook (in the same folder, with the same name), the Reader tab becomes available. This turns your audiobook into a fully searchable, browsable book.
+
+            **Automatic alignment:** When you first open an EPUB, the app automatically aligns each chapter to the corresponding audio chapter. Paragraphs are spaced evenly within each chapter — this gives a good starting point that you can refine.
+
+            **Manual alignment:** Long-press any paragraph card and choose "Align to Now" to lock that paragraph to the current playback position. This makes the alignment exact. The more paragraphs you lock, the more precise the alignment becomes. You can also use "Align to Chapter" on heading cards to match them to a specific chapter boundary.
+
+            **Search:** Pull down or tap the header to reveal the search bar. Type any phrase to instantly filter the entire book to matching paragraphs. Matching words are highlighted in yellow.
+
+            **Table of Contents:** Tap the list icon in the reader header to browse the book's full table of contents. Tap any entry to jump to that section.
+
+            **Auto-scroll:** The reader can follow playback automatically. When auto-scroll is on, the current paragraph highlights with a blue bar and the view scrolls to keep it centered. Scroll manually to pause auto-follow; tap the calendar icon to re-enable it.
+
+            **Card colors:** Long-press any card and choose "Change Color" to highlight it. Use this to color-code important passages, mark sections to revisit, or organize your study notes.
+
+            **Bookmarks from text:** Long-press a paragraph and choose "Save Bookmark" to create a timestamped bookmark linked to that text. The bookmark's note is pre-filled with the first 200 characters of the paragraph.
+
+            **Copy text:** Long-press and choose "Copy Text" to copy the paragraph to your clipboard.
+
+            **Reader settings:** Tap the font size icon in the header to adjust font size, line spacing, and the default card background tint.
+            """
+        ),
+        HelpSection(
             id: "playlist",
             title: "Playlist",
             body: """
@@ -160,7 +185,7 @@ enum HelpContent {
 
             • Appearance — Toggle between dark and light mode. Choose from three fonts: Lexend (default, designed for readability), OpenDyslexic (optimized for readers with dyslexia), and the system font.
 
-            • Pro Transcripts — An in-app purchase that unlocks the scrolling transcript overlay and word cloud. Requires a .transcript.json sidecar file next to your audiobook.
+            • EPUB Reader — Add an EPUB file alongside your audiobook to unlock the searchable Reader tab with word-level alignment, Table of Contents, and card-based browsing.
 
             • Play Bookmarks Inline — When enabled, voice memos attached to bookmarks play automatically when the audiobook reaches that timestamp.
             """

@@ -31,13 +31,13 @@ final class TimelineService {
 
     // MARK: - Push-forward timer
 
-    nonisolated(unsafe) private var pushForwardTimer: Timer?
+    @ObservationIgnored private var pushForwardTimer: Timer?
     private let pushForwardInterval: TimeInterval = 60
     private let pushForwardQueue = DispatchQueue(label: "com.orbitaudiobooks.timeline.pushforward")
 
     // MARK: - "Now" timer
 
-    nonisolated(unsafe) private var nowTimer: Timer?
+    @ObservationIgnored private var nowTimer: Timer?
 
     // MARK: - Init
 
@@ -163,7 +163,9 @@ final class TimelineService {
 
     private func startPushForwardTimer() {
         pushForwardTimer = Timer.scheduledTimer(withTimeInterval: pushForwardInterval, repeats: true) { [weak self] _ in
-            self?.pushForwardUncompletedItems()
+            Task { @MainActor in
+                self?.pushForwardUncompletedItems()
+            }
         }
     }
 
@@ -185,7 +187,9 @@ final class TimelineService {
 
     private func startNowTimer() {
         nowTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.now = Date()
+            Task { @MainActor in
+                self?.now = Date()
+            }
         }
     }
 

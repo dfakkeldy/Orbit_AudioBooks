@@ -4,16 +4,11 @@ import UIKit
 final class ParagraphCardCell: UICollectionViewCell {
     static let reuseIdentifier = "ParagraphCardCell"
 
-    private let textView: UITextView = {
-        let tv = UITextView()
-        tv.isEditable = false
-        tv.isSelectable = false
-        tv.isScrollEnabled = false
-        tv.textContainerInset = .zero
-        tv.textContainer.lineFragmentPadding = 0
-        tv.backgroundColor = .clear
-        tv.translatesAutoresizingMaskIntoConstraints = false
-        return tv
+    private let label: UILabel = {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
     }()
 
     private let activeBar: UIView = {
@@ -33,7 +28,7 @@ final class ParagraphCardCell: UICollectionViewCell {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        contentView.addSubview(textView)
+        contentView.addSubview(label)
         contentView.addSubview(activeBar)
         contentView.layer.cornerRadius = 12
         contentView.clipsToBounds = true
@@ -44,34 +39,47 @@ final class ParagraphCardCell: UICollectionViewCell {
             activeBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
             activeBar.widthAnchor.constraint(equalToConstant: 3),
 
-            textView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 14),
-            textView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -14),
-            textView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
-            textView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -14),
+            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -14),
+            label.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
+            label.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -14),
         ])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
-    func configure(with block: EPubBlockRecord, font: UIFont, tint: UIColor, lineSpacing: CGFloat) {
-        let displayHTML = block.htmlContent ?? block.text ?? ""
-        let data = Data(displayHTML.utf8)
-        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
-            .documentType: NSAttributedString.DocumentType.html,
-            .characterEncoding: String.Encoding.utf8.rawValue
+    func configure(with block: EPubBlockRecord, font: UIFont, tint: UIColor, lineSpacing: CGFloat, isExplicitHighlight: Bool, searchQuery: String? = nil) {
+        let plainText = (block.text ?? "")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = lineSpacing
+
+        let textColor = isExplicitHighlight ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? UIColor.white : UIColor.label)
+        let baseAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraphStyle,
+            .foregroundColor: textColor
         ]
-        if let attributed = try? NSMutableAttributedString(data: data, options: options, documentAttributes: nil) {
-            let range = NSRange(location: 0, length: attributed.length)
-            attributed.addAttribute(.font, value: font, range: range)
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.lineSpacing = lineSpacing
-            attributed.addAttribute(.paragraphStyle, value: paragraphStyle, range: range)
-            textView.attributedText = attributed
-        } else {
-            textView.text = block.text
-            textView.font = font
+
+        let attributed = NSMutableAttributedString(string: plainText, attributes: baseAttributes)
+
+        if let query = searchQuery, !query.isEmpty {
+            let lowerText = plainText.lowercased()
+            let lowerQuery = query.lowercased()
+            var searchRange = lowerText.startIndex..<lowerText.endIndex
+            while let range = lowerText.range(of: lowerQuery, options: .caseInsensitive, range: searchRange) {
+                let nsRange = NSRange(range, in: plainText)
+                attributed.addAttribute(.backgroundColor, value: UIColor.systemYellow.withAlphaComponent(0.4), range: nsRange)
+                attributed.addAttribute(.font, value: UIFont.systemFont(ofSize: font.pointSize, weight: .bold), range: nsRange)
+                searchRange = range.upperBound..<lowerText.endIndex
+            }
         }
 
-        contentView.backgroundColor = tint.withAlphaComponent(0.08)
+        label.attributedText = attributed
+        contentView.backgroundColor = isExplicitHighlight ? tint : tint.withAlphaComponent(0.08)
     }
 }

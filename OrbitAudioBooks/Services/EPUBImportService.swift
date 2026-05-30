@@ -78,9 +78,7 @@ struct EPUBImportService {
                 audiobookID: audiobookID,
                 spineHref: href,
                 spineIndex: spineIdx,
-                startingSequence: &sequenceIndex,
-                chapters: chapters,
-                bookDuration: bookDuration
+                startingSequence: &sequenceIndex
             )
 
             // 5. Copy images referenced in blocks to local asset storage.
@@ -93,6 +91,20 @@ struct EPUBImportService {
                     }
                 }
                 allBlocks.append(block)
+            }
+        }
+        
+        // 4.5. Assign Chapter Index based on global sequence fraction.
+        if let duration = bookDuration, !chapters.isEmpty, !allBlocks.isEmpty {
+            let totalBlocks = Double(allBlocks.count)
+            for i in 0..<allBlocks.count {
+                let estimatedFraction = Double(allBlocks[i].sequenceIndex) / totalBlocks
+                let estimatedTime = estimatedFraction * duration
+                if let idx = chapters.firstIndex(where: { ch in
+                    estimatedTime >= ch.startSeconds && estimatedTime < ch.endSeconds
+                }) {
+                    allBlocks[i].chapterIndex = idx
+                }
             }
         }
 
@@ -140,25 +152,12 @@ struct EPUBImportService {
         audiobookID: String,
         spineHref: String,
         spineIndex: Int,
-        startingSequence: inout Int,
-        chapters: [Chapter],
-        bookDuration: TimeInterval?
+        startingSequence: inout Int
     ) throws -> [EPubBlockRecord] {
         let parser = XHTMLBlockDelegate()
         parser.parse(data)
 
         var blocks: [EPubBlockRecord] = []
-
-        // Chapter index assignment: match block position to closest chapter by
-        // estimated timestamp (if available), otherwise sequential.
-        var chapterIndex: Int?
-        if let duration = bookDuration, !chapters.isEmpty {
-            let estimatedFraction = Double(startingSequence) / Double(max(1, parser.textBlocks.count))
-            let estimatedTime = estimatedFraction * duration
-            chapterIndex = chapters.firstIndex { ch in
-                estimatedTime >= ch.startSeconds && estimatedTime < ch.endSeconds
-            }
-        }
 
         for (blockIdx, textBlock) in parser.textBlocks.enumerated() {
             let block = EPubBlockRecord(
@@ -173,7 +172,7 @@ struct EPUBImportService {
                 htmlContent: textBlock.htmlContent,  // NEW
                 cardColor: nil,  // NEW
                 imagePath: textBlock.imagePath,
-                chapterIndex: chapterIndex,
+                chapterIndex: nil,
                 isHidden: false,
                 hiddenReason: nil,
                 createdAt: ISO8601DateFormatter().string(from: Date()),

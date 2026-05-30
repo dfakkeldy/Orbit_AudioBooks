@@ -17,6 +17,8 @@ A multi-platform Apple ecosystem audiobook player built with SwiftUI, delivering
 
 Orbit: Learn Audiobooks is a full-featured audiobook application organized as a single Xcode workspace with four distinct targets. It supports bookmarking with optional voice memos, chapter navigation, loop modes, a sleep timer, variable playback speed, and intelligent rewind logic that adapts to pause duration. The iOS and watchOS apps communicate bidirectionally via WatchConnectivity, while a Widget displays the current playback state on the Home Screen / Lock Screen.
 
+When you add an EPUB file alongside your audiobook, Orbit unlocks its study toolkit: a searchable, browsable reader with per-paragraph audio alignment. Long-press any paragraph to lock it to the current playback position, color-code important passages, or create timestamped bookmarks. Full-text search with inline highlighting lets you find any phrase in the book instantly — so you'll never lose that half-remembered passage again.
+
 ---
 
 ## Architecture
@@ -25,7 +27,7 @@ The workspace is composed of four targets, each with its own entry point and vie
 
 | Target | Bundle Identifier / Entry Point | Purpose |
 |---|---|---|
-| **OrbitAudioBooks** (`iOS/iPadOS`) | `Orbit_AudioBooksApp.swift` → `RootTabView.swift` | Primary audiobook player. Uses a 2-tab layout (NowPlayingTab + TimelineTab). PlayerModel acts as a thin coordinator over 20+ single-responsibility services. Handles file/folder selection, bookmarks, voice memos, WatchConnectivity, and Now Playing integration. |
+| **OrbitAudioBooks** (`iOS/iPadOS`) | `Orbit_AudioBooksApp.swift` → `RootTabView.swift` | Primary audiobook player. Uses a 3-tab layout (NowPlayingTab, ReaderTab with EPUB alignment and full-text search, PlaylistTab). PlayerModel acts as a thin coordinator over 20+ single-responsibility services. Handles file/folder selection, bookmarks, voice memos, WatchConnectivity, and Now Playing integration. When an EPUB file is loaded alongside the audiobook, the Reader tab provides a searchable, browsable book with per-paragraph audio alignment. |
 | **Orbit Audiobooks macOS** (`macOS`) | `Orbit_Audiobooks_macOSApp.swift` → `MacContentView.swift` | Native macOS desktop companion. Uses `MacPlayerModel` (`ObservableObject`-based) with a `NavigationSplitView` layout: a bookmarks sidebar and a player pane with transport controls and a speed picker. |
 | **Orbit Audiobooks Watch App** (`watchOS`) | `OrbitAudioBooksWatchApp.swift` → `ContentView.swift` | Wearable remote for the iOS player. Communicates with the phone via `WCSession` to send play/pause, skip, scrub, volume, loop mode, sleep timer, section navigation, and bookmark commands. Features a customizable button layout with up to five pages of five action slots each (25 total), with configurable seek forward/backward durations (5–60s), all syncable from the phone. |
 | **Orbit Audiobooks Widget** (`Widgets`) | `Orbit_Audiobooks_WidgetBundle.swift` → `Orbit_Audiobooks_Widget.swift` | A `WidgetBundle` exposing a `StaticConfiguration` widget (`.accessoryCircular`) that shows the current track title, progress ring, and thumbnail via `AppGroupDefaults` communication. Also includes a `TogglePlaybackIntent` (App Intent) for Control Center / widget interactions. |
@@ -40,6 +42,11 @@ Shared models and utilities used across targets include:
 - **`WatchAction.swift`** — Enumeration of all available transport actions (`playPause`, `skipForward`, `skipBackward`, `nextTrack`, `previousTrack`, `nextSection`, `previousSection`, `loopMode`, `speed`, `sleepTimer`, `bookmark`, `empty`) with SF Symbol icon mappings and watch command routing strings.
 - **`ChapterGroupingService.swift`** — Detects and collapses Libation-style sub-section chapter atoms (e.g. "Chapter 11. A" / "Chapter 11. B") into logical chapters, retaining sub-sections for scrubber tick marks and section-level navigation.
 - **Shared Font Assets** — `Lexend.ttf` and `OpenDyslexic-Regular.otf` are bundled in both the iOS and macOS targets for accessibility-optimized typography.
+	- **`ReaderFeedViewModel`** — View model for the EPUB reader feed. Loads blocks from `EPubBlockDAO`, supports full-text search, and tracks the active block via binary search for O(log N) playback sync.
+	- **`ReaderCardItem`** — Enum for reader feed items (`.chapterHeader` and `.block(EPubBlockRecord)`), rendered as cards in a `UICollectionView`.
+	- **`ReaderSettings`** — User-configurable reader settings: font size, line spacing, and card background tint color.
+	- **`AlignmentService`** — Manual EPUB-to-audio alignment through locked anchors and linear timestamp interpolation.
+	- **`EPUBImportService`** — Parses EPUB files into `epub_block` records: extracts the OPF spine, parses XHTML, copies images to Application Support.
 
 ---
 

@@ -6,6 +6,8 @@
 		<string>Orbit: Learn Audiobooks</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Orbit Audiobooks records short voice memos so you can attach narrated notes to your audiobook bookmarks.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>Orbit Audiobooks allows you to save EPUB images directly to your photo library.</string>
 		<key>NSSpeechRecognitionUsageDescription</key>
 		<string>Orbit Audiobooks lets you dictate short text notes for audiobook bookmarks.</string>
 		<key>UIApplicationSceneManifest</key>

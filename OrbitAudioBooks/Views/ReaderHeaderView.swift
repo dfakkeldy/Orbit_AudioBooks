@@ -3,6 +3,7 @@ import SwiftUI
 struct ReaderHeaderView: View {
     @Binding var searchText: String
     let chapterTitle: String
+    let onTOCTap: () -> Void
     let onSettingsTap: () -> Void
 
     var body: some View {
@@ -13,6 +14,15 @@ struct ReaderHeaderView: View {
                     .fontWeight(.medium)
                     .lineLimit(1)
                 Spacer()
+                Button {
+                    onTOCTap()
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 16))
+                }
+                .accessibilityLabel(Text("Table of Contents"))
+                .padding(.trailing, 8)
+                
                 Button {
                     onSettingsTap()
                 } label: {

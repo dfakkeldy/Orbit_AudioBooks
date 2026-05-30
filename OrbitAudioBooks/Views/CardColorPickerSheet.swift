@@ -7,14 +7,19 @@ struct CardColorPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private let colorSwatches: [(String, String)] = [
+        // Bright Highlighters
+        ("#FFF59D", "Yellow"),
+        ("#C5E1A5", "Green"),
+        ("#81D4FA", "Blue"),
+        ("#F48FB1", "Pink"),
+        ("#CE93D8", "Purple"),
+        ("#FFCC80", "Orange"),
+        
+        // Subtle / Dark Mode
         ("#F5F0E8", "Sepia"),
-        ("#FFF8E7", "Cream"),
-        ("#FFFFFF", "White"),
         ("#F0F0F0", "Light Gray"),
-        ("#2C2C2C", "Dark"),
-        ("#000000", "Black"),
-        ("#E8F5E9", "Soft Green"),
-        ("#E3F2FD", "Soft Blue"),
+        ("#2C2C2E", "Dark Gray"),
+        ("#1C1C1E", "Deep Black")
     ]
 
     var body: some View {

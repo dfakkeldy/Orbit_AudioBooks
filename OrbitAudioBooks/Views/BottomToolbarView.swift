@@ -6,29 +6,6 @@ struct BottomToolbarView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Tab selection row
-            HStack(spacing: 0) {
-                ForEach(TabSelection.allCases, id: \.self) { tab in
-                    Button {
-                        model.selectedTab = tab
-                    } label: {
-                        VStack(spacing: 2) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 18))
-                            Text(tab.label)
-                                .font(.caption2)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .foregroundColor(model.selectedTab == tab ? .accentColor : .secondary)
-                    }
-                    .disabled(tab == .read && !model.hasEPUB)
-                    .accessibilityLabel(Text(tab.label))
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 4)
-
             // Playback controls row
             HStack {
                 loopModeButton
@@ -36,6 +13,8 @@ struct BottomToolbarView: View {
                 speedButton
                 Spacer()
                 sleepTimerMenu
+                Spacer()
+                timelineButton
                 Spacer()
                 addBookmarkButton
             }
@@ -184,6 +163,35 @@ struct BottomToolbarView: View {
             case .endOfChapter: return String(localized: "End of Chapter")
             }
         }()))
+    }
+
+    // MARK: - Timeline / View Toggle
+
+    private var timelineButton: some View {
+        Button {
+            switch model.selectedTab {
+            case .nowPlaying:
+                model.selectedTab = .timeline
+            case .timeline:
+                model.selectedTab = model.hasEPUB ? .read : .nowPlaying
+            case .read:
+                model.selectedTab = .nowPlaying
+            }
+            Haptic.play(.medium)
+        } label: {
+            Image(systemName: {
+                switch model.selectedTab {
+                case .nowPlaying: return "list.bullet"
+                case .timeline: return model.hasEPUB ? "book.pages" : "play.circle"
+                case .read: return "play.circle"
+                }
+            }())
+            .font(.title2)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text("Toggle view mode"))
+        .disabled(model.tracks.isEmpty)
     }
 
     // MARK: - Bookmark

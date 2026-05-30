@@ -3,16 +3,26 @@ import UIKit
 
 /// UIViewRepresentable wrapping a UICollectionView that renders the EPUB reader feed.
 struct ReaderFeedCollectionView: UIViewRepresentable {
-    @Binding var cards: [ReaderCardItem]
+    var sections: [ReaderCardSection]
     @Binding var activeBlockID: String?
+    @Binding var isHeaderVisible: Bool
+    @Binding var autoScrollEnabled: Bool
+    @Binding var topChapterTitle: String?
+    @Binding var topSectionTitle: String?
     let settings: ReaderSettings
+    var searchQuery: String? = nil
+    var pulseBlockID: String? = nil
     var onTapBlock: ((String) -> Void)?
-    var onContextMenu: ((String, EPubBlockRecord.Kind?) -> UIContextMenuConfiguration?)?
+    var onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             onTapBlock: onTapBlock,
-            onContextMenu: onContextMenu
+            onContextMenu: onContextMenu,
+            isHeaderVisible: $isHeaderVisible,
+            autoScrollEnabled: $autoScrollEnabled,
+            topChapterTitle: $topChapterTitle,
+            topSectionTitle: $topSectionTitle
         )
     }
 
@@ -48,43 +58,72 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         context.coordinator.onContextMenu = onContextMenu
         context.coordinator.settings = settings
         context.coordinator.activeBlockID = activeBlockID
+        context.coordinator.searchQuery = searchQuery
 
-        let newCount = cards.count
-        if newCount != context.coordinator.currentCardCount {
-            context.coordinator.cards = cards
-            context.coordinator.applySnapshot(animated: context.coordinator.currentCardCount > 0)
-            context.coordinator.currentCardCount = newCount
+        if let pulseID = pulseBlockID, pulseID != context.coordinator.pulseBlockID {
+            context.coordinator.pulseBlockID = pulseID
+            context.coordinator.pulseCell(for: pulseID, in: collectionView)
+        } else if pulseBlockID == nil {
+            context.coordinator.pulseBlockID = nil
+        }
+
+        if sections != context.coordinator.sections {
+            let wasEmpty = context.coordinator.sections.isEmpty
+            context.coordinator.sections = sections
+            context.coordinator.applySnapshot(animated: !wasEmpty)
+            
+            if wasEmpty, let firstSection = sections.first, let title = firstSection.headingStack.first {
+                DispatchQueue.main.async {
+                    self.topChapterTitle = title
+                }
+            }
         }
 
         context.coordinator.updateActiveBlock(activeBlockID, in: collectionView)
     }
 
     private func makeDataSource(for collectionView: UICollectionView) -> UICollectionViewDiffableDataSource<String, String> {
-        return UICollectionViewDiffableDataSource<String, String>(collectionView: collectionView) {
+        let ds = UICollectionViewDiffableDataSource<String, String>(collectionView: collectionView) {
             collectionView, indexPath, itemID in
             guard let coordinator = collectionView.delegate as? Coordinator else { return UICollectionViewCell() }
             return coordinator.cell(for: itemID, at: indexPath, collectionView: collectionView)
         }
+        return ds
     }
 
     // MARK: - Coordinator
 
     class Coordinator: NSObject, UICollectionViewDelegate {
         var onTapBlock: ((String) -> Void)?
-        var onContextMenu: ((String, EPubBlockRecord.Kind?) -> UIContextMenuConfiguration?)?
+        var onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?
+        var isHeaderVisible: Binding<Bool>
+        var autoScrollEnabled: Binding<Bool>
+        var topChapterTitle: Binding<String?>
+        var topSectionTitle: Binding<String?>
         var settings: ReaderSettings = ReaderSettings(fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8")
+        var searchQuery: String? = nil
+        var pulseBlockID: String? = nil
         var dataSource: UICollectionViewDiffableDataSource<String, String>?
-        var currentCardCount = 0
-        var cards: [ReaderCardItem] = []
+        var sections: [ReaderCardSection] = []
         var activeBlockID: String?
+        var lastScrolledBlockID: String?
 
-        init(onTapBlock: ((String) -> Void)?, onContextMenu: ((String, EPubBlockRecord.Kind?) -> UIContextMenuConfiguration?)?) {
+        init(onTapBlock: ((String) -> Void)?, onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?, isHeaderVisible: Binding<Bool>, autoScrollEnabled: Binding<Bool>, topChapterTitle: Binding<String?>, topSectionTitle: Binding<String?>) {
             self.onTapBlock = onTapBlock
             self.onContextMenu = onContextMenu
+            self.isHeaderVisible = isHeaderVisible
+            self.autoScrollEnabled = autoScrollEnabled
+            self.topChapterTitle = topChapterTitle
+            self.topSectionTitle = topSectionTitle
         }
 
         func card(for id: String) -> ReaderCardItem? {
-            cards.first { $0.id == id }
+            for section in sections {
+                if let card = section.items.first(where: { $0.id == id }) {
+                    return card
+                }
+            }
+            return nil
         }
 
         func cell(for itemID: String, at indexPath: IndexPath, collectionView: UICollectionView) -> UICollectionViewCell {
@@ -100,40 +139,43 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
             case .block(let block):
                 switch block.blockKind {
                 case EPubBlockRecord.Kind.heading.rawValue:
-                    guard let cell = collectionView.dequeueReusableCell(
+                    guard let headingCell = collectionView.dequeueReusableCell(
                         withReuseIdentifier: HeadingCardCell.reuseIdentifier, for: indexPath
                     ) as? HeadingCardCell else { return UICollectionViewCell() }
-                    let font = UIFont(name: "Lexend-SemiBold", size: 20) ?? UIFont.preferredFont(forTextStyle: .title3)
-                    let cardTint = UIColor(hex: block.cardColor ?? "") ?? UIColor.systemBackground
-                    cell.configure(with: block.text ?? "", font: font, tint: cardTint)
-                    cell.isActiveBlock = (block.id == activeBlockID) // not directly compared here
-                    return cell
+                    let font = UIFont(name: "Lexend-SemiBold", size: settings.fontSize + 3) ?? UIFont.preferredFont(forTextStyle: .title3)
+                    let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
+                    headingCell.configure(with: block.text ?? "", font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
+                    headingCell.isActiveBlock = (block.id == activeBlockID)
+                    return headingCell
 
                 case EPubBlockRecord.Kind.image.rawValue:
-                    guard let cell = collectionView.dequeueReusableCell(
+                    guard let imageCell = collectionView.dequeueReusableCell(
                         withReuseIdentifier: ImageCardCell.reuseIdentifier, for: indexPath
                     ) as? ImageCardCell else { return UICollectionViewCell() }
-                    let cardTint = UIColor(hex: block.cardColor ?? "") ?? UIColor.systemBackground
-                    cell.configure(with: block, tint: cardTint)
-                    return cell
+                    let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
+                    imageCell.configure(with: block, tint: cardTint)
+                    return imageCell
 
                 default:
-                    guard let cell = collectionView.dequeueReusableCell(
+                    guard let paraCell = collectionView.dequeueReusableCell(
                         withReuseIdentifier: ParagraphCardCell.reuseIdentifier, for: indexPath
                     ) as? ParagraphCardCell else { return UICollectionViewCell() }
-                    let font = UIFont(name: "Lexend-Regular", size: 17) ?? UIFont.preferredFont(forTextStyle: .body)
-                    let cardTint = UIColor(hex: block.cardColor ?? "") ?? UIColor.systemBackground
-                    cell.configure(with: block, font: font, tint: cardTint, lineSpacing: 4)
-                    cell.isActiveBlock = (block.id == activeBlockID)
-                    return cell
+                    let font = UIFont(name: "Lexend-Regular", size: settings.fontSize) ?? UIFont.preferredFont(forTextStyle: .body)
+                    let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
+                    paraCell.configure(with: block, font: font, tint: cardTint, lineSpacing: settings.lineSpacing, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
+                    paraCell.isActiveBlock = (block.id == activeBlockID)
+                    return paraCell
                 }
             }
         }
 
         func applySnapshot(animated: Bool) {
             var snapshot = NSDiffableDataSourceSnapshot<String, String>()
-            snapshot.appendSections(["main"])
-            snapshot.appendItems(cards.map(\.id), toSection: "main")
+            let sectionIDs = sections.map(\.id)
+            snapshot.appendSections(sectionIDs)
+            for section in sections {
+                snapshot.appendItems(section.items.map(\.id), toSection: section.id)
+            }
             dataSource?.apply(snapshot, animatingDifferences: animated)
         }
 
@@ -144,22 +186,150 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                 (cell as? ParagraphCardCell)?.isActiveBlock = false
             }
 
-            guard let blockID, let snapshot = dataSource?.snapshot() else { return }
-            let items = snapshot.itemIdentifiers
-            for (idx, itemID) in items.enumerated() {
-                guard case .block(let b) = card(for: itemID), b.id == blockID else { continue }
-                let indexPath = IndexPath(item: idx, section: 0)
-                if let cell = collectionView.cellForItem(at: indexPath) {
-                    if let headingCell = cell as? HeadingCardCell {
-                        headingCell.isActiveBlock = true
-                    } else if let paraCell = cell as? ParagraphCardCell {
-                        paraCell.isActiveBlock = true
-                    }
+            guard let blockID else { return }
+            guard let dataSource = dataSource else { return }
+            
+            var targetIndexPath: IndexPath?
+            
+            // 1. Try finding it directly in the data source (for paragraphs, images, non-divider headings)
+            if let indexPath = dataSource.indexPath(for: blockID) {
+                targetIndexPath = indexPath
+            } else {
+                // 2. It might be a divider. The itemID for a divider is "chHeader-\(blockID)"
+                if let indexPath = dataSource.indexPath(for: "chHeader-\(blockID)") {
+                    targetIndexPath = indexPath
                 }
-                if !collectionView.indexPathsForVisibleItems.contains(indexPath) {
+            }
+            
+            guard let indexPath = targetIndexPath else { return }
+            
+            if let cell = collectionView.cellForItem(at: indexPath) {
+                if let headingCell = cell as? HeadingCardCell {
+                    headingCell.isActiveBlock = true
+                } else if let paraCell = cell as? ParagraphCardCell {
+                    paraCell.isActiveBlock = true
+                }
+            }
+            
+            if autoScrollEnabled.wrappedValue, lastScrolledBlockID != blockID {
+                lastScrolledBlockID = blockID
+                DispatchQueue.main.async {
                     collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
                 }
-                break
+            }
+        }
+
+        /// Triggers a brief scale-pulse animation on the cell for the given block ID.
+        func pulseCell(for blockID: String, in collectionView: UICollectionView) {
+            // Resolve the correct item ID (block uses "b-\(id)", divider uses "chHeader-\(id)")
+            guard let dataSource = dataSource else { return }
+            var indexPath = dataSource.indexPath(for: "b-\(blockID)")
+            if indexPath == nil {
+                indexPath = dataSource.indexPath(for: "chHeader-\(blockID)")
+            }
+            guard let indexPath, let cell = collectionView.cellForItem(at: indexPath) else { return }
+
+            cell.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
+            UIView.animate(
+                withDuration: 0.25,
+                delay: 0,
+                usingSpringWithDamping: 0.5,
+                initialSpringVelocity: 0.8,
+                options: [.allowUserInteraction],
+                animations: { cell.transform = .identity },
+                completion: nil
+            )
+
+            // Brief background highlight flash
+            let originalBg = cell.contentView.backgroundColor
+            UIView.animate(withDuration: 0.15, animations: {
+                cell.contentView.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.2)
+            }, completion: { _ in
+                UIView.animate(withDuration: 0.35) {
+                    cell.contentView.backgroundColor = originalBg
+                }
+            })
+        }
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            if autoScrollEnabled.wrappedValue {
+                autoScrollEnabled.wrappedValue = false
+            }
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            updateTopChapterTitle(scrollView)
+            
+            let offset = scrollView.contentOffset.y
+            
+            // If near top, always show header
+            if offset <= 0 {
+                if !isHeaderVisible.wrappedValue {
+                    isHeaderVisible.wrappedValue = true
+                }
+                return
+            }
+            
+            guard scrollView.isDragging else { return }
+            
+            let translation = scrollView.panGestureRecognizer.translation(in: scrollView.superview).y
+            
+            if translation < -10 {
+                // Scrolling down
+                if isHeaderVisible.wrappedValue {
+                    isHeaderVisible.wrappedValue = false
+                }
+            } else if translation > 10 {
+                // Scrolling up
+                if !isHeaderVisible.wrappedValue {
+                    isHeaderVisible.wrappedValue = true
+                }
+            }
+        }
+        
+        private func updateTopChapterTitle(_ scrollView: UIScrollView) {
+            guard let collectionView = scrollView as? UICollectionView else { return }
+            let visibleRect = CGRect(origin: collectionView.contentOffset, size: collectionView.bounds.size)
+            // Use the center of the visible area to determine the active header context
+            let centerPoint = CGPoint(x: visibleRect.midX, y: visibleRect.midY)
+            
+            if let indexPath = collectionView.indexPathForItem(at: centerPoint) {
+                updateChapterTitle(for: indexPath)
+            } else if let topIndexPath = collectionView.indexPathsForVisibleItems.min() {
+                updateChapterTitle(for: topIndexPath)
+            }
+        }
+        
+        private func updateChapterTitle(for indexPath: IndexPath) {
+            if let sectionID = dataSource?.snapshot().sectionIdentifiers[indexPath.section],
+               let section = sections.first(where: { $0.id == sectionID }) {
+               
+                var chapterTitle: String? = nil
+                var sectionTitle: String? = nil
+                
+                let stack = section.headingStack.filter { !$0.isEmpty }
+                
+                if stack.count == 1 {
+                    sectionTitle = stack.first
+                } else if stack.count > 1 {
+                    chapterTitle = stack.first
+                    sectionTitle = stack.last
+                }
+                
+                if chapterTitle == sectionTitle {
+                    chapterTitle = nil
+                }
+                
+                if topChapterTitle.wrappedValue != chapterTitle {
+                    DispatchQueue.main.async {
+                        self.topChapterTitle.wrappedValue = chapterTitle
+                    }
+                }
+                if topSectionTitle.wrappedValue != sectionTitle {
+                    DispatchQueue.main.async {
+                        self.topSectionTitle.wrappedValue = sectionTitle
+                    }
+                }
             }
         }
 
@@ -169,13 +339,11 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
             onTapBlock?(block.id)
         }
 
-        func collectionView(_ collectionView: UICollectionView,
-                            contextMenuConfigurationForItemAt indexPath: IndexPath,
-                            point: CGPoint) -> UIContextMenuConfiguration? {
-            guard let itemID = dataSource?.itemIdentifier(for: indexPath),
+        func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemsAt indexPaths: [IndexPath], point: CGPoint) -> UIContextMenuConfiguration? {
+            guard let indexPath = indexPaths.first,
+                  let itemID = dataSource?.itemIdentifier(for: indexPath),
                   case .block(let block) = card(for: itemID) else { return nil }
-            let kind = EPubBlockRecord.Kind(rawValue: block.blockKind)
-            return onContextMenu?(block.id, kind)
+            return onContextMenu?(block)
         }
     }
 }
@@ -210,3 +378,4 @@ fileprivate final class ChapterDividerCell: UICollectionViewCell {
         label.text = "— \(title) —"
     }
 }
+

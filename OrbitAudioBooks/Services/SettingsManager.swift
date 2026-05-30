@@ -4,8 +4,8 @@ import Observation
 /// Centralized source of truth for user preference keys.
 @MainActor @Observable
 final class SettingsManager: SettingsManagerProtocol {
-    static let systemFontName = "System"
-    private static let legacySystemFontName = "Helvetica"
+    nonisolated static let systemFontName = "System"
+    nonisolated private static let legacySystemFontName = "Helvetica"
 
     enum Defaults {
         static let isDarkMode = true

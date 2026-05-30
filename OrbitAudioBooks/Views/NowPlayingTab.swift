@@ -9,10 +9,8 @@ struct NowPlayingTab: View {
             VStack(spacing: 0) {
                 GeometryReader { proxy in
                     let artworkSize = NowPlayingLayout.artworkSize(for: proxy.size)
-                    playerContent(artworkSize: artworkSize, contentWidth: proxy.size.width)
+                    playerContent(artworkSize: artworkSize, contentWidth: proxy.size.width, contentHeight: proxy.size.height)
                 }
-
-                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .environment(\.font, model.resolvedAppFont == SettingsManager.systemFontName ? .body : .custom(model.resolvedAppFont, size: 17, relativeTo: .body))
@@ -41,7 +39,7 @@ struct NowPlayingTab: View {
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
     }
 
-    private func playerContent(artworkSize: CGFloat, contentWidth: CGFloat) -> some View {
+    private func playerContent(artworkSize: CGFloat, contentWidth: CGFloat, contentHeight: CGFloat) -> some View {
         VStack(alignment: .center, spacing: 14) {
             AlbumArtHeroView(
                 artwork: model.currentDisplayArtwork ?? model.thumbnailImage,
@@ -76,13 +74,16 @@ struct NowPlayingTab: View {
                     .padding(.horizontal, NowPlayingLayout.horizontalPadding)
             }
 
+            Spacer(minLength: 0)
+
             PlayerScrubberView()
                 .padding(.horizontal, NowPlayingLayout.horizontalPadding)
 
             TransportControlsView()
                 .padding(.horizontal, NowPlayingLayout.horizontalPadding)
+                .padding(.bottom, 8)
         }
-        .frame(width: contentWidth)
+        .frame(width: contentWidth, height: contentHeight)
         .clipped()
     }
 

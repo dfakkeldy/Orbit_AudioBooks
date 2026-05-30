@@ -261,14 +261,16 @@ final class BookmarkStore: BookmarkStoreProtocol {
 
             voiceMemoProgressTimer?.invalidate()
             voiceMemoProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                guard let self,
-                      let node = self.voiceMemoPlayerNode,
-                      node.isPlaying,
-                      let lastTime = node.lastRenderTime,
-                      let playerTime = node.playerTime(forNodeTime: lastTime)
-                else { return }
-                let current = Double(playerTime.sampleTime) / playerTime.sampleRate
-                self.voiceMemoProgress = min(1.0, max(0.0, current / self.voiceMemoDuration))
+                Task { @MainActor in
+                    guard let self,
+                          let node = self.voiceMemoPlayerNode,
+                          node.isPlaying,
+                          let lastTime = node.lastRenderTime,
+                          let playerTime = node.playerTime(forNodeTime: lastTime)
+                    else { return }
+                    let current = Double(playerTime.sampleTime) / playerTime.sampleRate
+                    self.voiceMemoProgress = min(1.0, max(0.0, current / self.voiceMemoDuration))
+                }
             }
         } catch {
             logger.error("Voice memo playback error: \(error.localizedDescription)")
@@ -327,4 +329,12 @@ final class BookmarkStore: BookmarkStoreProtocol {
     private func postBookmarksDidChange() {
         NotificationCenter.default.post(name: .bookmarksDidChange, object: nil)
     }
+}
+
+// MARK: - Bookmark Change Notification
+
+extension Notification.Name {
+    /// Posted when the bookmark store persists changes (add, update, delete).
+    /// The Timeline feed observes this to refresh inline bookmark items.
+    static let bookmarksDidChange = Notification.Name("BookmarksDidChange")
 }

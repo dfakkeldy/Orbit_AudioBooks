@@ -16,7 +16,7 @@ struct TrackDAO {
     func insertAll(_ tracks: [TrackRecord], audiobookID: String) throws {
         try db.write { db in
             for var track in tracks {
-                try track.insert(db)
+                try track.save(db)
             }
         }
     }

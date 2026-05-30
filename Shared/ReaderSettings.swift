@@ -66,5 +66,12 @@ extension UIColor {
         }
         self.init(red: r, green: g, blue: b, alpha: a)
     }
+
+    var contrastingTextColor: UIColor {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard self.getRed(&r, green: &g, blue: &b, alpha: &a) else { return .label }
+        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminance > 0.6 ? .black : .white
+    }
 }
 #endif

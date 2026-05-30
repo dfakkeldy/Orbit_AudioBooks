@@ -45,11 +45,26 @@ final class ImageCardCell: UICollectionViewCell {
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
     func configure(with block: EPubBlockRecord, tint: UIColor) {
-        if let imagePath = block.imagePath, let image = UIImage(contentsOfFile: imagePath) {
+        var finalImage: UIImage? = nil
+        
+        if let imagePath = block.imagePath {
+            var url = URL(fileURLWithPath: imagePath)
+            if !FileManager.default.fileExists(atPath: url.path) {
+                let filename = url.lastPathComponent
+                let dirName = url.deletingLastPathComponent().lastPathComponent
+                if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                    url = appSupport.appendingPathComponent("EPUBAssets").appendingPathComponent(dirName).appendingPathComponent(filename)
+                }
+            }
+            finalImage = UIImage(contentsOfFile: url.path)
+        }
+        
+        if let image = finalImage {
             artworkView.image = image
         } else {
             artworkView.image = UIImage(systemName: "photo")
         }
+        
         captionLabel.text = block.text
         contentView.backgroundColor = tint.withAlphaComponent(0.05)
     }

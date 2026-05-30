@@ -1,5 +1,13 @@
 import Foundation
 
+/// A section of the EPUB reader feed, containing a heading hierarchy and a list of cards.
+struct ReaderCardSection: Identifiable, Hashable, Sendable {
+    let id: String
+    /// Stack of heading titles (e.g. ["Chapter 1", "Section 1.1"])
+    let headingStack: [String]
+    let items: [ReaderCardItem]
+}
+
 /// Items displayed in the EPUB reader feed.
 enum ReaderCardItem {
     /// A divider between chapters showing the chapter title.
@@ -21,10 +29,10 @@ enum ReaderCardItem {
 extension ReaderCardItem: Hashable {
     nonisolated static func == (lhs: ReaderCardItem, rhs: ReaderCardItem) -> Bool {
         switch (lhs, rhs) {
-        case let (.chapterHeader(a), .chapterHeader(b)):
-            return a.title == b.title && a.chapterIndex == b.chapterIndex
+        case let (.chapterHeader(a1, a2), .chapterHeader(b1, b2)):
+            return a1 == b1 && a2 == b2
         case let (.block(a), .block(b)):
-            return a.id == b.id && a.sequenceIndex == b.sequenceIndex
+            return a == b
         default:
             return false
         }
@@ -38,8 +46,7 @@ extension ReaderCardItem: Hashable {
             hasher.combine(chapterIndex)
         case .block(let block):
             hasher.combine(1)
-            hasher.combine(block.id)
-            hasher.combine(block.sequenceIndex)
+            hasher.combine(block)
         }
     }
 }
