@@ -56,6 +56,10 @@ final class PlayerLoadingCoordinator {
 
         playbackController.stop()
 
+        // Start security-scoped access for the entire folder loading flow.
+        // Must stay alive through async EPUB import, which runs after this method returns.
+        securityScope?.startSelection(url: url)
+
         let isDir = loadTracksAndDetectDirectory(url: url, state: state, playlistManager: playlistManager)
         state.folderURL = url
 
@@ -85,9 +89,6 @@ final class PlayerLoadingCoordinator {
 
     /// Loads tracks from a folder or single file, returning whether the URL was a directory.
     private func loadTracksAndDetectDirectory(url: URL, state: PlaybackState, playlistManager: PlaylistManager) -> Bool {
-        let didStart = url.startAccessingSecurityScopedResource()
-        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
-
         let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
         if isDir {
             state.tracks = playlistManager.loadTracks(from: url)
