@@ -10,6 +10,7 @@ struct ReaderTab: View {
     @State private var searchText = ""
     @State private var showSettings = false
     @State private var showChapterPickerForBlockID: String? = nil
+    @State private var showCardColorPickerForBlockID: String? = nil
     @State private var readerSettings = ReaderSettings(
         fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8"
     )
@@ -61,6 +62,20 @@ struct ReaderTab: View {
                 }
             )
         }
+        .sheet(item: cardColorPickerBinding) { blockID in
+            CardColorPickerSheet(blockID: blockID) { blockID, colorHex in
+                if let db = model.databaseService {
+                    let blockDAO = EPubBlockDAO(db: db.writer)
+                    do {
+                        try blockDAO.setCardColor(colorHex, blockID: blockID)
+                        viewModel?.reload()
+                    } catch {
+                        // Best-effort
+                    }
+                }
+                showCardColorPickerForBlockID = nil
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -69,6 +84,13 @@ struct ReaderTab: View {
         Binding<String?>(
             get: { showChapterPickerForBlockID },
             set: { showChapterPickerForBlockID = $0 }
+        )
+    }
+
+    private var cardColorPickerBinding: Binding<String?> {
+        Binding<String?>(
+            get: { showCardColorPickerForBlockID },
+            set: { showCardColorPickerForBlockID = $0 }
         )
     }
 
@@ -121,7 +143,9 @@ struct ReaderTab: View {
             let changeColorAction = UIAction(
                 title: "Change Color", image: UIImage(systemName: "paintpalette")
             ) { _ in
-                // Per-card color picker will be wired in Task 16
+                DispatchQueue.main.async {
+                    showCardColorPickerForBlockID = blockID
+                }
             }
             actions.append(changeColorAction)
 
