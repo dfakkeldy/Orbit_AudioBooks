@@ -1,6 +1,6 @@
 # Orbit Audiobooks — Roadmap
 
-<!-- Last updated: 2026-05-29 (Phase 1 & 2 complete!) -->
+<!-- Last updated: 2026-05-29 (Phase 1 & 2 complete, Phase 3 80%) -->
 <!-- Based on thorough code review of 169 findings across 6 code areas -->
 
 ---
@@ -115,21 +115,21 @@ Goal: remove dead code and forward-looking references that mislead contributors.
 
 Goal: improve fit-and-finish, Dynamic Type support, and accessibility compliance.
 
-- [ ] **Fix hardcoded layout constants** — `NowPlayingLayout` static properties don't adapt to safe areas or device sizes. iPhone SE may produce negative heights. Use `GeometryReader` or `@Environment(\.dynamicTypeSize)`.
-- [ ] **Add Dynamic Type support** to `ListeningProgressModuleView` (fixed 140pt width), `ChapterTimeBlockView` (hardcoded 200pt max bar), `StatsModuleView`, dashboard cards.
-- [ ] **Add `.accessibilityAddTraits(.isButton)`** to custom-styled buttons on macOS and watchOS — `.buttonStyle(.plain)` removes default accessibility mapping.
-- [ ] **Audit all `UIImpactFeedbackGenerator` calls** for overuse — `BottomToolbarView` fires haptics on every non-navigational tap (loop, speed cycle). Make configurable or reduce.
-- [ ] **Fix `SpeedCardView` speed cycle inconsistency** — cycling uses `[1.0, 1.25, 1.5, 2.0]` but `TransportControlsView` uses `[1.0, 1.25, 1.5, 2.0, 3.0]`. Reconcile to a single source of truth.
-- [ ] **Extract reusable `InlineStepperRow`** — duplicated in `SmartRewindSettingsView` and `WatchAppSettingsView`. Promote to `Components/`.
-- [ ] **Push `GeometryReader` down in `NowPlayingTab`** — currently wraps entire body, causing potential layout loops. Restrict to views that need the proxy.
+- [x] **Fix hardcoded layout constants** — ✅ GeometryReader pushed down to relevant views only. Dynamic Type via @ScaledMetric on dashboard cards.
+- [x] **Add Dynamic Type support** to `ListeningProgressModuleView` (fixed 140pt width), `ChapterTimeBlockView` (hardcoded 28pt bar), `StatsModuleView`, dashboard cards — ✅ replaced with @ScaledMetric.
+- [x] **Add `.accessibilityAddTraits(.isButton)`** to custom-styled buttons on macOS and watchOS — ✅ added to 15+ buttons across 8 files.
+- [x] **Audit all `UIImpactFeedbackGenerator` calls** for overuse — ✅ created `Haptic` utility gated behind `isHapticFeedbackEnabled`; replaced 20+ call sites.
+- [x] **Fix `SpeedCardView` speed cycle inconsistency** — ✅ `SettingsManager.Defaults.speedPresets` as single source of truth; watch synced to 5 speeds.
+- [x] **Extract reusable `InlineStepperRow`** — ✅ promoted to `Views/Components/InlineStepperRow.swift`.
+- [x] **Push `GeometryReader` down in `NowPlayingTab`** — ✅ restricted to `playerContent` only.
 - [ ] **Decompose large view bodies**: `PlayerLoadingCoordinator.loadFolder` (163 lines), `PlayerLoadingCoordinator.prepareToPlay` (113 lines), `PlaybackController.play()` (78 lines). Break into private well-named methods.
-- [ ] **Fix `playlistRows` performance** — computed property that iterates all chapters/bookmarks on every render. Memoize or use view model caching.
+- [x] **Fix `playlistRows` performance** — ✅ already memoized via `@State` + `.onChange` (Phase 1.90).
 - [ ] **Add empty states** to timeline feed, bookmarks list, and review queue — currently blank when data is absent.
 - [ ] **Add error states** to flashcard creation, note editing, and content card editor — errors currently swallowed silently.
-- [ ] **Make volume boost gain configurable** — hardcoded +9.0 dB in `AudioEngine.setGain`. Surface in settings.
-- [ ] **Make NowPlaying skip intervals respect user settings** — `MPRemoteCommandCenter` skip intervals hardcoded to 30s instead of using `seekForwardDuration`/`seekBackwardDuration` from SettingsManager.
-- [ ] **Fix macOS hardcoded audio extensions** — missing `aiff`, `aac`, `ogg`, `opus`, `wma`.
-- [ ] **Fix `NowPlayingTab` chapter/track progress text duplication** — `chapterProgressText()` and `trackProgressText()` are near-identical. Single parameterized method.
+- [x] **Make volume boost gain configurable** — ✅ `SettingsManager.volumeBoostGain` (default 9.0 dB), plumbed through PlaybackController → AudioEngine.
+- [x] **Make NowPlaying skip intervals respect user settings** — ✅ `NowPlayingController` reads `seekForwardDuration`/`seekBackwardDuration`.
+- [x] **Fix macOS hardcoded audio extensions** — ✅ added `aiff`, `aac`, `ogg`, `opus`, `wma`, `flac`.
+- [x] **Fix `NowPlayingTab` chapter/track progress text duplication** — ✅ extracted shared `bookProgressParts()` helper.
 
 ---
 
@@ -246,11 +246,11 @@ Stretch goals and ideas beyond the core roadmap.
 |-------|-------|-----------|
 | 1 | Stability & Correctness Fixes | ✅ Complete |
 | 2 | Strip Unimplemented References | ✅ Complete |
-| 3 | UI Polish & Accessibility | ~15 |
+| 3 | UI Polish & Accessibility | 12/15 complete |
 | 4 | Spaced Repetition System | ~14 |
 | 5 | EPUB Viewing | ~10 |
 | 6 | EPUB Manual Alignment | ~6 |
 | 7 | Testing & CI | ~7 |
 | 8 | Polish & Future | ~11 |
 
-**Completed: 2/8 phases | Remaining: ~63 items**
+**Completed: 2/8 phases (+ Phase 3 at 80%) | Remaining: ~54 items**
