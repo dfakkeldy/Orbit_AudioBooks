@@ -1,6 +1,6 @@
 # Orbit Audiobooks — Roadmap
 
-<!-- Last updated: 2026-05-29 (Phases 1-2 complete, Phase 3 80%, Phase 4 90%) -->
+<!-- Last updated: 2026-05-29 (Phases 1-3 complete, Phase 4 90%) -->
 <!-- Based on thorough code review of 169 findings across 6 code areas -->
 
 ---
@@ -122,10 +122,10 @@ Goal: improve fit-and-finish, Dynamic Type support, and accessibility compliance
 - [x] **Fix `SpeedCardView` speed cycle inconsistency** — ✅ `SettingsManager.Defaults.speedPresets` as single source of truth; watch synced to 5 speeds.
 - [x] **Extract reusable `InlineStepperRow`** — ✅ promoted to `Views/Components/InlineStepperRow.swift`.
 - [x] **Push `GeometryReader` down in `NowPlayingTab`** — ✅ restricted to `playerContent` only.
-- [ ] **Decompose large view bodies**: `PlayerLoadingCoordinator.loadFolder` (163 lines), `PlayerLoadingCoordinator.prepareToPlay` (113 lines), `PlaybackController.play()` (78 lines). Break into private well-named methods.
+- [x] **Decompose large view bodies**: ✅ `loadFolder` split into 6 helpers, `prepareToPlay` into 5 helpers, `play()` smart rewind into 4 helpers.
 - [x] **Fix `playlistRows` performance** — ✅ already memoized via `@State` + `.onChange` (Phase 1.90).
-- [ ] **Add empty states** to timeline feed, bookmarks list, and review queue — currently blank when data is absent.
-- [ ] **Add error states** to flashcard creation, note editing, and content card editor — errors currently swallowed silently.
+- [x] **Add empty states** to timeline feed, bookmarks list, and review queue — ✅ timeline feed gets `ContentUnavailableView`; playlist and review already covered.
+- [x] **Add error states** to flashcard creation, note editing, and content card editor — ✅ save failures now show alert dialogs with localized error messages.
 - [x] **Make volume boost gain configurable** — ✅ `SettingsManager.volumeBoostGain` (default 9.0 dB), plumbed through PlaybackController → AudioEngine.
 - [x] **Make NowPlaying skip intervals respect user settings** — ✅ `NowPlayingController` reads `seekForwardDuration`/`seekBackwardDuration`.
 - [x] **Fix macOS hardcoded audio extensions** — ✅ added `aiff`, `aac`, `ogg`, `opus`, `wma`, `flac`.
@@ -246,11 +246,11 @@ Stretch goals and ideas beyond the core roadmap.
 |-------|-------|-----------|
 | 1 | Stability & Correctness Fixes | ✅ Complete |
 | 2 | Strip Unimplemented References | ✅ Complete |
-| 3 | UI Polish & Accessibility | 12/15 complete |
+| 3 | UI Polish & Accessibility | ✅ Complete |
 | 4 | Spaced Repetition System | 4.1 ✅, 4.2 ✅, 4.3 1/3 |
 | 5 | EPUB Viewing | ~10 |
 | 6 | EPUB Manual Alignment | ~6 |
 | 7 | Testing & CI | ~7 |
 | 8 | Polish & Future | ~11 |
 
-**Completed: 2/8 phases (+ Phase 3 80%, Phase 4 mostly done) | Remaining: ~42 items**
+**Completed: 3/8 phases (+ Phase 4 90%) | Remaining: ~39 items**
