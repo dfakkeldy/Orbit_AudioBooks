@@ -114,6 +114,46 @@ enum EPUBAutoImportScanner {
             )
             logger.info("Auto-imported \(blocks.count) EPUB blocks for \(sanitizedPath(epubURL.lastPathComponent))")
 
+            // Create initial system anchors (first block → 0, last block → duration)
+            // so every block gets an interpolated timestamp from the start.
+            if let firstBlock = blocks.first, let lastBlock = blocks.last, let bookDuration = duration {
+                let alignmentService = AlignmentService(db: databaseService.writer, audiobookID: audiobookID)
+                // Anchor first block to time 0
+                let firstAnchor = AlignmentAnchorRecord(
+                    id: "anchor-init-first-\(audiobookID)",
+                    audiobookID: audiobookID,
+                    epubBlockID: firstBlock.id,
+                    audioTime: 0,
+                    audioEndTime: nil,
+                    anchorKind: AlignmentAnchorRecord.AnchorKind.point.rawValue,
+                    source: AlignmentAnchorRecord.Source.imported.rawValue,
+                    note: "Auto-created: first block",
+                    createdAt: ISO8601DateFormatter().string(from: Date()),
+                    modifiedAt: nil
+                )
+                // Anchor last block to total duration
+                let lastAnchor = AlignmentAnchorRecord(
+                    id: "anchor-init-last-\(audiobookID)",
+                    audiobookID: audiobookID,
+                    epubBlockID: lastBlock.id,
+                    audioTime: bookDuration,
+                    audioEndTime: nil,
+                    anchorKind: AlignmentAnchorRecord.AnchorKind.point.rawValue,
+                    source: AlignmentAnchorRecord.Source.imported.rawValue,
+                    note: "Auto-created: last block",
+                    createdAt: ISO8601DateFormatter().string(from: Date()),
+                    modifiedAt: nil
+                )
+                let anchorDAO = AlignmentAnchorDAO(db: databaseService.writer)
+                // Upsert in case of re-import
+                try? anchorDAO.deleteAll(for: audiobookID)
+                try? anchorDAO.upsert(firstAnchor)
+                try? anchorDAO.upsert(lastAnchor)
+                // Interpolate all blocks between the two anchors.
+                try? alignmentService.recalculateTimeline()
+                logger.info("Created initial alignment anchors for \(audiobookID)")
+            }
+
             // Post notification to trigger UI refresh.
             await MainActor.run {
                 NotificationCenter.default.post(
