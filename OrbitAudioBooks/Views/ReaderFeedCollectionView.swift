@@ -123,6 +123,12 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         }
 
         func updateActiveBlock(_ blockID: String?, in collectionView: UICollectionView) {
+            // Clear previous highlight on all visible cells
+            for cell in collectionView.visibleCells {
+                (cell as? HeadingCardCell)?.isActiveBlock = false
+                (cell as? ParagraphCardCell)?.isActiveBlock = false
+            }
+
             guard let blockID, let snapshot = dataSource?.snapshot() else { return }
             let items = snapshot.itemIdentifiers
             for (idx, item) in items.enumerated() {

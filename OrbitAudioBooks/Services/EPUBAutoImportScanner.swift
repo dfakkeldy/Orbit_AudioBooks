@@ -154,6 +154,13 @@ enum EPUBAutoImportScanner {
                 logger.info("Created initial alignment anchors for \(audiobookID)")
             }
 
+            // Always recalculate timeline to ensure chapter-boundary virtual
+            // anchors cover blocks even when total duration is unknown.
+            if duration == nil {
+                try? alignmentService.recalculateTimeline()
+                logger.info("Recalculated EPUB timeline (no book duration) for \(audiobookID)")
+            }
+
             // Post notification to trigger UI refresh.
             await MainActor.run {
                 NotificationCenter.default.post(

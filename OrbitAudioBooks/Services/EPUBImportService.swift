@@ -323,6 +323,7 @@ private final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
         guard skipDepth == 0 else { return }
 
         if ["h1", "h2", "h3", "h4", "h5", "h6"].contains(elementName) {
+            flushBlock()
             isInHeading = true
             isInBlock = true
             currentHeading = ""
