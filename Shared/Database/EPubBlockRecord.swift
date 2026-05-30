@@ -12,6 +12,8 @@ struct EPubBlockRecord: Identifiable, Equatable, Codable, FetchableRecord, Mutab
     var sequenceIndex: Int
     var blockKind: String
     var text: String?
+    var htmlContent: String?
+    var cardColor: String?
     var imagePath: String?
     var chapterIndex: Int?
     var isHidden: Bool
@@ -30,6 +32,8 @@ struct EPubBlockRecord: Identifiable, Equatable, Codable, FetchableRecord, Mutab
         case sequenceIndex = "sequence_index"
         case blockKind = "block_kind"
         case text
+        case htmlContent = "html_content"
+        case cardColor = "card_color"
         case imagePath = "image_path"
         case chapterIndex = "chapter_index"
         case isHidden = "is_hidden"
