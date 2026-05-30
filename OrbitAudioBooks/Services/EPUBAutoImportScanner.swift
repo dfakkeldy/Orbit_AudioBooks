@@ -37,16 +37,24 @@ enum EPUBAutoImportScanner {
             // contentsOfDirectory alone fails on File Provider Storage paths
             // because the file provider daemon requires coordinated access.
             var contents: [URL] = []
+            var listError: Error?
             var coordError: NSError?
             NSFileCoordinator().coordinate(readingItemAt: targetURL, options: [], error: &coordError) { coordinatedURL in
-                contents = (try? FileManager.default.contentsOfDirectory(
-                    at: coordinatedURL,
-                    includingPropertiesForKeys: [.isRegularFileKey],
-                    options: .skipsHiddenFiles
-                )) ?? []
+                do {
+                    contents = try FileManager.default.contentsOfDirectory(
+                        at: coordinatedURL,
+                        includingPropertiesForKeys: [.isRegularFileKey],
+                        options: .skipsHiddenFiles
+                    )
+                } catch {
+                    listError = error
+                }
             }
             if let coordError {
                 throw coordError
+            }
+            if let listError {
+                throw listError
             }
             epubFiles = contents.filter { $0.pathExtension.lowercased() == "epub" }
         } catch {
@@ -214,16 +222,25 @@ enum EPUBAutoImportScanner {
             // compatibility. The coordinator triggers the file provider daemon to
             // materialize the file content before we try to read it.
             var epubData: Data?
+            var readError: Error?
             var coordError: NSError?
             NSFileCoordinator().coordinate(readingItemAt: epubURL, options: [], error: &coordError) { coordinatedURL in
-                epubData = try? Data(contentsOf: coordinatedURL)
+                do {
+                    epubData = try Data(contentsOf: coordinatedURL)
+                } catch {
+                    readError = error
+                }
             }
             if let coordError {
-                logger.error("File coordinator failed for EPUB at \(sanitizedPath(epubURL.path)): \(coordError.localizedDescription)")
+                logger.error("File coordinator failed for EPUB: \(coordError.localizedDescription)")
+                throw ScannerError.invalidArchive(url: epubURL)
+            }
+            if let readError {
+                logger.error("Failed to read EPUB data at \(sanitizedPath(epubURL.path)): \(readError.localizedDescription)")
                 throw ScannerError.invalidArchive(url: epubURL)
             }
             guard let data = epubData, !data.isEmpty else {
-                logger.error("EPUB file is empty or unreadable at path: \(sanitizedPath(epubURL.path))")
+                logger.error("EPUB file is empty or nil at path: \(sanitizedPath(epubURL.path))")
                 throw ScannerError.invalidArchive(url: epubURL)
             }
             logger.debug("Opening EPUB archive: \(sanitizedPath(epubURL.path)) (\(data.count) bytes)")
