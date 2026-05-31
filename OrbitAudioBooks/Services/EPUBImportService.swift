@@ -304,7 +304,7 @@ private final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
     private var isInHeading = false
     private var skipDepth = 0
     private var pendingImagePath: String?
-    private let skipTags: Set<String> = ["script", "style", "head"]
+    private let skipTags: Set<String> = ["script", "style", "head", "figcaption"]
     private let blockTags: Set<String> = ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li", "section"]
     private let inlineTags: Set<String> = ["b", "i", "em", "strong", "span", "small", "sub", "sup", "a", "br"]
 
@@ -333,7 +333,7 @@ private final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
             flushBlock()
             textBlocks.append(TextBlockDescriptor(
                 kind: .image,
-                text: attributeDict["alt"],
+                text: nil, // Filtered out `alt` text so it isn't fed to the alignment engine
                 imagePath: src,
                 htmlContent: nil
             ))

@@ -309,6 +309,28 @@ struct ReaderTab: View {
                     pulseBlockID = nil
                 }
             }
+            
+            // Phase 3: Auto-transcription for Manual Alignments (Fine-Tuning)
+            // Fire off a background transcription of +/- 5s window to locate exact position.
+            Task {
+                let autoState = AutoAlignmentState()
+                let autoService = AutoAlignmentService(
+                    db: db.writer,
+                    audiobookID: audiobookID,
+                    audioEngine: model.audioEngine,
+                    state: autoState
+                )
+                
+                if let exactTime = try? await autoService.fineTuneManualAlignment(blockID: blockID, around: time) {
+                    try? alignmentService.moveBlockToCurrentTime(blockID: blockID, time: exactTime)
+                    await MainActor.run {
+                        viewModel?.reload()
+                        // Small success haptic to indicate fine-tuning complete
+                        let successHaptic = UINotificationFeedbackGenerator()
+                        successHaptic.notificationOccurred(.success)
+                    }
+                }
+            }
         } catch {
             // Alignment failure is logged by AlignmentService
             let errorHaptic = UINotificationFeedbackGenerator()
@@ -430,7 +452,6 @@ struct ReaderTab: View {
     private func buildContextMenu(block: EPubBlockRecord) -> UIContextMenuConfiguration? {
         let blockID = block.id
         let kind = EPubBlockRecord.Kind(rawValue: block.blockKind)
-        let isHeading = kind == .heading
         let status = viewModel?.alignmentStatusByBlockID[blockID]
 
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in

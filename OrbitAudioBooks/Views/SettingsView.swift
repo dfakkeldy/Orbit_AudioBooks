@@ -84,6 +84,8 @@ struct SettingsView: View {
 
                 SettingsSilenceDetectionSection()
 
+                SettingsAutoAlignmentSection()
+
                 SettingsBookmarksInlineSection()
 
                 Section("Flashcards") {
@@ -277,6 +279,28 @@ private struct SettingsSilenceDetectionSection: View {
             Text("Silence Detection")
         } footer: {
             Text("How far back to scan for silence when locating playback position during reverse playback. For testing.")
+        }
+    }
+}
+
+private struct SettingsAutoAlignmentSection: View {
+    @Environment(SettingsManager.self) private var settings
+    @Environment(PlayerModel.self) private var model
+
+    var body: some View {
+        @Bindable var settings = settings
+        Section {
+            Toggle("Continuous Auto-Alignment", isOn: Binding(
+                get: { settings.continuousAutoAlignmentEnabled },
+                set: {
+                    settings.continuousAutoAlignmentEnabled = $0
+                    model.configureContinuousAlignment()
+                }
+            ))
+        } header: {
+            Text("Auto-Alignment")
+        } footer: {
+            Text("When enabled, the app will continuously transcribe audio in the background while playing and attempt to align it with the text.")
         }
     }
 }

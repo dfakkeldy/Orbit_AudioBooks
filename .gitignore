@@ -82,3 +82,6 @@ vendor/bundle/
 .antigravitycli/
 .dev/
 .claude/worktrees/
+
+# --- Generated reports ---
+CODE_AUDIT.md

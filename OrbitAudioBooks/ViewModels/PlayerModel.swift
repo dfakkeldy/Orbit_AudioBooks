@@ -246,6 +246,7 @@ final class PlayerModel {
     let progressPresenter = PlaybackProgressPresenter()
     let chapterLoadingCoordinator = ChapterLoadingCoordinator()
     let playerLoadingCoordinator = PlayerLoadingCoordinator()
+    var continuousAlignmentService: ContinuousAlignmentService?
 
     private func computeWordClouds() {
         transcriptService.computeWordClouds()
@@ -347,7 +348,10 @@ final class PlayerModel {
     /// Set externally to enable SQL-backed bookmark storage.
     var databaseService: DatabaseService? {
         get { timelinePersistence.databaseService }
-        set { timelinePersistence.databaseService = newValue }
+        set {
+            timelinePersistence.databaseService = newValue
+            configureContinuousAlignment()
+        }
     }
 
     /// Optional timeline service for event logging.
@@ -553,6 +557,7 @@ final class PlayerModel {
         playerLoadingCoordinator.onConfigureRemoteCommands = { [weak self] in self?.configureRemoteCommandsIfNeeded() }
         playerLoadingCoordinator.onPersistSelection = { [weak self] url in self?.persistSelection(url: url) }
         playerLoadingCoordinator.onResetBookmarkCheckSecond = { [weak self] in self?.lastBookmarkCheckSecond = nil }
+        playerLoadingCoordinator.onConfigureContinuousAlignment = { [weak self] in self?.configureContinuousAlignment() }
 
         // Wire PlaybackController coordination closures.
         playbackController.coordinator_seekBackwardDuration = { [weak self] in
@@ -638,8 +643,12 @@ final class PlayerModel {
         playbackController.coordinator_playStateChanged = { [weak self] isPlaying in
             if isPlaying {
                 self?.startPlaybackSessionLogging()
+                if self?.settingsManager?.continuousAutoAlignmentEnabled == true {
+                    self?.continuousAlignmentService?.start()
+                }
             } else {
                 self?.endPlaybackSessionLogging()
+                self?.continuousAlignmentService?.stop()
             }
         }
         playlistManager.coordinator_postResetRefresh = { [weak self] in
@@ -738,6 +747,24 @@ final class PlayerModel {
             return
         }
         loadFolder(url, autoplay: false)
+    }
+
+    /// Sets up or tears down the continuous alignment service.
+    func configureContinuousAlignment() {
+        guard let db = databaseService?.writer, let audiobookID = folderURL?.absoluteString else {
+            continuousAlignmentService?.stop()
+            continuousAlignmentService = nil
+            return
+        }
+        if continuousAlignmentService == nil {
+            continuousAlignmentService = ContinuousAlignmentService(audioEngine: audioEngine, db: db, audiobookID: audiobookID)
+        }
+        
+        if isPlaying && settingsManager?.continuousAutoAlignmentEnabled == true {
+            continuousAlignmentService?.start()
+        } else {
+            continuousAlignmentService?.stop()
+        }
     }
 
     func handleDeepLink(_ deepLink: PlayerDeepLink) {

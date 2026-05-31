@@ -50,6 +50,7 @@ import Foundation
     var autoAlignmentChapterSnapEnabled: Bool { get set }
     var autoAlignmentDriftDetectionEnabled: Bool { get set }
     var autoAlignmentDriftRepairEnabled: Bool { get set }
+    var continuousAutoAlignmentEnabled: Bool { get set }
 
     static var systemFontName: String { get }
 }

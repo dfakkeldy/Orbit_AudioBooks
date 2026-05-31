@@ -53,6 +53,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let autoAlignmentChapterSnapEnabled = true
         static let autoAlignmentDriftDetectionEnabled = true
         static let autoAlignmentDriftRepairEnabled = true
+        static let continuousAutoAlignmentEnabled = false
     }
 
     private enum Keys {
@@ -102,6 +103,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let autoAlignmentChapterSnapEnabled = "autoAlignmentChapterSnapEnabled"
         static let autoAlignmentDriftDetectionEnabled = "autoAlignmentDriftDetectionEnabled"
         static let autoAlignmentDriftRepairEnabled = "autoAlignmentDriftRepairEnabled"
+        static let continuousAutoAlignmentEnabled = "continuousAutoAlignmentEnabled"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -193,6 +195,7 @@ final class SettingsManager: SettingsManagerProtocol {
     var autoAlignmentChapterSnapEnabled: Bool { didSet { defaults.set(autoAlignmentChapterSnapEnabled, forKey: Keys.autoAlignmentChapterSnapEnabled) } }
     var autoAlignmentDriftDetectionEnabled: Bool { didSet { defaults.set(autoAlignmentDriftDetectionEnabled, forKey: Keys.autoAlignmentDriftDetectionEnabled) } }
     var autoAlignmentDriftRepairEnabled: Bool { didSet { defaults.set(autoAlignmentDriftRepairEnabled, forKey: Keys.autoAlignmentDriftRepairEnabled) } }
+    var continuousAutoAlignmentEnabled: Bool { didSet { defaults.set(continuousAutoAlignmentEnabled, forKey: Keys.continuousAutoAlignmentEnabled) } }
 
     var watchQuickBookmarkTimeoutSeconds: Int {
         didSet {
@@ -318,6 +321,7 @@ final class SettingsManager: SettingsManagerProtocol {
         autoAlignmentChapterSnapEnabled = defaults.object(forKey: Keys.autoAlignmentChapterSnapEnabled) as? Bool ?? Defaults.autoAlignmentChapterSnapEnabled
         autoAlignmentDriftDetectionEnabled = defaults.object(forKey: Keys.autoAlignmentDriftDetectionEnabled) as? Bool ?? Defaults.autoAlignmentDriftDetectionEnabled
         autoAlignmentDriftRepairEnabled = defaults.object(forKey: Keys.autoAlignmentDriftRepairEnabled) as? Bool ?? Defaults.autoAlignmentDriftRepairEnabled
+        continuousAutoAlignmentEnabled = defaults.object(forKey: Keys.continuousAutoAlignmentEnabled) as? Bool ?? Defaults.continuousAutoAlignmentEnabled
     }
 
     static func registerDefaults(
@@ -360,6 +364,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.autoAlignmentChapterSnapEnabled: Defaults.autoAlignmentChapterSnapEnabled,
             Keys.autoAlignmentDriftDetectionEnabled: Defaults.autoAlignmentDriftDetectionEnabled,
             Keys.autoAlignmentDriftRepairEnabled: Defaults.autoAlignmentDriftRepairEnabled,
+            Keys.continuousAutoAlignmentEnabled: Defaults.continuousAutoAlignmentEnabled,
         ])
         appGroupDefaults.register(defaults: [
             Keys.crownAction: Defaults.crownAction,

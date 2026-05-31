@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 import Foundation
 import GRDB
@@ -117,6 +118,15 @@ final class AutoAlignmentService {
 
         guard !Task.isCancelled else { return }
 
+        // ── Tier 0: Silence Mapping ──
+        state.phase = .tier1_ChapterSnap // Repurpose tier 1 UI for tier 0
+        state.log("═══ Tier 0: Silence Mapping ═══")
+        let silenceAnchors = try await runTier0(chapters: chapters, blocks: blocks)
+        state.log("Tier 0 done: \(silenceAnchors) tentpole anchors created")
+        logger.info("Tier 0 complete — \(silenceAnchors) anchors created")
+
+        guard !Task.isCancelled else { return }
+
         // ── Tier 1: Chapter Snap ──
         state.phase = .tier1_ChapterSnap
         state.log("═══ Tier 1: Chapter Snap — \(chapters.count) chapters ═══")
@@ -153,6 +163,98 @@ final class AutoAlignmentService {
         scheduleModelUnload()
     }
 
+    // MARK: - Manual Alignment Fine-Tuning
+    
+    /// Auto-transcription for Manual Alignments
+    /// Uses a 10s window (+/- 5s) around the specified time to locate the exact anchor position.
+    func fineTuneManualAlignment(blockID: String, around time: TimeInterval) async throws -> TimeInterval? {
+        let allBlocks = try blockDAO.blocks(for: audiobookID)
+        guard let targetBlock = allBlocks.first(where: { $0.id == blockID }) else { return nil }
+        
+        let windowStart = max(0, time - 5.0)
+        let duration = 10.0
+        
+        state.log("fine-tune: capturing \(duration)s at \(String(format: "%.1f", windowStart))s for block \(blockID)")
+        
+        guard let capture = try await captureAndTranscribe(at: windowStart, duration: duration), !capture.text.isEmpty else {
+            state.log("fine-tune: capture/transcription failed or empty")
+            return nil
+        }
+        
+        // Single candidate text matching
+        let candidates = [targetBlock]
+        if let match = findBestMatch(transcribedText: capture.text, candidates: candidates, expectedIndex: 0) {
+            let projected = AutoAlignmentTextMatcher.projectedBlockStart(
+                windowStart: windowStart,
+                firstWordOffset: capture.offset,
+                captureDuration: duration,
+                transcriptTokenCount: match.transcriptTokenCount,
+                matchedBlockWindowStart: match.bestWindowStart
+            )
+            state.log("fine-tune ✓ conf: \(String(format: "%.2f", match.confidence)), aligned from \(String(format: "%.1f", time))s to \(String(format: "%.1f", projected))s")
+            
+            // Unload immediately after fine tuning since it's a one-off
+            scheduleModelUnload()
+            
+            return projected
+        } else {
+            state.log("fine-tune ✗ no high-confidence match found in window")
+            scheduleModelUnload()
+            return nil
+        }
+    }
+
+    // MARK: - Tier 0: Silence Mapping
+
+    private func runTier0(chapters: [Chapter],
+                          blocks: [EPubBlockRecord]) async throws -> Int {
+        guard let audioURL = audioEngine.audioFileURL else { return 0 }
+        
+        state.update(phase: .tier1_ChapterSnap, progress: 0.0, statusMessage: "Scanning audio for silences...")
+        
+        let silenceDetector = SilenceDetectionService(audioURL: audioURL)
+        let silences = try await silenceDetector.detectSilences()
+        
+        var createdAnchors: [AlignmentAnchorRecord] = []
+        let existingAnchors = try anchorDAO.anchors(for: audiobookID)
+        let existingIDs = Set(existingAnchors.map { $0.epubBlockID })
+        let iso = ISO8601DateFormatter()
+        let blocksByChapter = Dictionary(grouping: blocks, by: { $0.chapterIndex })
+        
+        for (idx, chapter) in chapters.enumerated() {
+            let progress = Double(idx) / Double(max(1, chapters.count))
+            state.update(phase: .tier1_ChapterSnap, progress: progress, statusMessage: "Mapping silence to chapter \(idx + 1)...")
+            
+            // Expected start is chapter.startSeconds. We allow a little slop.
+            // If there's a silence ending within ~5 seconds of chapter.startSeconds, we use it.
+            if let matchingSilence = silences.first(where: { abs($0.end - chapter.startSeconds) < 10.0 }) {
+                guard let firstBlock = blocksByChapter[chapter.index]?.first else { continue }
+                if existingIDs.contains(firstBlock.id) { continue }
+                
+                let anchor = AlignmentAnchorRecord(
+                    id: "auto-silence-\(UUID().uuidString)",
+                    audiobookID: audiobookID,
+                    epubBlockID: firstBlock.id,
+                    audioTime: matchingSilence.end,
+                    audioEndTime: nil,
+                    anchorKind: AlignmentAnchorRecord.AnchorKind.chapterStart.rawValue,
+                    source: AlignmentAnchorRecord.Source.imported.rawValue,
+                    note: "auto: silence mapped chapter start",
+                    createdAt: iso.string(from: Date()),
+                    modifiedAt: nil
+                )
+                createdAnchors.append(anchor)
+                state.log("ch\(idx) silence ✓ mapped chapter start to \(String(format: "%.1f", matchingSilence.end))s")
+            }
+        }
+        
+        if !createdAnchors.isEmpty {
+            try alignmentService.insertAnchors(createdAnchors)
+        }
+        
+        return createdAnchors.count
+    }
+
     // MARK: - Tier 1: Chapter Snap
 
     private func runTier1(chapters: [Chapter],
@@ -171,19 +273,42 @@ final class AutoAlignmentService {
         let totalDuration = audioEngine.duration ?? 1.0
 
         var estimatedTimeByBlockID: [String: TimeInterval] = [:]
-        var cumulative: Double = 0
+        let blocksByChapter = Dictionary(grouping: allVisible, by: { $0.chapterIndex })
+        for ch in chapters {
+            let chBlocks = blocksByChapter[ch.index] ?? []
+            let totalWords = chBlocks.reduce(0.0) { $0 + Double(max(1, $1.wordCount ?? 1)) }
+            var cumulative: Double = 0
+            for block in chBlocks {
+                let weight = Double(max(1, block.wordCount ?? 1))
+                let midFraction = totalWords > 0 ? (cumulative + weight / 2.0) / totalWords : 0
+                let span = ch.endSeconds - ch.startSeconds
+                estimatedTimeByBlockID[block.id] = ch.startSeconds + midFraction * span
+                cumulative += weight
+            }
+        }
+        // Fallback for blocks without a chapter index
+        let totalWordsGlobal = allVisible.reduce(0.0) { $0 + Double(max(1, $1.wordCount ?? 1)) }
+        var cumulativeGlobal: Double = 0
         for block in allVisible {
             let weight = Double(max(1, block.wordCount ?? 1))
-            let midFraction = (cumulative + weight / 2.0) / totalWords
-            estimatedTimeByBlockID[block.id] = midFraction * totalDuration
-            cumulative += weight
+            let midFraction = totalWordsGlobal > 0 ? (cumulativeGlobal + weight / 2.0) / totalWordsGlobal : 0
+            if estimatedTimeByBlockID[block.id] == nil {
+                estimatedTimeByBlockID[block.id] = midFraction * totalDuration
+            }
+            cumulativeGlobal += weight
         }
 
-        /// Returns blocks whose estimated position is within `window` seconds of `time`,
-        /// capped at `limit`. Prevents false matches against unrelated book sections.
-        func blocksNear(_ time: TimeInterval, window: TimeInterval, limit: Int) -> [EPubBlockRecord] {
-            allVisible
-                .filter { abs((estimatedTimeByBlockID[$0.id] ?? 0) - time) < window }
+        func blocksNear(_ time: TimeInterval, window: TimeInterval, limit: Int, preferredChapterIndex: Int? = nil) -> [EPubBlockRecord] {
+            let filtered = allVisible.filter { 
+                $0.chapterIndex == preferredChapterIndex || abs((estimatedTimeByBlockID[$0.id] ?? 0) - time) < window 
+            }
+            return filtered
+                .sorted {
+                    let c0 = ($0.chapterIndex == preferredChapterIndex) ? 0 : 1
+                    let c1 = ($1.chapterIndex == preferredChapterIndex) ? 0 : 1
+                    if c0 != c1 { return c0 < c1 }
+                    return abs((estimatedTimeByBlockID[$0.id] ?? 0) - time) < abs((estimatedTimeByBlockID[$1.id] ?? 0) - time)
+                }
                 .prefix(limit)
                 .map { $0 }
         }
@@ -246,25 +371,76 @@ final class AutoAlignmentService {
                                      statusMessage: "Chapter \(idx + 1) start — retrying further in…")
                     }
 
-                    guard let transcribed = try await captureAndTranscribe(
-                        at: windowStart, duration: Config.chapterStartCaptureDuration
-                    ), !transcribed.isEmpty else {
+                    // Dynamic Sample Sizing: Try larger windows if ambiguous or no match
+                    let durations: [TimeInterval] = [Config.chapterStartCaptureDuration, 10.0, 15.0]
+                    var finalMatch: AutoAlignmentTextMatcher.Match?
+                    var finalCapture: (text: String, offset: TimeInterval)?
+                    var finalDuration: TimeInterval = Config.chapterStartCaptureDuration
+                    var finalCandidates: [EPubBlockRecord] = []
+
+                    for duration in durations {
+                        guard windowStart + duration < chapter.endSeconds - endMargin else { break }
+                        
+                        guard let capture = try await captureAndTranscribe(
+                            at: windowStart, duration: duration
+                        ), !capture.text.isEmpty else {
+                            continue
+                        }
+
+                        // Filter to blocks near this time
+                        let candidates = blocksNear(windowStart, window: 300, limit: 30, preferredChapterIndex: chapter.index)
+                        
+                        // Calculate expectedIndex to boost Locality Bias
+                        var expectedIndex: Int?
+                        if let bestExpected = candidates.enumerated().min(by: { abs((estimatedTimeByBlockID[$0.element.id] ?? 0) - windowStart) < abs((estimatedTimeByBlockID[$1.element.id] ?? 0) - windowStart) }) {
+                            expectedIndex = bestExpected.offset
+                        }
+
+                        if let match = findBestMatch(transcribedText: capture.text,
+                                                     candidates: candidates,
+                                                     expectedIndex: expectedIndex) {
+                            finalMatch = match
+                            finalCapture = capture
+                            finalDuration = duration
+                            finalCandidates = candidates
+                            break
+                        }
+                    }
+
+                    guard let match = finalMatch, let capture = finalCapture else {
                         attempt += 1
                         continue
                     }
+                    
+                    let matched = match.block
+                    let confidence = match.confidence
+                    let transcribed = capture.text
 
-                    // Filter to blocks near this time to prevent false matches
-                    // across unrelated parts of the book.
-                    let candidates = blocksNear(windowStart, window: 300, limit: 30)
-                    if let (matched, confidence) = findBestMatch(transcribedText: transcribed,
-                                                                  candidates: candidates) {
+                    // Anchor placement: if the matched block is the
+                    // chapter's first visible block, the chapter audibly
+                    // begins right when the audio chapter begins — use
+                    // `chapter.startSeconds` directly. Otherwise the
+                    // capture landed mid-block, so back-project from the
+                    // matcher's window start to the block's first word.
+                    let firstBlock = blocksByChapter[chapter.index]?.first
+                    let isFirstBlockMatch = firstBlock?.id == matched.id
+                    let projected = AutoAlignmentTextMatcher.projectedBlockStart(
+                            windowStart: windowStart,
+                            firstWordOffset: capture.offset,
+                            captureDuration: finalDuration,
+                            transcriptTokenCount: match.transcriptTokenCount,
+                            matchedBlockWindowStart: match.bestWindowStart
+                        )
+                        let anchorTime = isFirstBlockMatch
+                            ? chapter.startSeconds
+                            : max(chapter.startSeconds, projected)
                         let preview = String(matched.text?.prefix(60) ?? "").replacingOccurrences(of: "\n", with: " ")
-                        state.log("ch\(idx) start ✓ attempt \(attempt + 1): conf=\(String(format: "%.2f", confidence)) offset=\(String(format: "%.0f", windowStart - chapter.startSeconds))s → \"\(preview)\"")
+                        state.log("ch\(idx) start ✓ attempt \(attempt + 1): conf=\(String(format: "%.2f", confidence)) win=\(match.bestWindowStart) tok=\(match.transcriptTokenCount) anchor=\(String(format: "%.1f", anchorTime))s (\(isFirstBlockMatch ? "first-block" : "projected")) → \"\(preview)\"")
                         let anchor = AlignmentAnchorRecord(
                             id: "auto-start-\(UUID().uuidString)",
                             audiobookID: audiobookID,
                             epubBlockID: matched.id,
-                            audioTime: windowStart,
+                            audioTime: anchorTime,
                             audioEndTime: nil,
                             anchorKind: AlignmentAnchorRecord.AnchorKind.chapterStart.rawValue,
                             source: AlignmentAnchorRecord.Source.imported.rawValue,
@@ -274,10 +450,7 @@ final class AutoAlignmentService {
                         )
                         createdAnchors.append(anchor)
                         foundStart = true
-                    } else {
-                        let preview = String(transcribed.prefix(60)).replacingOccurrences(of: "\n", with: " ")
-                        state.log("ch\(idx) start ✗ attempt \(attempt + 1): no match for \"\(preview)\"")
-                    }
+
                     attempt += 1
                 }
                 if !foundStart {
@@ -308,23 +481,64 @@ final class AutoAlignmentService {
                                      statusMessage: "Chapter \(idx + 1) of \(chapters.count) — end…")
                     }
 
-                    guard let transcribed = try await captureAndTranscribe(
-                        at: windowStart, duration: Config.chapterEndCaptureDuration
-                    ), !transcribed.isEmpty else {
+                    // Dynamic Sample Sizing: Try larger windows if ambiguous or no match
+                    let durations: [TimeInterval] = [Config.chapterEndCaptureDuration, 10.0, 15.0]
+                    var finalMatch: AutoAlignmentTextMatcher.Match?
+                    var finalCapture: (text: String, offset: TimeInterval)?
+                    var finalDuration: TimeInterval = Config.chapterEndCaptureDuration
+
+                    for duration in durations {
+                        guard windowStart + duration < chapter.endSeconds else { break }
+                        
+                        guard let capture = try await captureAndTranscribe(
+                            at: windowStart, duration: duration
+                        ), !capture.text.isEmpty else {
+                            continue
+                        }
+
+                        let candidates = blocksNear(windowStart, window: 300, limit: 30, preferredChapterIndex: chapter.index)
+                        
+                        var expectedIndex: Int?
+                        if let bestExpected = candidates.enumerated().min(by: { abs((estimatedTimeByBlockID[$0.element.id] ?? 0) - windowStart) < abs((estimatedTimeByBlockID[$1.element.id] ?? 0) - windowStart) }) {
+                            expectedIndex = bestExpected.offset
+                        }
+
+                        if let match = findBestMatch(transcribedText: capture.text,
+                                                     candidates: candidates,
+                                                     expectedIndex: expectedIndex) {
+                            finalMatch = match
+                            finalCapture = capture
+                            finalDuration = duration
+                            break
+                        }
+                    }
+
+                    guard let match = finalMatch, let capture = finalCapture else {
                         attempt += 1
                         continue
                     }
-
-                    let candidates = blocksNear(windowStart, window: 300, limit: 30)
-                    if let (matched, confidence) = findBestMatch(transcribedText: transcribed,
-                                                                  candidates: candidates) {
+                    
+                    let matched = match.block
+                    let confidence = match.confidence
+                        // Chapter-end captures usually land deep inside the
+                        // last paragraph, so back-project to that block's
+                        // first-word time. Clamp inside chapter bounds.
+                        let projected = AutoAlignmentTextMatcher.projectedBlockStart(
+                            windowStart: windowStart,
+                            firstWordOffset: capture.offset,
+                            captureDuration: finalDuration,
+                            transcriptTokenCount: match.transcriptTokenCount,
+                            matchedBlockWindowStart: match.bestWindowStart
+                        )
+                        let anchorTime = max(chapter.startSeconds,
+                                              min(chapter.endSeconds, projected))
                         let preview = String(matched.text?.prefix(60) ?? "").replacingOccurrences(of: "\n", with: " ")
-                        state.log("ch\(idx) end ✓ attempt \(attempt + 1): conf=\(String(format: "%.2f", confidence)) → \"\(preview)\"")
+                        state.log("ch\(idx) end ✓ attempt \(attempt + 1): conf=\(String(format: "%.2f", confidence)) win=\(match.bestWindowStart) tok=\(match.transcriptTokenCount) anchor=\(String(format: "%.1f", anchorTime))s → \"\(preview)\"")
                         let anchor = AlignmentAnchorRecord(
                             id: "auto-end-\(UUID().uuidString)",
                             audiobookID: audiobookID,
                             epubBlockID: matched.id,
-                            audioTime: windowStart,
+                            audioTime: anchorTime,
                             audioEndTime: nil,
                             anchorKind: AlignmentAnchorRecord.AnchorKind.chapterEnd.rawValue,
                             source: AlignmentAnchorRecord.Source.imported.rawValue,
@@ -334,10 +548,7 @@ final class AutoAlignmentService {
                         )
                         createdAnchors.append(anchor)
                         foundEnd = true
-                    } else {
-                        let preview = String(transcribed.prefix(60)).replacingOccurrences(of: "\n", with: " ")
-                        state.log("ch\(idx) end ✗ attempt \(attempt + 1): no match for \"\(preview)\"")
-                    }
+
                     attempt += 1
                 }
                 if !foundEnd {
@@ -371,19 +582,39 @@ final class AutoAlignmentService {
                          statusMessage: "Checking chapter \(idx + 1) of \(chapters.count)…")
 
             let midpoint = (chapter.startSeconds + chapter.endSeconds) / 2.0
-            guard let transcribed = try await captureAndTranscribe(at: midpoint,
-                                                                    duration: Config.driftCheckDuration),
-                  !transcribed.isEmpty else { continue }
-
+            
             // Find the expected block at this time from the interpolated timeline.
             guard let expectedBlock = blockAtTime(midpoint, blocks: blocks),
-                  let expectedText = expectedBlock.text, !expectedText.isEmpty else { continue }
+                  expectedBlock.text?.isEmpty == false else { continue }
+            
+            let durations: [TimeInterval] = [Config.driftCheckDuration, 10.0, 15.0]
+            var driftDetected = false
+            var bestConfidence = 0.0
 
-            let confidence = transcribed.normalizedLevenshteinSimilarity(to: expectedText)
-            if confidence < Config.driftConfidenceThreshold {
+            for duration in durations {
+                guard let capture = try await captureAndTranscribe(at: midpoint, duration: duration),
+                      !capture.text.isEmpty else { continue }
+                      
+                let confidence = AutoAlignmentTextMatcher.findBestMatch(
+                    transcribedText: capture.text,
+                    candidates: [expectedBlock],
+                    matchThreshold: 0,
+                    expectedIndex: 0
+                )?.confidence ?? 0
+                
+                bestConfidence = max(bestConfidence, confidence)
+                if confidence >= Config.driftConfidenceThreshold {
+                    driftDetected = false
+                    break // We verified it's clean, stop expanding duration
+                } else {
+                    driftDetected = true // Temporarily flagged as drifted, try longer sample
+                }
+            }
+
+            if driftDetected {
                 flagged.append(idx)
-                state.log("ch\(idx) drift ⚠ conf=\(String(format: "%.2f", confidence)) < threshold \(String(format: "%.2f", Config.driftConfidenceThreshold))")
-                logger.warning("Chapter \(idx) drift detected (confidence: \(confidence, privacy: .public))")
+                state.log("ch\(idx) drift ⚠ conf=\(String(format: "%.2f", bestConfidence)) < threshold \(String(format: "%.2f", Config.driftConfidenceThreshold))")
+                logger.warning("Chapter \(idx) drift detected (confidence: \(bestConfidence, privacy: .public))")
             }
         }
 
@@ -404,19 +635,28 @@ final class AutoAlignmentService {
         let totalDuration = audioEngine.duration ?? 1.0
 
         var estimatedTimeByBlockID: [String: TimeInterval] = [:]
-        var cumulative: Double = 0
+        let blocksByChapter = Dictionary(grouping: allVisible, by: { $0.chapterIndex })
+        for ch in chapters {
+            let chBlocks = blocksByChapter[ch.index] ?? []
+            let totalWords = chBlocks.reduce(0.0) { $0 + Double(max(1, $1.wordCount ?? 1)) }
+            var cumulative: Double = 0
+            for block in chBlocks {
+                let weight = Double(max(1, block.wordCount ?? 1))
+                let midFraction = totalWords > 0 ? (cumulative + weight / 2.0) / totalWords : 0
+                let span = ch.endSeconds - ch.startSeconds
+                estimatedTimeByBlockID[block.id] = ch.startSeconds + midFraction * span
+                cumulative += weight
+            }
+        }
+        let totalWordsGlobal = allVisible.reduce(0.0) { $0 + Double(max(1, $1.wordCount ?? 1)) }
+        var cumulativeGlobal: Double = 0
         for block in allVisible {
             let weight = Double(max(1, block.wordCount ?? 1))
-            let midFraction = (cumulative + weight / 2.0) / totalWords
-            estimatedTimeByBlockID[block.id] = midFraction * totalDuration
-            cumulative += weight
-        }
-
-        func nearestBlock(to time: TimeInterval) -> EPubBlockRecord? {
-            allVisible.min(by: {
-                abs((estimatedTimeByBlockID[$0.id] ?? 0) - time)
-                < abs((estimatedTimeByBlockID[$1.id] ?? 0) - time)
-            })
+            let midFraction = totalWordsGlobal > 0 ? (cumulativeGlobal + weight / 2.0) / totalWordsGlobal : 0
+            if estimatedTimeByBlockID[block.id] == nil {
+                estimatedTimeByBlockID[block.id] = midFraction * totalDuration
+            }
+            cumulativeGlobal += weight
         }
 
         for (tierIdx, chIdx) in flaggedChapters.enumerated() {
@@ -437,49 +677,68 @@ final class AutoAlignmentService {
 
             var driftTime: TimeInterval?
             for cp in checkPoints {
-                guard let transcribed = try await captureAndTranscribe(at: cp, duration: 3.0),
-                      !transcribed.isEmpty else { continue }
+                guard let capture = try await captureAndTranscribe(at: cp, duration: 3.0),
+                      !capture.text.isEmpty else { continue }
+                let transcribed = capture.text
 
                 // Match against blocks near this time, not against the
                 // interpolated timeline (which may be way off for drifted chapters).
                 let candidates = allVisible.filter {
-                    abs((estimatedTimeByBlockID[$0.id] ?? 0) - cp) < 120
-                }.prefix(20).map { $0 }
+                    $0.chapterIndex == chapter.index || abs((estimatedTimeByBlockID[$0.id] ?? 0) - cp) < 300
+                }
+                .sorted {
+                    let c0 = ($0.chapterIndex == chapter.index) ? 0 : 1
+                    let c1 = ($1.chapterIndex == chapter.index) ? 0 : 1
+                    if c0 != c1 { return c0 < c1 }
+                    return abs((estimatedTimeByBlockID[$0.id] ?? 0) - cp)
+                    < abs((estimatedTimeByBlockID[$1.id] ?? 0) - cp)
+                }
+                .prefix(30)
+                .map { $0 }
 
-                guard let (best, _) = findBestMatch(transcribedText: transcribed,
-                                                     candidates: candidates) else {
+                guard let match = findBestMatch(transcribedText: transcribed,
+                                                candidates: candidates) else {
                     state.log("ch\(chIdx) repair: no match at \(String(format: "%.0f", cp))s")
                     continue
                 }
+                let best = match.block
+
+                // Back-project from the checkpoint capture to the matched
+                // block's first-word audio time. Clamp inside chapter bounds.
+                let projected = AutoAlignmentTextMatcher.projectedBlockStart(
+                    windowStart: cp,
+                    firstWordOffset: capture.offset,
+                    captureDuration: 3.0,
+                    transcriptTokenCount: match.transcriptTokenCount,
+                    matchedBlockWindowStart: match.bestWindowStart
+                )
+                let anchorTime = max(chapter.startSeconds,
+                                      min(chapter.endSeconds, projected))
 
                 let estimatedPos = estimatedTimeByBlockID[best.id] ?? 0
                 let drift = abs(estimatedPos - cp)
-                state.log("ch\(chIdx) repair: found \"\(String(best.text?.prefix(40) ?? ""))\" at est \(String(format: "%.0f", estimatedPos))s (drift \(String(format: "%.0f", drift))s)")
+                state.log("ch\(chIdx) repair: found \"\(String(best.text?.prefix(40) ?? ""))\" at est \(String(format: "%.0f", estimatedPos))s (drift \(String(format: "%.0f", drift))s) win=\(match.bestWindowStart) anchor=\(String(format: "%.1f", anchorTime))s")
 
-                if drift > 30 {
-                    driftTime = cp
-                    if let repairBlock = nearestBlock(to: cp) {
-                        let anchor = AlignmentAnchorRecord(
-                            id: "auto-repair-\(UUID().uuidString)",
-                            audiobookID: audiobookID,
-                            epubBlockID: repairBlock.id,
-                            audioTime: cp,
-                            audioEndTime: nil,
-                            anchorKind: AlignmentAnchorRecord.AnchorKind.point.rawValue,
-                            source: AlignmentAnchorRecord.Source.imported.rawValue,
-                            note: "auto: drift repair ch\(chIdx)",
-                            createdAt: iso.string(from: Date()),
-                            modifiedAt: nil
-                        )
-                        repairAnchors.append(anchor)
-                        state.log("ch\(chIdx) repair ✓ anchor inserted at \(String(format: "%.0f", cp))s")
-                    }
-                    break
-                }
+                let anchor = AlignmentAnchorRecord(
+                    id: "auto-repair-\(UUID().uuidString)",
+                    audiobookID: audiobookID,
+                    epubBlockID: best.id,
+                    audioTime: anchorTime,
+                    audioEndTime: nil,
+                    anchorKind: AlignmentAnchorRecord.AnchorKind.point.rawValue,
+                    source: AlignmentAnchorRecord.Source.imported.rawValue,
+                    note: "auto: drift repair ch\(chIdx)",
+                    createdAt: iso.string(from: Date()),
+                    modifiedAt: nil
+                )
+                repairAnchors.append(anchor)
+                state.log("ch\(chIdx) repair ✓ anchor inserted at \(String(format: "%.1f", anchorTime))s")
+                driftTime = cp
+                break
             }
 
             if driftTime == nil {
-                state.log("ch\(chIdx) repair: no significant drift found")
+                state.log("ch\(chIdx) repair: no matches found to repair drift")
             }
         }
 
@@ -497,7 +756,7 @@ final class AutoAlignmentService {
     /// Uses direct file reading rather than a real-time tap, so it does not
     /// interrupt playback or require format conversion on the mixer bus.
     private func captureAndTranscribe(at time: TimeInterval,
-                                      duration: TimeInterval) async throws -> String? {
+                                      duration: TimeInterval) async throws -> (text: String, offset: TimeInterval)? {
         guard let fileURL = audioEngine.audioFileURL else {
             state.log("capture: no audio file loaded")
             return nil
@@ -561,14 +820,14 @@ final class AutoAlignmentService {
             return nil
         }
 
-        let text = try await transcribe(samples)
-        if text.isEmpty {
+        let capture = try await transcribe(samples)
+        if capture.text.isEmpty {
             state.log("transcribed: (empty/silence)")
         } else {
-            let preview = String(text.prefix(80)).replacingOccurrences(of: "\n", with: " ")
-            state.log("transcribed: \"\(preview)\"")
+            let preview = String(capture.text.prefix(80)).replacingOccurrences(of: "\n", with: " ")
+            state.log("transcribed: \"\(preview)\" offset: \(String(format: "%.2f", capture.offset))s")
         }
-        return text.isEmpty ? nil : text
+        return capture.text.isEmpty ? nil : capture
     }
 
     /// Converts an audio buffer to 16 kHz mono Float32 samples.
@@ -645,8 +904,8 @@ final class AutoAlignmentService {
         }
     }
 
-    private func transcribe(_ audioArray: [Float]) async throws -> String {
-        guard !audioArray.isEmpty else { return "" }
+    private func transcribe(_ audioArray: [Float]) async throws -> (text: String, offset: TimeInterval) {
+        guard !audioArray.isEmpty else { return ("", 0) }
 
         // Capture whisperKit on the main actor before dispatching to the
         // background queue, since it is @MainActor-isolated.
@@ -662,12 +921,16 @@ final class AutoAlignmentService {
                         task: .transcribe,
                         language: "en",
                         temperature: 0.0,
+                        wordTimestamps: true,
                         suppressBlank: true,
                         chunkingStrategy: .vad
                     )
 
                     let results = await wk.transcribe(audioArrays: [audioArray],
                                                        decodeOptions: options)
+
+                    let allSegments = results.compactMap { $0?.first?.segments }.flatMap { $0 }
+                    let wordOffset = TimeInterval(allSegments.first?.words?.first?.start ?? 0)
 
                     let text = results
                         .compactMap { $0?.first?.segments.map(\.text).joined(separator: " ") }
@@ -681,7 +944,7 @@ final class AutoAlignmentService {
                         self?.scheduleModelUnload()
                     }
 
-                    continuation.resume(returning: text)
+                    continuation.resume(returning: (text, wordOffset))
                 }
             }
         }
@@ -702,46 +965,19 @@ final class AutoAlignmentService {
 
     /// Finds the best-matching EPUB block for a given transcribed text.
     ///
-    /// Uses both full-string Levenshtein similarity and word-level Jaccard
-    /// similarity (intersection over union of words), taking the higher score.
-    private func findBestMatch(transcribedText: String,
-                               candidates: [EPubBlockRecord]) -> (EPubBlockRecord, Double)? {
-        let tsWords = wordSet(transcribedText)
-        var best: (EPubBlockRecord, Double)?
-
-        for candidate in candidates {
-            guard let text = candidate.text, !text.isEmpty else { continue }
-
-            // String-level Levenshtein.
-            let stringConf = transcribedText.normalizedLevenshteinSimilarity(to: text)
-
-            // Word-level Jaccard: intersection / union.
-            let candWords = wordSet(text)
-            let wordConf: Double
-            if tsWords.isEmpty || candWords.isEmpty {
-                wordConf = 0
-            } else {
-                let intersection = tsWords.intersection(candWords).count
-                let union = tsWords.union(candWords).count
-                wordConf = union > 0 ? Double(intersection) / Double(union) : 0
-            }
-
-            let confidence = max(stringConf, wordConf)
-            if confidence > (best?.1 ?? 0) {
-                best = (candidate, confidence)
-            }
-        }
-
-        guard let result = best, result.1 >= Config.matchThreshold else { return nil }
-        return result
-    }
-
-    /// Lowercases, strips punctuation, and splits into a Set of words.
-    private func wordSet(_ text: String) -> Set<String> {
-        let words = text.lowercased()
-            .components(separatedBy: CharacterSet.letters.inverted)
-            .filter { $0.count >= 2 }
-        return Set(words)
+    /// Uses a windowed text matcher so short transcripts can match inside
+    /// long EPUB paragraphs.
+    private func findBestMatch(
+        transcribedText: String,
+        candidates: [EPubBlockRecord],
+        expectedIndex: Int? = nil
+    ) -> AutoAlignmentTextMatcher.Match? {
+        AutoAlignmentTextMatcher.findBestMatch(
+            transcribedText: transcribedText,
+            candidates: candidates,
+            matchThreshold: Config.matchThreshold,
+            expectedIndex: expectedIndex
+        )
     }
 
     // MARK: - Block Lookup Helpers
@@ -753,19 +989,14 @@ final class AutoAlignmentService {
         let blockByID = Dictionary(uniqueKeysWithValues: blocks.map { ($0.id, $0) })
 
         // Query timeline for items near this time.
-        let margin: TimeInterval = 5.0
-        guard let timelineItems = try? timelineDAO.items(
-            in: (time - margin)...(time + margin),
-            audiobookID: audiobookID
-        ) else { return nil }
+        guard let timelineItems = try? timelineDAO.items(for: audiobookID) else { return nil }
 
         var bestItem: TimelineItem?
-        for item in timelineItems {
-            guard item.audioStartTime >= 0,
-                  item.epubBlockID != nil else { continue }
-            let end = item.audioEndTime ?? (item.audioStartTime + 3600)
-            if time >= item.audioStartTime && time < end {
+        for item in timelineItems.sorted(by: { $0.audioStartTime < $1.audioStartTime }) {
+            guard item.audioStartTime >= 0, item.epubBlockID != nil else { continue }
+            if item.audioStartTime <= time {
                 bestItem = item
+            } else {
                 break
             }
         }

@@ -41,6 +41,7 @@ final class PlayerLoadingCoordinator {
     /// Resets the player-level bookmark-check timestamp, used to avoid
     /// stale state bleeding across track boundaries.
     @ObservationIgnored var onResetBookmarkCheckSecond: (() -> Void)?
+    @ObservationIgnored var onConfigureContinuousAlignment: (() -> Void)?
 
     // MARK: - Folder loading
 
@@ -84,6 +85,7 @@ final class PlayerLoadingCoordinator {
 
         // Post-load hooks: SQL bookmarks, EPUB auto-import.
         configurePostLoadHooks(folderURL: url, state: state, bookmarkStore: bookmarkStore)
+        onConfigureContinuousAlignment?()
     }
 
     // MARK: - loadFolder helpers
