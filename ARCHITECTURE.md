@@ -185,6 +185,7 @@ Views/WordCloudPage.swift
 ## Shared (cross-target)
 
 ```
+AnimationDurations.swift        ← Named animation timing constants
 AppGroupDefaults.swift
 Database/AlignmentAnchorRecord.swift
 Database/BookmarkRecord.swift
@@ -211,25 +212,25 @@ Database/MigrationService.swift
 Database/NoteRecord.swift
 Database/PlannedSessionRecord.swift
 Database/RealTimeEventRecord.swift
-Database/Schema_V1.swift
-Database/Schema_V2.swift
-Database/Schema_V3.swift
-Database/Schema_V4.swift
-Database/Schema_V5.swift
-Database/Schema_V6.swift
-Database/Schema_V7.swift
-Database/Schema_V8.swift
+Database/Schema_V1.swift … Schema_V8.swift
 Database/TimelineItem.swift
 Database/TrackRecord.swift
 Database/TranscriptionRecord.swift
 Database/TranscriptionWord.swift
+EPUBXMLParsing.swift            ← Shared EPUB XML delegates (iOS + macOS)
 EnhancedTranscriptionSegment.swift
+FileLocations.swift             ← Centralized directory access
+KeychainStore.swift             ← Security-scoped bookmark storage
 LayoutPreset.swift
+Logger+Subsystem.swift          ← Single subsystem constant
 MediaPlayable.swift
 SafeFileName.swift
+String+Levenshtein.swift
 SyncMarker.swift
+TabSelection.swift
 TimeFormatting.swift
 TranscriptionSegment.swift
+URL+SHA256.swift
 WatchAction.swift
 WatchFlashcard.swift
 WordFrequency.swift
@@ -293,9 +294,11 @@ Earlier alignment used sequence-index-based linear interpolation, which assumed 
 - `AutoAlignmentService` — Progressive 4-tier WhisperKit-based auto-alignment orchestrator. Runs Tier 0 (silence mapping), Tier 1 (chapter snap), Tier 2 (drift detection), Tier 3 (drift repair), and manual fine-tuning. Reports progress via `AutoAlignmentState` for UI binding.
 - `AutoAlignmentTextMatcher` — Fuzzy text matching engine for auto-alignment. Uses Levenshtein distance and word-level Jaccard similarity to match transcribed audio against EPUB paragraphs. Provides `projectedBlockStart()` for time-offset calculation from match position within a block.
 - `SilenceDetectionService` — Scans audio files for silence gaps using `AVAudioFile` + `Accelerate` buffer processing. Returns `[SilenceGap]` (start/end/duration) used by Tier 0 to map chapter boundaries without transcription.
-- `ContinuousAlignmentService` — Background alignment drift detection during playback. Opt-in via `continuousAutoAlignmentEnabled` setting.
-- `CloudKitSyncService` — Cross-device alignment anchor synchronization via CloudKit.
-- `MacGlobalAlignmentService` — macOS-specific streaming alignment orchestrator with EPUB picker UI and match threshold slider.
+- `ContinuousAlignmentService` — Background alignment drift detection during playback. Samples 15-second audio windows, transcribes via WhisperKit, and inserts alignment anchors on-the-fly. Uses a re-entry guard to prevent overlapping transcription tasks. Opt-in via `continuousAutoAlignmentEnabled` setting. Uses single-pass O(N) timeline scan instead of O(N log N) sort to prevent main-thread stalls every 15 seconds.
+- `WhisperSession` — Reference-counted, shared WhisperKit model manager (`@MainActor`). Prevents duplicate ~40 MB model loads when both `AutoAlignmentService` and `ContinuousAlignmentService` are active. Uses `acquire(model:)` / `release()` / `forceUnload()` lifecycle.
+- `AudioSnippetPlayer` — Lightweight, single-use audio player for voice-memo previews and bookmark playback. Eliminates the ad-hoc `AVAudioEngine` setup previously duplicated across `BookmarkStore`, `Bookmarks`, and `SnippetPlayer`.
+- `CloudKitSyncService` — Cross-device alignment anchor synchronization via CloudKit. Uses deterministic SHA-256 record names instead of `hashValue` for cross-device record matching. Uses `NSNumber`-based predicates to avoid floating-point precision loss.
+- `MacGlobalAlignmentService` — macOS-specific streaming alignment orchestrator with EPUB picker UI and match threshold slider. Shares `WhisperSession` with iOS services. Precomputes word arrays to avoid per-sliding-window allocations.
 - `AlignmentAnchorRecord` — A user-created or auto-generated lock point tying an EPUB block to an audio time. Includes `anchorKind` (chapterStart/chapterEnd/correction) and `source` (manual/auto/imported).
 - `EPubBlockRecord` — Database row for a parsed EPUB block (heading, paragraph, or image). Includes `wordCount` (V8) for proportional math.
 - `TimelineItem` — Materialized row linking blocks to audio timestamps with `timestamp_source` and `alignment_status`
@@ -346,6 +349,20 @@ User anchors (manual)
        ├── hideBlock(blockID:reason:) / unhideBlock(blockID:)
        ├── hideChapter(chapterIndex:reason:)   ← batch chapter hide
        └── recalculateTimeline (word-count-weighted interpolation + dynamic CPS projection)
+
+Code organization (May 2026 refactor):
+  ├─ TimelineFeedCollectionView: 1,825 → 627 lines — 11 cell subclasses
+  │   extracted to Views/Cells/ (BookCardCell, TextSegmentCell, ChapterMarkerCell,
+  │   BookmarkCell, AnkiCardCell, ImageAssetCell, NowLineCell, ElasticScrubberCell,
+  │   StickyReviewHeaderView, TimelineCellDelegate, CellHelpers)
+  ├─ ReaderTab: 901 → 576 lines — alignment & context menu operations
+  │   extracted to ReaderTab+Alignment.swift
+  ├─ PlayerModel: 1,295 → 1,103 lines — Bookmarks API extracted to
+  │   PlayerModel+Bookmarks.swift
+  ├─ EPUB XML parsing: ~190 lines of duplicated delegates per platform
+  │   consolidated into Shared/EPUBXMLParsing.swift
+  └─ New shared utilities: FileLocations, KeychainStore, Logger+Subsystem,
+      AnimationDurations, WhisperSession, AudioSnippetPlayer
 
 Continuous alignment (opt-in)
   └─ ContinuousAlignmentService
@@ -420,7 +437,7 @@ showing artwork, title/chapter metadata, and play/pause — tapping it opens the
 
 ### PlayerModel Decomposition
 
-`PlayerModel` has been decomposed from a ~2,900-line god class into a thin coordinator (~1,200 lines) that owns and wires together 20+ focused services. Each service has a single responsibility:
+`PlayerModel` has been decomposed from a ~2,900-line god class into a thin coordinator (~1,100 lines) that owns and wires together 20+ focused services. The Bookmarks API (~190 lines) has been extracted to `PlayerModel+Bookmarks.swift`, following the same extension-file pattern as `PlayerModel+PlaybackControllerDelegate.swift`, `PlayerModel+PlaybackLogging.swift`, and `PlayerModel+WatchState.swift`. Each service has a single responsibility:
 
 | Service | Responsibility |
 |---|---|
