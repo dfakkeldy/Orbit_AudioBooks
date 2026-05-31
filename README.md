@@ -1,6 +1,6 @@
 # 🗣️ Echo: Audiobook Study Player
 
-> Turn listening into learning
+> Turn listening into learning — for every mind
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 [![TestFlight](https://img.shields.io/badge/TestFlight-Beta-blue.svg)](#)
@@ -9,7 +9,9 @@
 [![Platform](https://img.shields.io/badge/watchOS-12+-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Echo** turns audiobooks into a serious study medium. Search across spoken content, jump to any passage, create flashcards from what you hear, and review with spaced repetition — all without leaving the audio. Built for students, professionals, and anyone who learns by listening.
+**Echo** turns audiobooks into a serious study medium. Search across spoken content, jump to any passage, create flashcards from what you hear, and review with spaced repetition — all without leaving the audio.
+
+Echo is built for **every kind of mind.** For neurodivergent learners (including the AuDHD community), Echo bridges the gap between reading and listening: a synced EPUB sits alongside your audiobook so you can follow the text while you hear it, jump between the two, and never lose your place. If you've ever struggled to stay focused on audio alone — or found that reading is your anchor — this hybrid approach is for you. Built for students, professionals, and anyone who learns differently.
 
 ---
 
@@ -35,6 +37,7 @@ Review with spaced repetition   →   Retain what you learned, on your schedule
 - **Study while you listen.** Long-press any paragraph to align it to the current playback position, color-code important passages, or create timestamped bookmarks and flashcards.
 - **Retain more.** Echo's built-in spaced repetition system (SM-2 algorithm) schedules flashcards for optimal retention — review on your phone or Apple Watch during idle moments.
 - **Learn hands-free.** The customizable Apple Watch app lets you control playback, create bookmarks, and review flashcards between deliveries, during commutes, or while working out.
+- **Designed for neurodiversity.** Lexend and OpenDyslexic fonts — both backed by reading-fluency research — are built in. The hybrid EPUB+audio view means you're never forced to learn by listening alone. The app icon (an infinity symbol in silver and gold) is a nod to the AuDHD community.
 
 ---
 
@@ -90,12 +93,24 @@ Shared models and utilities used across targets include:
 
 Echo is built with accessibility as a core principle, not an afterthought.
 
+### Neurodivergent-Friendly Design
+
+Echo is built from the ground up for the AuDHD (Autism + ADHD) and broader neurodivergent community. The core premise — a **hybrid reading + listening** experience — was inspired by the realization that many neurodivergent people struggle to learn from audio alone and need text as an anchor to stay engaged.
+
 ### Dyslexia-Optimized Typography
 
-The project bundles two specially-selected font families to support neurodiverse readers:
+The project bundles two specially-selected font families to support dyslexic and neurodivergent readers:
 
 - **Lexend** ([`EchoCore/Fonts/Lexend.ttf`](EchoCore/Fonts/Lexend.ttf) and [`Echo: Audiobook Study Player macOS/Fonts/Lexend.ttf`](Echo%20Audiobooks%20macOS/Fonts/Lexend.ttf)) — A typeface designed with research-backed letter spacing and proportions to improve reading fluency and reduce visual crowding.
 - **OpenDyslexic** ([`EchoCore/Fonts/OpenDyslexic-Regular.otf`](EchoCore/Fonts/OpenDyslexic-Regular.otf) and [`Echo: Audiobook Study Player macOS/Fonts/OpenDyslexic-Regular.otf`](Echo%20Audiobooks%20macOS/Fonts/OpenDyslexic-Regular.otf)) — An open-source font weighted at the bottom to combat letter reversal and rotation, widely adopted by the dyslexia community.
+
+### App Icon & Colors: An AuDHD Shoutout
+
+The Echo app icon features an **infinity symbol (∞) in silver and gold** — a deliberate nod to the AuDHD community:
+
+- **Infinity symbol (∞)**: Widely adopted by the neurodivergent community to represent the infinite variations and possibilities of the human mind — the idea that there is no single "correct" way to think, learn, or process information.
+- **Silver & gold**: The AuDHD community's colors, representing the dual nature of autism (Au) and ADHD (DHD), and the unique strengths that come from this combination.
+- **"Echo"**: The name itself speaks to the way many AuDHD brains work — ideas echoing back and forth between different modes of thinking, with text and audio reinforcing each other.
 
 ### Developer Requirements
 
