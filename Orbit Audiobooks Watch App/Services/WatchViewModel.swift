@@ -349,7 +349,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 if delta > 0.02 {
                     Task { @MainActor in
                         try? await Task.sleep(for: .seconds(0.5))
-                        self?.ringAnimationSuppressed = false
+                        self.ringAnimationSuppressed = false
                     }
                 }
             } else {
@@ -368,7 +368,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 if delta > 0.02 {
                     Task { @MainActor in
                         try? await Task.sleep(for: .seconds(0.5))
-                        self?.progressAnimationSuppressed = false
+                        self.progressAnimationSuppressed = false
                     }
                 }
             } else {
@@ -514,8 +514,8 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         guard session.activationState == .activated, session.isReachable else { return }
         session.sendMessage(["command": "requestState"], replyHandler: { [weak self] reply in
             self?.applyState(reply)
-        }, errorHandler: { error in
-            logger.error("Error requesting state: \(error)")
+        }, errorHandler: { [weak self] error in
+            self?.logger.error("Error requesting state: \(error)")
         })
     }
 
@@ -555,7 +555,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                     self?.playHaptic(Self.isForwardCommand(command) ? .directionUp : .directionDown)
                 }
             }, errorHandler: { [weak self] error in
-                logger.error("Error sending command: \(error)")
+                self?.logger.error("Error sending command: \(error)")
                 self?.rollback()
                 self?.requestCurrentState()
             })

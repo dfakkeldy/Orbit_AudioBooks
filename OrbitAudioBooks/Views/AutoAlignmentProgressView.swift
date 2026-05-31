@@ -32,7 +32,7 @@ struct AutoAlignmentProgressView: View {
             // Header
             Image(systemName: phaseIcon)
                 .font(.system(size: 32))
-                .foregroundStyle(.accentColor)
+                .foregroundStyle(Color.accentColor)
                 .symbolEffect(.pulse, isActive: phase != .completed && phase != .failed && phase != .idle)
 
             Text(phase != .completed && phase != .failed && phase != .idle

@@ -125,7 +125,7 @@ actor SilenceAnalyzer {
         var allSamples: [Float] = []
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
-            try Task.checkCancellation()
+            if Task.isCancelled { return nil }
 
             guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { continue }
             let byteLength = CMBlockBufferGetDataLength(blockBuffer)

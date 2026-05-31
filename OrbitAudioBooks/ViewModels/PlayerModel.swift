@@ -269,9 +269,9 @@ final class PlayerModel {
     /// Active playback session event ID for timeline logging.
     @ObservationIgnored var currentPlaybackEventID: String?
     /// UUID of the most recently triggered bookmark, used to prevent retrigger loops.
-    @ObservationIgnored private var lastTriggeredBookmarkID: UUID?
+    @ObservationIgnored var lastTriggeredBookmarkID: UUID?
     /// Player time at which the most recent bookmark was triggered, used to suppress duplicate firings.
-    @ObservationIgnored private var lastTriggeredAtPlayerSecond: Double = -1
+    @ObservationIgnored var lastTriggeredAtPlayerSecond: Double = -1
     /// The player time used during the last bookmark voice-memo trigger check.
     @ObservationIgnored var lastBookmarkCheckSecond: Double?
 
@@ -662,19 +662,16 @@ final class PlayerModel {
     }
 
     deinit {
-        let localEngine = audioEngine
-        let localBookmarkStore = bookmarkStore
-        let localBgTask = pauseBackgroundTask
         // Synchronous teardown on the MainActor instead of a fire-and-forget Task.
         // PlayerModel is @MainActor, so the deinit runs on the main actor.
         MainActor.assumeIsolated {
-            localEngine.cleanup()
-            localBookmarkStore.stopVoiceMemo()
+            audioEngine.cleanup()
+            bookmarkStore.stopVoiceMemo()
+            if pauseBackgroundTask != .invalid {
+                UIApplication.shared.endBackgroundTask(pauseBackgroundTask)
+            }
+            stopAllSecurityScope()
         }
-        if localBgTask != .invalid {
-            UIApplication.shared.endBackgroundTask(localBgTask)
-        }
-        stopAllSecurityScope()
     }
 
     // MARK: Folder + track loading
@@ -936,7 +933,7 @@ final class PlayerModel {
         syncToWatch()
     }
 
-    private func stop() {
+    func stop() {
         playbackController.stop()
     }
 

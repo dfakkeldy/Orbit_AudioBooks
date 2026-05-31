@@ -53,7 +53,7 @@ final class SnippetPlayer {
         onPlaybackWillStart?()
 
         node.scheduleSegment(file, startingFrame: startFrame, frameCount: framesToPlay, at: nil) { [weak self] in
-            MainActor.run {
+            Task { @MainActor in
                 guard let self, generation == self.currentGeneration else { return }
                 self.handlePlaybackEnded()
             }

@@ -51,6 +51,7 @@ final class DatabaseService {
     }
 
     init(inMemory: Void) throws {
+        self.appGroupIdentifier = "inMemory"
         var config = Configuration()
         config.prepareDatabase { db in
             try db.execute(sql: "PRAGMA foreign_keys=ON")

@@ -43,12 +43,19 @@ struct EPUBImportService {
             throw EPUBImportError.notAnEPUB(url: epubURL)
         }
 
-        let opfRelativePath = try parseContainerXML(at: containerURL)
+        let containerData = try Data(contentsOf: containerURL)
+        guard let opfRelativePath = parseContainerXML(from: containerData) else {
+            throw EPUBImportError.missingOPF
+        }
         let opfURL = epubURL.appendingPathComponent(opfRelativePath)
         let opfDir = opfURL.deletingLastPathComponent()
 
         // 2. Parse OPF for spine order.
-        let spine = try parseOPF(at: opfURL)
+        let opfData = try Data(contentsOf: opfURL)
+        let spine = parseOPF(from: opfData)
+        guard !spine.isEmpty else {
+            throw EPUBImportError.spineEmpty
+        }
 
         // 3. Prepare asset storage directory.
         try assetStorage.prepare(for: audiobookID)
@@ -72,14 +79,32 @@ struct EPUBImportService {
             }
 
             let xhtmlData = try Data(contentsOf: xhtmlURL)
-            let blocks = try parseXHTML(
-                data: xhtmlData,
-                baseURL: xhtmlURL.deletingLastPathComponent(),
-                audiobookID: audiobookID,
-                spineHref: href,
-                spineIndex: spineIdx,
-                startingSequence: &sequenceIndex
-            )
+            let textBlocks = parseXHTML(from: xhtmlData)
+            var blocks: [EPubBlockRecord] = []
+            for (blockIdx, textBlock) in textBlocks.enumerated() {
+                let wordCount = textBlock.text?.split(whereSeparator: { $0.isWhitespace }).count ?? 0
+                let block = EPubBlockRecord(
+                    id: "epub-\(audiobookID)-s\(spineIdx)-b\(blockIdx)",
+                    audiobookID: audiobookID,
+                    spineHref: href,
+                    spineIndex: spineIdx,
+                    blockIndex: blockIdx,
+                    sequenceIndex: sequenceIndex,
+                    blockKind: textBlock.kind.rawValue,
+                    text: textBlock.text,
+                    htmlContent: textBlock.htmlContent,
+                    cardColor: nil,
+                    imagePath: textBlock.imagePath,
+                    chapterIndex: nil,
+                    isHidden: false,
+                    hiddenReason: nil,
+                    wordCount: max(1, wordCount),
+                    createdAt: AlignmentService.isoFormatter.string(from: Date()),
+                    modifiedAt: nil
+                )
+                blocks.append(block)
+                sequenceIndex += 1
+            }
 
             // 5. Copy images referenced in blocks to local asset storage.
             for var block in blocks {
@@ -118,69 +143,6 @@ struct EPUBImportService {
 
         logger.info("Imported \(allBlocks.count) EPUB blocks for \(audiobookID)")
         return allBlocks
-    }
-
-    // MARK: - Container XML
-
-    private func parseContainerXML(at url: URL) throws -> String {
-        let data = try Data(contentsOf: url)
-        guard let path = parseContainerXML(from: data) else {
-            throw EPUBImportError.missingOPF
-        }
-        return path
-    }
-
-    // MARK: - OPF
-
-    private func parseOPF(at url: URL) throws -> [SpineItemDescriptor] {
-        let data = try Data(contentsOf: url)
-        let items = parseOPF(from: data)
-        guard !items.isEmpty else {
-            throw EPUBImportError.spineEmpty
-        }
-        return items
-    }
-
-    // MARK: - XHTML
-
-    private func parseXHTML(
-        data: Data,
-        baseURL: URL,
-        audiobookID: String,
-        spineHref: String,
-        spineIndex: Int,
-        startingSequence: inout Int
-    ) throws -> [EPubBlockRecord] {
-        let textBlocks = parseXHTML(from: data)
-
-        var blocks: [EPubBlockRecord] = []
-
-        for (blockIdx, textBlock) in textBlocks.enumerated() {
-            let wordCount = textBlock.text?.split(whereSeparator: { $0.isWhitespace }).count ?? 0
-            let block = EPubBlockRecord(
-                id: "epub-\(audiobookID)-s\(spineIndex)-b\(blockIdx)",
-                audiobookID: audiobookID,
-                spineHref: spineHref,
-                spineIndex: spineIndex,
-                blockIndex: blockIdx,
-                sequenceIndex: startingSequence,
-                blockKind: textBlock.kind.rawValue,
-                text: textBlock.text,
-                htmlContent: textBlock.htmlContent,  // NEW
-                cardColor: nil,  // NEW
-                imagePath: textBlock.imagePath,
-                chapterIndex: nil,
-                isHidden: false,
-                hiddenReason: nil,
-                wordCount: max(1, wordCount), // minimum 1 for proportional math
-                createdAt: AlignmentService.isoFormatter.string(from: Date()),
-                modifiedAt: nil
-            )
-            blocks.append(block)
-            startingSequence += 1
-        }
-
-        return blocks
     }
 
     // MARK: - Image resolution

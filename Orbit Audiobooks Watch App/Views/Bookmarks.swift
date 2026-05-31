@@ -42,6 +42,7 @@ private struct WatchBookmarkRow: View {
     let bookmark: WatchBookmark
     @State private var isPlaying = false
     @State private var audioPlayer: AVAudioPlayer?
+    private let logger = Logger(category: "WatchBookmarkRow")
 
     var body: some View {
         HStack(spacing: 8) {

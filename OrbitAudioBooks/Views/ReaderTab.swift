@@ -5,7 +5,7 @@ import os.log
 
 struct ReaderTab: View {
     let folderURL: URL
-    @Environment(PlayerModel.self) private var model
+    @Environment(PlayerModel.self) var model
     @Environment(SettingsManager.self) private var settingsManager
 
     @State var viewModel: ReaderFeedViewModel?
@@ -301,7 +301,7 @@ struct ReaderTab: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 15))
-                .foregroundStyle(.accentColor)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 24)
             Text(message)
                 .font(.caption)
@@ -561,12 +561,12 @@ struct TOCRow: View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .foregroundStyle(isActive ? .accentColor : .primary)
+                    .foregroundStyle(isActive ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
                     .lineLimit(2)
                 Spacer()
                 if isActive {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                         .font(.caption.bold())
                 }
             }

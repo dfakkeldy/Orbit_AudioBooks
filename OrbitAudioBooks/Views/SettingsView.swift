@@ -232,7 +232,7 @@ private struct FontSelectionView: View {
                     Spacer()
                     if settings.appFont == "Lexend" {
                         Image(systemName: "checkmark")
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -243,7 +243,7 @@ private struct FontSelectionView: View {
                     Spacer()
                     if settings.appFont == "OpenDyslexic" {
                         Image(systemName: "checkmark")
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -254,7 +254,7 @@ private struct FontSelectionView: View {
                     Spacer()
                     if settings.appFont == SettingsManager.systemFontName {
                         Image(systemName: "checkmark")
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -429,7 +429,7 @@ private struct ThemeSelectionView: View {
                     HStack {
                         if theme != .system {
                             Image(systemName: "circle.fill")
-                                .foregroundStyle(theme.color)
+                                .foregroundStyle(theme.color ?? Color.accentColor)
                         } else {
                             Image(systemName: "circle.fill")
                                 .foregroundStyle(.secondary)
@@ -442,7 +442,7 @@ private struct ThemeSelectionView: View {
                         
                         if settings.themeColor == theme.rawValue {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.accentColor)
+                                .foregroundStyle(Color.accentColor)
                         }
                     }
                 }

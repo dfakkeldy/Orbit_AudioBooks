@@ -28,10 +28,10 @@ final class WhisperSession {
     func acquire(model: String = "base.en") async throws -> WhisperKit {
         retainCount += 1
         if let cached = cachedModel, modelSize == model {
-            logger.debug("WhisperSession: reusing cached '\(model)' (retainCount=\(retainCount))")
+            logger.debug("WhisperSession: reusing cached '\(model)' (retainCount=\(self.retainCount))")
             return cached
         }
-        logger.info("WhisperSession: loading '\(model)' (retainCount=\(retainCount))")
+        logger.info("WhisperSession: loading '\(model)' (retainCount=\(self.retainCount))")
         let wk = try await WhisperKit(model: model)
         cachedModel = wk
         modelSize = model
@@ -50,7 +50,7 @@ final class WhisperSession {
                 modelSize = nil
             }
         } else {
-            logger.debug("WhisperSession: release (retainCount=\(retainCount))")
+            logger.debug("WhisperSession: release (retainCount=\(self.retainCount))")
         }
     }
 

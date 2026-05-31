@@ -308,6 +308,7 @@ final class AutoAlignmentService {
             blocks: blocks, chapters: chapters,
             totalDuration: audioEngine.duration ?? 1.0
         )
+        let blocksByChapter = Dictionary(grouping: allVisible, by: { $0.chapterIndex })
 
         func blocksNear(_ time: TimeInterval, window: TimeInterval, limit: Int, preferredChapterIndex: Int? = nil) -> [EPubBlockRecord] {
             let filtered = allVisible.filter { 

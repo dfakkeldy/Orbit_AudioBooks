@@ -21,7 +21,7 @@ struct ReaderHeaderView: View {
                 } label: {
                     Image(systemName: "arrow.down.to.line")
                         .font(.system(size: 16))
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
                 .accessibilityLabel(Text("Scroll to current playback position"))
                 .padding(.trailing, 8)

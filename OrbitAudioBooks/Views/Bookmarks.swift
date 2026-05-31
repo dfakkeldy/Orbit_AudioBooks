@@ -385,7 +385,7 @@ struct EditBookmarkView: View {
     #endif
 
     @State private var recorder = VoiceMemoRecorder()
-    private var previewPlayer: AudioSnippetPlayer?
+    @State private var previewPlayer: AudioSnippetPlayer? = nil
     @State private var isPreviewPlaying: Bool = false
     /// Tracks whether the main audiobook player was playing when we started
     /// the voice memo preview, so we can optionally resume it afterwards.
@@ -742,8 +742,8 @@ struct EditBookmarkView: View {
         }
 
         previewPlayer = AudioSnippetPlayer()
-        previewPlayer?.play(url: url, volume: voiceMemoGain(for: url)) { [weak self] in
-            self?.stopPreview()
+        previewPlayer?.play(url: url, volume: voiceMemoGain(for: url)) {
+            stopPreview()
         }
         isPreviewPlaying = true
     }
