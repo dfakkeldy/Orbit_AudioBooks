@@ -184,6 +184,20 @@ private struct SettingsAppearanceView: View {
                 Toggle("Dark Mode", isOn: $settings.isDarkMode)
                     .tint(ThemeColor(rawValue: settings.themeColor)?.color)
             }
+            #if os(iOS)
+            Section("App Icon") {
+                NavigationLink {
+                    AppIconSelectionView()
+                } label: {
+                    HStack {
+                        Text("App Icon")
+                        Spacer()
+                        Text(currentAppIconName)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            #endif
             Section("Theme") {
                 NavigationLink {
                     ThemeSelectionView()
@@ -218,7 +232,72 @@ private struct SettingsAppearanceView: View {
         .tint(ThemeColor(rawValue: settings.themeColor)?.color)
         .accentColor(ThemeColor(rawValue: settings.themeColor)?.color)
     }
+
+    #if os(iOS)
+    private var currentAppIconName: String {
+        guard let name = UIApplication.shared.alternateIconName else {
+            return "Default"
+        }
+        switch name {
+        case "AppIcon-ComplexWaves": return "Complex Waves"
+        case "AppIcon-GoldSilver": return "Gold & Silver"
+        case "AppIcon-SilverGold": return "Silver & Gold"
+        case "AppIcon-WhiteBolder": return "White Bolder"
+        default: return name
+        }
+    }
+    #endif
 }
+
+#if os(iOS)
+private struct AppIconSelectionView: View {
+    let icons: [(name: String, id: String?)] = [
+        ("Default (Original)", nil),
+        ("Complex Waves", "AppIcon-ComplexWaves"),
+        ("Gold & Silver", "AppIcon-GoldSilver"),
+        ("Silver & Gold", "AppIcon-SilverGold"),
+        ("White Bolder", "AppIcon-WhiteBolder")
+    ]
+    
+    @State private var currentIcon = UIApplication.shared.alternateIconName
+    
+    var body: some View {
+        Form {
+            ForEach(icons, id: \.name) { icon in
+                Button {
+                    setAppIcon(to: icon.id)
+                } label: {
+                    HStack {
+                        // We use the image from the bundle if we want to preview it,
+                        // but since they are app icons, we can't easily load them into an Image directly.
+                        // So we just show the name.
+                        Text(icon.name)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if currentIcon == icon.id {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("App Icon")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func setAppIcon(to iconName: String?) {
+        guard UIApplication.shared.supportsAlternateIcons else { return }
+        UIApplication.shared.setAlternateIconName(iconName) { error in
+            if let error = error {
+                print("Failed to change app icon: \(error.localizedDescription)")
+            } else {
+                currentIcon = iconName
+            }
+        }
+    }
+}
+#endif
 
 private struct FontSelectionView: View {
     @Environment(SettingsManager.self) private var settings
