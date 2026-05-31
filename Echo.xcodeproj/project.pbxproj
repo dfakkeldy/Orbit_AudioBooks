@@ -32,14 +32,14 @@
 			containerPortal = CC08EC512F9522F600206D2F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = CC08EC582F9522F600206D2F;
-			remoteInfo = "Echo";
+			remoteInfo = Echo;
 		};
 		CC08EC712F9522F800206D2F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CC08EC512F9522F600206D2F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = CC08EC582F9522F600206D2F;
-			remoteInfo = "Echo";
+			remoteInfo = Echo;
 		};
 		CCC48EA82FA6AB340003458B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -90,9 +90,9 @@
 		CC00BC4D2FA6B66400323F38 /* Echo WidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Echo WidgetExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC00BC4F2FA6B66400323F38 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		CC00BC512FA6B66400323F38 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		CC08EC592F9522F600206D2F /* Echo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Echo.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC08EC662F9522F800206D2F /* EchoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "EchoTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC08EC702F9522F800206D2F /* EchoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "EchoUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC08EC592F9522F600206D2F /* Echo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Echo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC08EC662F9522F800206D2F /* EchoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EchoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC08EC702F9522F800206D2F /* EchoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EchoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCC48E9B2FA6AB330003458B /* Echo Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Echo Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCC48EA72FA6AB340003458B /* Echo Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Echo Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCC48EB12FA6AB340003458B /* Echo Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Echo Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -164,12 +164,12 @@
 		};
 		CC08EC692F9522F800206D2F /* EchoTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "EchoTests";
+			path = EchoTests;
 			sourceTree = "<group>";
 		};
 		CC08EC732F9522F800206D2F /* EchoUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "EchoUITests";
+			path = EchoUITests;
 			sourceTree = "<group>";
 		};
 		CCC48E9C2FA6AB330003458B /* Echo Watch App */ = {
@@ -350,8 +350,8 @@
 				CC08EC5B2F9522F600206D2F /* EchoCore */,
 				DD0100000000000000000001 /* Shared */,
 			);
-			name = "Echo";
-			productName = "Echo";
+			name = Echo;
+			productName = Echo;
 			productReference = CC08EC592F9522F600206D2F /* Echo.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -371,8 +371,8 @@
 			fileSystemSynchronizedGroups = (
 				CC08EC692F9522F800206D2F /* EchoTests */,
 			);
-			name = "EchoTests";
-			productName = "EchoTests";
+			name = EchoTests;
+			productName = EchoTests;
 			productReference = CC08EC662F9522F800206D2F /* EchoTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -392,8 +392,8 @@
 			fileSystemSynchronizedGroups = (
 				CC08EC732F9522F800206D2F /* EchoUITests */,
 			);
-			name = "EchoUITests";
-			productName = "EchoUITests";
+			name = EchoUITests;
+			productName = EchoUITests;
 			productReference = CC08EC702F9522F800206D2F /* EchoUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
@@ -690,8 +690,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Echo macOS/Echo_macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -732,8 +732,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Echo macOS/Echo_macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -776,7 +776,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Echo.entitlements";
+				CODE_SIGN_ENTITLEMENTS = Echo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
@@ -811,7 +811,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Echo.entitlements";
+				CODE_SIGN_ENTITLEMENTS = Echo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
@@ -966,8 +966,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = EchoCore/EchoCore.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
@@ -976,7 +976,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoCore/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
+				INFOPLIST_KEY_CFBundleDisplayName = "Echo: Audiobook Study Player";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1008,8 +1008,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = EchoCore/EchoCore.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
@@ -1018,7 +1018,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoCore/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Orbit AudioBooks";
+				INFOPLIST_KEY_CFBundleDisplayName = "Echo: Audiobook Study Player";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1117,7 +1117,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_TARGET_NAME = "Echo";
+				TEST_TARGET_NAME = Echo;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
@@ -1141,7 +1141,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_TARGET_NAME = "Echo";
+				TEST_TARGET_NAME = Echo;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
@@ -1150,9 +1150,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Echo.entitlements";
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Echo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
@@ -1189,9 +1189,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Echo.entitlements";
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Echo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 8AXNA5B37R;
