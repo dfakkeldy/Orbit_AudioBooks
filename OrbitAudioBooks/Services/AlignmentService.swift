@@ -128,6 +128,20 @@ struct AlignmentService {
         try recalculateTimeline()
     }
 
+    // MARK: - Batch Anchor Insertion
+
+    /// Inserts multiple anchors in a single transaction, then recalculates
+    /// the timeline. Used by `AutoAlignmentService` for bulk anchor creation.
+    func insertAnchors(_ anchors: [AlignmentAnchorRecord]) throws {
+        guard !anchors.isEmpty else { return }
+        try anchorDAO.db.write { db in
+            for var anchor in anchors {
+                try anchor.upsert(db)
+            }
+        }
+        try recalculateTimeline()
+    }
+
     // MARK: - Block Visibility
 
     func hideBlock(blockID: String, reason: String?) throws {

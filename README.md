@@ -42,7 +42,7 @@ Review with spaced repetition   →   Retain what you learned, on your schedule
 
 Echo is a full-featured audiobook study application organized as a single Xcode workspace with four distinct targets. It supports bookmarking with optional voice memos, chapter navigation, loop modes, a sleep timer, variable playback speed, and intelligent rewind logic that adapts to pause duration. The iOS and watchOS apps communicate bidirectionally via WatchConnectivity, while a Widget displays the current playback state on the Home Screen / Lock Screen.
 
-When you add an EPUB file alongside your audiobook, Echo unlocks its study toolkit: a searchable, browsable reader with per-paragraph audio alignment. Long-press any paragraph to lock it to the current playback position, color-code important passages, or create timestamped bookmarks. Full-text search with inline highlighting lets you find any phrase in the book instantly — so you'll never lose that half-remembered passage again.
+When you add an EPUB file alongside your audiobook, Echo unlocks its study toolkit: a searchable, browsable reader with per-paragraph audio alignment. Long-press any paragraph to lock it to the current playback position, color-code important passages, or create timestamped bookmarks. Use **Auto-Align Chapters** to let on-device speech recognition (Whisper) automatically align every chapter — it transcribes short clips, matches them against the EPUB text, and creates precise alignment anchors. Full-text search with inline highlighting lets you find any phrase in the book instantly — so you'll never lose that half-remembered passage again.
 
 ---
 

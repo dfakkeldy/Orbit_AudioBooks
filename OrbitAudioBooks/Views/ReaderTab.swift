@@ -24,6 +24,11 @@ struct ReaderTab: View {
     @AppStorage("hasSeenReaderContextMenuHint") private var hasSeenContextMenuHint = false
     @State private var showAlignmentBanner = false
     @State private var hasDismissedAlignmentBanner = false
+    @State private var autoAlignmentTask: Task<Void, Error>?
+    @State private var showAutoAlignmentProgress = false
+    @State private var showAutoAlignmentFailedAlert = false
+    @State private var autoAlignmentErrorMessage: String?
+    @State private var autoAlignmentState = AutoAlignmentState()
     private let haptic = UIImpactFeedbackGenerator(style: .medium)
     @State private var readerSettings = ReaderSettings(
         fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8"
@@ -190,6 +195,17 @@ struct ReaderTab: View {
                 showCardColorPickerForBlockID = nil
             }
         }
+        .sheet(isPresented: $showAutoAlignmentProgress) {
+            AutoAlignmentProgressView(
+                sharedState: autoAlignmentState,
+                onCancel: { autoAlignmentTask?.cancel() }
+            )
+        }
+        .alert("Auto-Alignment Failed", isPresented: $showAutoAlignmentFailedAlert) {
+            Button("OK") {}
+        } message: {
+            Text(autoAlignmentErrorMessage ?? "An unknown error occurred.")
+        }
         .background(Color(uiColor: .systemBackground))
     }
 
@@ -355,6 +371,48 @@ struct ReaderTab: View {
         }
     }
 
+    private func startAutoAlignment(model: PlayerModel) {
+        guard let db = model.databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+
+        let chapters = model.alignmentPickerChapters
+        let blocks = (try? EPubBlockDAO(db: db.writer).blocks(for: audiobookID)) ?? []
+
+        guard !chapters.isEmpty, !blocks.isEmpty else {
+            showAutoAlignmentFailedAlert = true
+            autoAlignmentErrorMessage = "No chapters or EPUB blocks found."
+            return
+        }
+
+        // Reset state and pass to service so the sheet observes mutations live.
+        autoAlignmentState.reset()
+        viewModel?.autoAlignmentState = autoAlignmentState
+
+        let autoService = AutoAlignmentService(
+            db: db.writer,
+            audiobookID: audiobookID,
+            audioEngine: model.audioEngine,
+            state: autoAlignmentState
+        )
+
+        showAutoAlignmentProgress = true
+        autoAlignmentTask = autoService.startAutoAlignment(chapters: chapters, blocks: blocks)
+
+        Task { @MainActor in
+            do {
+                try await autoAlignmentTask?.value
+                viewModel?.reload()
+                haptic.impactOccurred()
+            } catch is CancellationError {
+                // User cancelled — clean exit.
+            } catch {
+                showAutoAlignmentFailedAlert = true
+                autoAlignmentErrorMessage = error.localizedDescription
+            }
+            autoAlignmentTask = nil
+        }
+    }
+
     private func resetAlignment() {
         guard let db = model.databaseService else { return }
         let audiobookID = folderURL.absoluteString
@@ -377,6 +435,14 @@ struct ReaderTab: View {
 
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
             var actions: [UIAction] = []
+
+            let autoAlignAction = UIAction(
+                title: "Auto-Align Chapters", image: UIImage(systemName: "wand.and.stars")
+            ) { [weak model] _ in
+                guard let model else { return }
+                startAutoAlignment(model: model)
+            }
+            actions.append(autoAlignAction)
 
             let changeColorAction = UIAction(
                 title: "Change Color", image: UIImage(systemName: "paintpalette")

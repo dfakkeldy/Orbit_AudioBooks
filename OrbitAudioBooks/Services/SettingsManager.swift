@@ -48,6 +48,11 @@ final class SettingsManager: SettingsManagerProtocol {
         static let readerFontSize: Double = 17.0
         static let readerLineSpacing: Double = 1.4
         static let readerCardTint: String = "#F5F0E8"
+        static let autoAlignmentEnabled = true
+        static let autoAlignmentModelSize = "base.en"
+        static let autoAlignmentChapterSnapEnabled = true
+        static let autoAlignmentDriftDetectionEnabled = true
+        static let autoAlignmentDriftRepairEnabled = true
     }
 
     private enum Keys {
@@ -92,6 +97,11 @@ final class SettingsManager: SettingsManagerProtocol {
         static let readerFontSize = "readerFontSize"
         static let readerLineSpacing = "readerLineSpacing"
         static let readerCardTint = "readerCardTint"
+        static let autoAlignmentEnabled = "autoAlignmentEnabled"
+        static let autoAlignmentModelSize = "autoAlignmentModelSize"
+        static let autoAlignmentChapterSnapEnabled = "autoAlignmentChapterSnapEnabled"
+        static let autoAlignmentDriftDetectionEnabled = "autoAlignmentDriftDetectionEnabled"
+        static let autoAlignmentDriftRepairEnabled = "autoAlignmentDriftRepairEnabled"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -175,6 +185,15 @@ final class SettingsManager: SettingsManagerProtocol {
         get { defaults.string(forKey: Keys.readerCardTint) ?? Defaults.readerCardTint }
         set { defaults.set(newValue, forKey: Keys.readerCardTint) }
     }
+
+    // MARK: - Auto-Alignment
+
+    var autoAlignmentEnabled: Bool { didSet { defaults.set(autoAlignmentEnabled, forKey: Keys.autoAlignmentEnabled) } }
+    var autoAlignmentModelSize: String { didSet { defaults.set(autoAlignmentModelSize, forKey: Keys.autoAlignmentModelSize) } }
+    var autoAlignmentChapterSnapEnabled: Bool { didSet { defaults.set(autoAlignmentChapterSnapEnabled, forKey: Keys.autoAlignmentChapterSnapEnabled) } }
+    var autoAlignmentDriftDetectionEnabled: Bool { didSet { defaults.set(autoAlignmentDriftDetectionEnabled, forKey: Keys.autoAlignmentDriftDetectionEnabled) } }
+    var autoAlignmentDriftRepairEnabled: Bool { didSet { defaults.set(autoAlignmentDriftRepairEnabled, forKey: Keys.autoAlignmentDriftRepairEnabled) } }
+
     var watchQuickBookmarkTimeoutSeconds: Int {
         didSet {
             let clampedValue = max(1, watchQuickBookmarkTimeoutSeconds)
@@ -293,6 +312,12 @@ final class SettingsManager: SettingsManagerProtocol {
         } else {
             phonePresets = []
         }
+
+        autoAlignmentEnabled = defaults.object(forKey: Keys.autoAlignmentEnabled) as? Bool ?? Defaults.autoAlignmentEnabled
+        autoAlignmentModelSize = defaults.string(forKey: Keys.autoAlignmentModelSize) ?? Defaults.autoAlignmentModelSize
+        autoAlignmentChapterSnapEnabled = defaults.object(forKey: Keys.autoAlignmentChapterSnapEnabled) as? Bool ?? Defaults.autoAlignmentChapterSnapEnabled
+        autoAlignmentDriftDetectionEnabled = defaults.object(forKey: Keys.autoAlignmentDriftDetectionEnabled) as? Bool ?? Defaults.autoAlignmentDriftDetectionEnabled
+        autoAlignmentDriftRepairEnabled = defaults.object(forKey: Keys.autoAlignmentDriftRepairEnabled) as? Bool ?? Defaults.autoAlignmentDriftRepairEnabled
     }
 
     static func registerDefaults(
@@ -329,7 +354,12 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.playerLayoutStyle: Defaults.playerLayoutStyle,
             Keys.readerFontSize: Defaults.readerFontSize,
             Keys.readerLineSpacing: Defaults.readerLineSpacing,
-            Keys.readerCardTint: Defaults.readerCardTint
+            Keys.readerCardTint: Defaults.readerCardTint,
+            Keys.autoAlignmentEnabled: Defaults.autoAlignmentEnabled,
+            Keys.autoAlignmentModelSize: Defaults.autoAlignmentModelSize,
+            Keys.autoAlignmentChapterSnapEnabled: Defaults.autoAlignmentChapterSnapEnabled,
+            Keys.autoAlignmentDriftDetectionEnabled: Defaults.autoAlignmentDriftDetectionEnabled,
+            Keys.autoAlignmentDriftRepairEnabled: Defaults.autoAlignmentDriftRepairEnabled,
         ])
         appGroupDefaults.register(defaults: [
             Keys.crownAction: Defaults.crownAction,
