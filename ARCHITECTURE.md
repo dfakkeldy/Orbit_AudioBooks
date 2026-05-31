@@ -3,7 +3,7 @@
 <!-- ⚠️  AUTO-GENERATED — do not edit directly. -->
 <!-- Regenerate with: `make architecture`                        -->
 
-**Last generated:** 2026-05-30 (updated for word-count alignment, anchor management, Schema V8, and reader toolbar)
+**Last generated:** 2026-05-30 (updated for simplified global interpolation, chapter hide, Echo rebrand, anchor label UX, playback time toolbar)
 
 This document maps the source-tree layout of the Xcode targets and Shared/
 module in the Orbit Audiobooks project. Folders are shown in the order
@@ -248,22 +248,23 @@ Views/Orbit_Audiobooks_WidgetControl.swift
 Alignment is now performed entirely in-app, without any external tools or API calls:
 
 1. **EPUB Import:** When the user adds an EPUB file alongside their audiobook, `EPUBImportService` parses it into `epub_block` records (headings, paragraphs, images) stored in the database.
-2. **Automatic chapter alignment:** On first load, `AlignmentService` creates virtual boundary anchors at each chapter's start/end times from the audio's chapter markers. All blocks within a chapter are proportionally distributed between those boundaries, producing `estimated` alignment.
-3. **Manual refinement:** The user long-presses any card in the Reader and chooses "Align to Now" to lock that block to the current playback position. Each locked anchor improves the accuracy of neighboring blocks through linear interpolation.
+2. **Global flat interpolation:** `AlignmentService.recalculateTimeline()` uses a simplified global interpolation approach. Synthetic anchors are placed at the first block (time 0.0) and last block (total duration from chapter markers). All blocks between locked anchors interpolate linearly by word-count-weighted position. This replaces the earlier chapter-aware approach with virtual boundary anchors at chapter start/end.
+3. **Manual refinement:** The user long-presses any card in the Reader and chooses "Align to Now", "Align to 5s Ago", "Align to Chapter Start", or "Align to Chapter End" to lock that block to a specific timestamp. Each locked anchor improves the accuracy of neighboring blocks through proportional interpolation.
 4. **Timeline recalculation:** `AlignmentService.recalculateTimeline()` runs in a single DB transaction, updating all affected `timeline_item` rows with new interpolated timestamps.
+5. **Block/chapter hiding:** Users can mark individual blocks ("Not in Audio (This Paragraph)") or entire chapters ("Not in Audio (Whole Chapter)") as hidden when the EPUB contains content not present in the audiobook narration. Hidden blocks get `alignment_status = omitted`, `is_enabled = false`. The `hideChapter(chapterIndex:reason:)` method on `AlignmentService` batch-hides all blocks in a chapter.
 
 **Word-count proportional interpolation (Schema V8):**
 
-Earlier alignment used sequence-index-based linear interpolation, which assumed uniform spacing between blocks. Schema V8 introduces `word_count` on `epub_block` to weight block positions proportionally by content length. The algorithm:
+Earlier alignment used sequence-index-based linear interpolation, which assumed uniform spacing between blocks. Schema V8 introduces `word_count` on `epub_block` to weight block positions proportionally by content length. The current algorithm:
 
-1. Computes a cumulative `wordPosition` for each block (running sum of half-word-counts, placing each block's "center" at its proportional position within the chapter).
-2. Virtual boundary anchors at chapter start/end use the chapter's word-position range instead of sequence indices.
-3. Interpolation fraction = `(blockPos − prevPos) / (nextPos − prevPos)` using word positions rather than sequence indices.
-4. This produces more accurate timestamp estimates for chapters with uneven paragraph lengths (e.g., long prose followed by short dialogue).
+1. Computes a cumulative `wordPosition` for each block (running sum of half-word-counts, placing each block's "center" at its proportional position within the book).
+2. Synthetic anchor points are placed at the first block (time 0.0) and last block (total duration from the last chapter marker's end time), ensuring the entire book is bounded.
+3. Interpolation fraction = `(blockPos − prevPos) / (nextPos − prevPos)` using word positions between any two bracketing anchors (locked or synthetic).
+4. This produces smooth timestamp estimates for uneven paragraph lengths (e.g., long prose followed by short dialogue) without requiring chapter boundary data.
 
 **Key types:**
 
-- `AlignmentService` — Creates anchors and recalculates timeline via word-count-weighted proportional interpolation between locked and virtual boundary anchors. Supports `eraseAnchor(blockID:)` and `resetAlignment()` for anchor management.
+- `AlignmentService` — Creates anchors and recalculates timeline via word-count-weighted proportional interpolation between locked and synthetic boundary anchors. Supports `eraseAnchor(blockID:)`, `resetAlignment()`, `hideBlock(blockID:reason:)`, `hideChapter(chapterIndex:reason:)`, and `anchorChapterEnd(blockID:chapterIndex:time:)` for anchor and content management.
 - `AlignmentAnchorRecord` — A user-created lock point tying an EPUB block to an audio time
 - `EPubBlockRecord` — Database row for a parsed EPUB block (heading, paragraph, or image). Includes `wordCount` (V8) for proportional math.
 - `TimelineItem` — Materialized row linking blocks to audio timestamps with `timestamp_source` and `alignment_status`
@@ -302,9 +303,10 @@ EPUB (directory or .epub file)
 User anchors (manual)
   └─ AlignmentService
        ├── moveBlockToCurrentTime / anchorSearchResult / anchorChapterStart/End
-       ├── eraseAnchor(blockID:) / resetAlignment()   ← new anchor management
-       ├── hideBlock / unhideBlock
-       └── recalculateTimeline (word-count-weighted proportional interpolation)
+       ├── eraseAnchor(blockID:) / resetAlignment()
+       ├── hideBlock(blockID:reason:) / unhideBlock(blockID:)
+       ├── hideChapter(chapterIndex:reason:)   ← batch chapter hide
+       └── recalculateTimeline (global word-count-weighted proportional interpolation)
 ```
 
 **Reader UI architecture:**
@@ -321,7 +323,9 @@ ReaderTab (SwiftUI)
        ├── Auto-scroll — follows playhead via binary search on timeline cache; disengages on manual scroll
        ├── Force-scroll trigger  ← counter-based invalidation for repeated scroll-to-same-block
        ├── Context menu — long-press any card for:
-       │    ├── Align to Now / Align to 5s Ago / Align to Chapter Start/End (headings)
+       │    ├── Align to Now / Align to 5s Ago
+       │    ├── Align to Chapter Start / Align to Chapter End (all blocks)
+       │    ├── Not in Audio (This Paragraph) / Not in Audio (Whole Chapter) ← hide non-narrated content
        │    ├── Erase Anchor (if lockedAnchor) / Reset Alignment (all anchors)
        │    ├── Change Color / Save Bookmark / Copy Text / Save Image
        └── NSDiffableDataSourceSnapshot<String> — identity from ReaderCardItem.id
@@ -438,7 +442,7 @@ The Reader uses a tap/long-press interaction model on card cells:
 |---|---|---|
 | **Tap** | Paragraph / heading card | Seek playback to the block's audio timestamp |
 | **Tap** | Image card | Open image in system viewer |
-| **Long press** | Any card | Context menu: Align to Now, Align to 5s Ago, Align to Chapter (headings only), Erase Anchor (locked anchors), Reset Alignment (all anchors), Change Color, Save Bookmark, Copy Text, Save Image (images only) |
+| **Long press** | Any card | Context menu: Align to Now, Align to 5s Ago, Align to Chapter Start, Align to Chapter End, Not in Audio (This Paragraph), Not in Audio (Whole Chapter, if in a chapter), Erase Anchor (locked anchors), Reset Alignment (all anchors), Change Color, Save Bookmark, Copy Text, Save Image (images only) |
 
 **Active block tracking:** The paragraph currently matching the audio playback position is highlighted with a blue leading bar (`activeBar`) on its card. The ReaderFeedViewModel performs a binary search on a cached `[(start, end, blockID)]` array for O(log N) lookup each time the playback position changes.
 
@@ -492,7 +496,7 @@ The skip durations are read from `SettingsManager.seekBackwardDuration` / `seekF
 ### Anchor Status Indicators on Cards
 
 **Reader feed cards:**
-- `HeadingCardCell` and `ParagraphCardCell` include a green `anchorLabel` (top-right corner) that displays the anchored timestamp when `alignmentStatus == "lockedAnchor"`. The `setManuallyAligned(_:timeString:)` method controls visibility.
+- `HeadingCardCell` and `ParagraphCardCell` include an `anchorLabel` (top-right corner) that always displays the block's audio timestamp (or "None" if unaligned). Locked-anchor timestamps render in **red** (`.systemRed`); estimated/interpolated timestamps render in **secondary label color**. The `setManuallyAligned(_:timeString:)` method controls both visibility and color.
 - The alignment status and audio start time caches are maintained in `ReaderFeedViewModel` (`alignmentStatusByBlockID`, `audioStartTimeByBlockID`) and passed through `ReaderFeedCollectionView` to the coordinator for cell configuration.
 
 **Timeline feed cells:**

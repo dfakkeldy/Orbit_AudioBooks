@@ -167,6 +167,21 @@ final class PlayerModel {
         get { state.chapters }
         set { state.chapters = newValue }
     }
+    
+    var alignmentPickerChapters: [Chapter] {
+        if state.isMultiM4B, !state.aggregatedChapters.isEmpty {
+            return state.aggregatedChapters.map { agg in
+                Chapter(
+                    index: agg.chapterIndex,
+                    title: agg.chapterTitle.isEmpty ? "Chapter \(agg.chapterIndex + 1)" : agg.chapterTitle,
+                    startSeconds: agg.startSeconds,
+                    endSeconds: agg.endSeconds,
+                    isEnabled: true
+                )
+            }
+        }
+        return state.chapters
+    }
     var transcription: [TranscriptionSegment] {
         get { state.transcription }
         set { state.transcription = newValue }

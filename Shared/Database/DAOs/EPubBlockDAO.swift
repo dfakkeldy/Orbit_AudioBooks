@@ -112,6 +112,24 @@ struct EPubBlockDAO {
         }
     }
 
+    func hideChapter(chapterIndex: Int, audiobookID: String, reason: String?) throws {
+        try db.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE epub_block
+                    SET is_hidden = 1, hidden_reason = :reason, modified_at = :now
+                    WHERE chapter_index = :chapterIndex AND audiobook_id = :audiobookID
+                    """,
+                arguments: [
+                    "reason": reason,
+                    "now": ISO8601DateFormatter().string(from: Date()),
+                    "chapterIndex": chapterIndex,
+                    "audiobookID": audiobookID
+                ]
+            )
+        }
+    }
+
     // MARK: - Chapter grouping
 
     /// Blocks grouped by chapter index. Blocks without a chapter index go in bucket -1.

@@ -12,6 +12,7 @@ struct ReaderTab: View {
     @State private var showSettings = false
     @State private var showTOC = false
     @State private var showChapterPickerForBlockID: String? = nil
+    @State private var showEndChapterPickerForBlockID: String? = nil
     @State private var showCardColorPickerForBlockID: String? = nil
     @State private var isHeaderVisible = true
     @State private var autoScrollEnabled = true
@@ -157,10 +158,20 @@ struct ReaderTab: View {
         .sheet(item: chapterPickerBinding) { ident in
             let blockID = ident.id
             ChapterPickerSheet(
-                chapters: model.state.chapters,
-                onSelect: { chapter in
-                    alignBlock(blockID, to: chapter.startSeconds, source: .chapterBoundary)
+                chapters: model.alignmentPickerChapters,
+                onSelect: { selectedChapter in
+                    alignBlock(blockID, to: selectedChapter.startSeconds, source: .chapterBoundary)
                     showChapterPickerForBlockID = nil
+                }
+            )
+        }
+        .sheet(item: endChapterPickerBinding) { ident in
+            let blockID = ident.id
+            ChapterPickerSheet(
+                chapters: model.alignmentPickerChapters,
+                onSelect: { selectedChapter in
+                    alignChapterEnd(blockID, chapterIndex: nil, to: selectedChapter.endSeconds)
+                    showEndChapterPickerForBlockID = nil
                 }
             )
         }
@@ -192,6 +203,13 @@ struct ReaderTab: View {
         Binding<IdentifiableBlockID?>(
             get: { showChapterPickerForBlockID.map(IdentifiableBlockID.init) },
             set: { showChapterPickerForBlockID = $0?.id }
+        )
+    }
+
+    private var endChapterPickerBinding: Binding<IdentifiableBlockID?> {
+        Binding<IdentifiableBlockID?>(
+            get: { showEndChapterPickerForBlockID.map(IdentifiableBlockID.init) },
+            set: { showEndChapterPickerForBlockID = $0?.id }
         )
     }
 
@@ -282,6 +300,37 @@ struct ReaderTab: View {
         }
     }
 
+    private func alignChapterEnd(_ blockID: String, chapterIndex: Int?, to time: TimeInterval) {
+        guard let db = model.databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        do {
+            try alignmentService.anchorChapterEnd(blockID: blockID, chapterIndex: chapterIndex ?? 0, time: time)
+            viewModel?.reload()
+            haptic.impactOccurred()
+        } catch {}
+    }
+
+    private func hideBlock(_ blockID: String) {
+        guard let db = model.databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        do {
+            try alignmentService.hideBlock(blockID: blockID, reason: "Manual skip")
+            viewModel?.reload()
+        } catch {}
+    }
+
+    private func hideChapter(_ chapterIndex: Int) {
+        guard let db = model.databaseService else { return }
+        let audiobookID = folderURL.absoluteString
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        do {
+            try alignmentService.hideChapter(chapterIndex: chapterIndex, reason: "Manual skip")
+            viewModel?.reload()
+        } catch {}
+    }
+
     private func eraseAnchor(_ blockID: String) {
         guard let db = model.databaseService else { return }
         let audiobookID = folderURL.absoluteString
@@ -344,14 +393,35 @@ struct ReaderTab: View {
             }
             actions.append(alignFiveAction)
 
-            if isHeading {
-                let alignChapterAction = UIAction(
-                    title: "Align to Chapter", image: UIImage(systemName: "text.book.closed")
-                ) { _ in
-                    showChapterPickerForBlockID = blockID
-                }
-                actions.append(alignChapterAction)
+            let alignChapterAction = UIAction(
+                title: "Align to Chapter Start", image: UIImage(systemName: "text.book.closed")
+            ) { _ in
+                showChapterPickerForBlockID = blockID
             }
+            actions.append(alignChapterAction)
+
+            let alignChapterEndAction = UIAction(
+                title: "Align to Chapter End", image: UIImage(systemName: "text.book.closed.fill")
+            ) { _ in
+                showEndChapterPickerForBlockID = blockID
+            }
+            actions.append(alignChapterEndAction)
+
+            if let chapterIndex = block.chapterIndex {
+                let skipChapterAction = UIAction(
+                    title: "Not in Audio (Whole Chapter)", image: UIImage(systemName: "speaker.slash.fill")
+                ) { _ in
+                    hideChapter(chapterIndex)
+                }
+                actions.append(skipChapterAction)
+            }
+
+            let skipBlockAction = UIAction(
+                title: "Not in Audio (This Paragraph)", image: UIImage(systemName: "speaker.slash")
+            ) { _ in
+                hideBlock(blockID)
+            }
+            actions.append(skipBlockAction)
             
             if status == "lockedAnchor" {
                 let eraseAction = UIAction(

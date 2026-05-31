@@ -1,6 +1,6 @@
-# 🛰️ Orbit: Learn Audiobooks
+# 🗣️ Echo: Audiobook Study Player
 
-> Listen smarter, not harder.
+> Your audiobooks, finally searchable.
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 [![TestFlight](https://img.shields.io/badge/TestFlight-Beta-blue.svg)](#)
@@ -9,15 +9,40 @@
 [![Platform](https://img.shields.io/badge/watchOS-12+-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A multi-platform Apple ecosystem audiobook player built with SwiftUI, delivering a unified listening experience across iPhone, iPad, Mac, Apple Watch, and the Home Screen via widgets.
+**Echo** turns audiobooks into a serious study medium. Search across spoken content, jump to any passage, create flashcards from what you hear, and review with spaced repetition — all without leaving the audio. Built for students, professionals, and anyone who learns by listening.
+
+---
+
+## The Study Workflow
+
+Echo is built around a simple idea: **audiobooks should be as searchable and referenceable as textbooks.** Here's how that works:
+
+```
+Add audiobook + EPUB   →   Echo aligns text to audio
+          ↓
+Search for any phrase   →   Jump instantly to that moment in the narration
+          ↓
+Lock paragraphs to timestamps   →   Build a precise, verified map of the book
+          ↓
+Create bookmarks & flashcards   →   Capture knowledge while you listen
+          ↓
+Review with spaced repetition   →   Retain what you learned, on your schedule
+```
+
+### Why This Matters
+
+- **Find anything, instantly.** Heard a great passage but can't remember where? Type a few words — Echo finds it in the EPUB and seeks the audio to that exact moment.
+- **Study while you listen.** Long-press any paragraph to align it to the current playback position, color-code important passages, or create timestamped bookmarks and flashcards.
+- **Retain more.** Echo's built-in spaced repetition system (SM-2 algorithm) schedules flashcards for optimal retention — review on your phone or Apple Watch during idle moments.
+- **Learn hands-free.** The customizable Apple Watch app lets you control playback, create bookmarks, and review flashcards between deliveries, during commutes, or while working out.
 
 ---
 
 ## Overview
 
-Orbit: Learn Audiobooks is a full-featured audiobook application organized as a single Xcode workspace with four distinct targets. It supports bookmarking with optional voice memos, chapter navigation, loop modes, a sleep timer, variable playback speed, and intelligent rewind logic that adapts to pause duration. The iOS and watchOS apps communicate bidirectionally via WatchConnectivity, while a Widget displays the current playback state on the Home Screen / Lock Screen.
+Echo is a full-featured audiobook study application organized as a single Xcode workspace with four distinct targets. It supports bookmarking with optional voice memos, chapter navigation, loop modes, a sleep timer, variable playback speed, and intelligent rewind logic that adapts to pause duration. The iOS and watchOS apps communicate bidirectionally via WatchConnectivity, while a Widget displays the current playback state on the Home Screen / Lock Screen.
 
-When you add an EPUB file alongside your audiobook, Orbit unlocks its study toolkit: a searchable, browsable reader with per-paragraph audio alignment. Long-press any paragraph to lock it to the current playback position, color-code important passages, or create timestamped bookmarks. Full-text search with inline highlighting lets you find any phrase in the book instantly — so you'll never lose that half-remembered passage again.
+When you add an EPUB file alongside your audiobook, Echo unlocks its study toolkit: a searchable, browsable reader with per-paragraph audio alignment. Long-press any paragraph to lock it to the current playback position, color-code important passages, or create timestamped bookmarks. Full-text search with inline highlighting lets you find any phrase in the book instantly — so you'll never lose that half-remembered passage again.
 
 ---
 
@@ -52,7 +77,7 @@ Shared models and utilities used across targets include:
 
 ## Accessibility (A11y) First
 
-Orbit: Learn Audiobooks is built with accessibility as a core principle, not an afterthought.
+Echo is built with accessibility as a core principle, not an afterthought.
 
 ### Dyslexia-Optimized Typography
 
@@ -112,7 +137,7 @@ This allows developers to test the full playback, bookmarking, and chapter-navig
 
 ## Agentic Workflows
 
-Orbit: Learn Audiobooks includes an autonomous agent workflow definition at [`.clinerules/workflows/release.md`](.clinerules/workflows/release.md). This file is consumed by Cline-compatible agents to automate the release process:
+Echo includes an autonomous agent workflow definition at [`.clinerules/workflows/release.md`](.clinerules/workflows/release.md). This file is consumed by Cline-compatible agents to automate the release process:
 
 1. The agent asks the developer for the next semantic version number.
 2. It updates `MARKETING_VERSION` and increments `CURRENT_PROJECT_VERSION` in the Xcode project settings.

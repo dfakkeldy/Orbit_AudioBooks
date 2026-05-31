@@ -97,8 +97,9 @@ final class HeadingCardCell: UICollectionViewCell {
         return attributed
     }
     
-    func setManuallyAligned(_ isManuallyAligned: Bool, timeString: String?) {
-        anchorLabel.isHidden = !isManuallyAligned
+    func setManuallyAligned(_ isAnchored: Bool, timeString: String?) {
+        anchorLabel.isHidden = false
         anchorLabel.text = timeString
+        anchorLabel.textColor = isAnchored ? .systemRed : .secondaryLabel
     }
 }

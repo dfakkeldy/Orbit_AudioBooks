@@ -77,6 +77,12 @@ struct RootTabView: View {
                     }
                     .accessibilityLabel(Text("Open folder"))
                 }
+
+                ToolbarItem(placement: .principal) {
+                    Text(Duration.seconds(model.currentPlaybackTime).formatted(.time(pattern: .minuteSecond)))
+                        .font(.subheadline.monospacedDigit().bold())
+                        .foregroundColor(.secondary)
+                }
  
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -186,7 +192,10 @@ private struct NowPlayingTopToolbar: View {
     let showBookSettings: () -> Void
     let showSettings: () -> Void
 
+    @Environment(PlayerModel.self) private var model
+
     var body: some View {
+        @Bindable var model = model
         GeometryReader { _ in
             HStack {
                 controlGroup {
@@ -196,6 +205,14 @@ private struct NowPlayingTopToolbar: View {
                         action: openFolder
                     )
                 }
+
+                Spacer()
+                
+                Text(Duration.seconds(model.currentPlaybackTime).formatted(.time(pattern: .minuteSecond)))
+                    .font(.subheadline.monospacedDigit().bold())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .nowPlayingGlassToolbar()
 
                 Spacer()
 

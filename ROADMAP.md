@@ -1,6 +1,6 @@
 # Orbit Audiobooks — Roadmap
 
-<!-- Last updated: 2026-05-30 (Phases 1-3 complete, Phase 4 90%, Phase 5 complete, Phase 6 core complete) -->
+<!-- Last updated: 2026-05-30 (Phases 1-3 complete, Phase 4 90%, Phase 5 complete, Phase 6 core complete, Phase 8 reorganized with study workflow P0 items) -->
 
 ---
 
@@ -227,9 +227,20 @@ Goal: prevent regressions as the codebase grows.
 
 ---
 
-## Phase 8: Polish & Future
+## Phase 8: Study Workflow & Polish
 
-Stretch goals and ideas beyond the core roadmap.
+Priority items for the Echo rebrand and study-player positioning, plus stretch goals.
+
+### 8.1 — Study Workflow Foundation (P0)
+
+- [ ] **Interactive onboarding tutorial** — first-launch walkthrough demonstrating the core study workflow: load audiobook → add EPUB → search → align a paragraph → create bookmark → create flashcard. A 4-step interactive guide that teaches the mental model. The Read tab should always be visible (not hidden behind `hasEPUB`), showing an educational empty state: "Add an EPUB alongside your audiobook to unlock searchable text, alignment, and flashcards."
+- [ ] **Reader toolbar speed controls** — add speed adjustment (at minimum) and loop mode to the reader-specific bottom toolbar. Studying means variable playback speed — slowing down for dense passages, speeding up through familiar material. Requiring a tab switch to change speed breaks the study flow.
+- [ ] **Alignment as achievement, not chore** — show "% aligned" progress per chapter and per book. Celebrate when a chapter is fully aligned. After creating an anchor, offer contextual actions: "Create flashcard from this passage?" / "Add bookmark with this text?" Anchors are study waypoints — the UI should treat them that way.
+- [ ] **Replace inline flashcard popups with mark-later model** — remove `InlineFlashcardTriggerController` auto-popovers that interrupt playback. Replace with: tag passages during listening → review tagged passages and create flashcards in a dedicated session later. Listening should be immersive; flashcard creation should be intentional and separate.
+- [ ] **iCloud sync for study state** — sync bookmarks, alignment anchors, flashcards, and playback position across devices via CloudKit (leveraging the existing GRDB database layer). This is the single biggest infrastructure gap blocking the multi-device study workflow. A user who aligns 200 paragraphs on iPhone should see those anchors on iPad and Mac.
+- [ ] **Ship the Echo rebrand** — update app display name, bundle identifiers, App Store Connect metadata, screenshots, and marketing site. The name "Echo" reflects the core value: your spoken words echoing back as searchable, referenceable knowledge. Screenshots must demonstrate the study workflow within 10 seconds (search → align → bookmark → flashcard).
+
+### 8.2 — Polish & Stretch Goals
 
 - [ ] **Localization completeness audit** — Dutch localization exists; verify coverage across all user-facing strings.
 - [ ] **iPad layout optimization** — current layout targets iPhone; iPad gets a scaled-up version. Consider split-view or sidebar for TimelineTab on iPad.
@@ -239,7 +250,6 @@ Stretch goals and ideas beyond the core roadmap.
 - [ ] **Stats & insights dashboard** — listening time, books completed, speed trends, review streaks.
 - [ ] **Social/sharing features** — share bookmark with quote, export reading progress, book club sync.
 - [ ] **Audio effects** — equalizer presets, silence trimming, chapter-level volume normalization.
-- [ ] **Multi-device sync** — iCloud sync for bookmarks, playback position, flashcards (beyond current WatchConnectivity).
 - [ ] **Accessibility: VoiceOver audit** — full pass through every screen with VoiceOver enabled.
 - [ ] **macOS polish** — proper menu bar integration, Touch Bar support, keyboard shortcuts for all transport actions.
 
@@ -256,6 +266,6 @@ Stretch goals and ideas beyond the core roadmap.
 | 5 | EPUB Viewing | ✅ Complete (dedicated Reader tab + Timeline integration) |
 | 6 | EPUB Manual Alignment | ✅ Core complete (6/8 items); 2 deferred |
 | 7 | Testing & CI | ~7 items remaining |
-| 8 | Polish & Future | ~11 items remaining |
+| 8 | Study Workflow & Polish | ~17 items remaining (6 P0, 11 stretch) |
 
-**Completed: 5/8 phases (+ Phase 6 core) | Remaining: ~20 items**
+**Completed: 5/8 phases (+ Phase 6 core) | Remaining: ~26 items (6 study workflow, ~20 from Phase 7 & 8)**

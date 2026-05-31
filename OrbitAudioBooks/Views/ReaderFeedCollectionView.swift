@@ -167,8 +167,8 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
                     headingCell.configure(with: block.text ?? "", font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
                     headingCell.isActiveBlock = (block.id == activeBlockID)
+                    let timeString = audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "None"
                     let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"
-                    let timeString = isAnchored ? (audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "") : nil
                     headingCell.setManuallyAligned(isAnchored, timeString: timeString)
                     return headingCell
 
@@ -188,8 +188,8 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
                     paraCell.configure(with: block, font: font, tint: cardTint, lineSpacing: settings.lineSpacing, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
                     paraCell.isActiveBlock = (block.id == activeBlockID)
+                    let timeString = audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "None"
                     let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"
-                    let timeString = isAnchored ? (audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "") : nil
                     paraCell.setManuallyAligned(isAnchored, timeString: timeString)
                     return paraCell
                 }
