@@ -1,6 +1,6 @@
 # 🗣️ Echo: Audiobook Study Player
 
-> Your audiobooks, finally searchable.
+> Turn listening into learning
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 [![TestFlight](https://img.shields.io/badge/TestFlight-Beta-blue.svg)](#)
