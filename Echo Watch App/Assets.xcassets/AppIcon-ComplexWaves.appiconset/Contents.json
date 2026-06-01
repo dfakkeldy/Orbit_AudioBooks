@@ -1,9 +1,9 @@
 {
   "images" : [
     {
-      "filename" : "AppIcon-watch.png",
-      "idiom" : "universal",
-      "platform" : "watchos",
+      "filename" : "icon.png",
+      "idiom" : "watch",
+      "role" : "appIcon",
       "size" : "1024x1024"
     }
   ],
