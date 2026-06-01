@@ -2,7 +2,9 @@ Echo: Audiobook Study Player
 
 For Every Mind.
 
-Most audiobook apps are built for passive listening. Echo is built for learning, retention, and brains that need a little extra flexibility.
+Most audiobook apps are built for passive listening. Echo is built for learning, retention, and brains that need a little extra flexibility. Whether you need an Anki-style flashcard system, true ePub text-alignment, or a custom drag-and-drop Apple Watch app, Echo turns your audiobooks into a true study tool.
+
+THE ORIGIN STORY
 
 The idea for Echo started behind the wheel of a mail delivery vehicle. Jumping in and out of a car thirty times a day makes it impossible to focus on complex non-fiction. Traditional apps constantly lost the playback spot, watch controls were too small to tap quickly, and retaining information with intermittent attention was a constant struggle.
 
@@ -16,13 +18,13 @@ FEATURES BUILT FOR FOCUS
 
 • Voice Memo Bookmarks — Instantly save your thoughts without fumbling with your phone. Perfect for driving, walking, or when your hands are full.
 
-• Spaced Repetition (SRS) — Built-in flashcard system using the SM-2 algorithm to help you memorize crucial facts, languages, or concepts permanently. Review on your phone or Apple Watch.
+• Spaced Repetition (SRS) — Built-in Anki-style flashcard system using the SM-2 algorithm to help you memorize crucial facts, languages, or concepts permanently. Review on your phone or Apple Watch.
 
 • True ePub Alignment — Seamlessly scroll through the text and view diagrams exactly when the audio reaches that section. On-device auto-alignment maps every paragraph to the narration using WhisperKit and CoreML.
 
 • Pristine Speed Control — Listen at 1.25x (or faster) with zero pitch distortion. Speed suggestions adapt to your listening habits.
 
-• Apple Watch Remote — A massive, user-configurable interface with up to 25 customizable buttons across 5 pages. Control playback, create bookmarks, and review flashcards right from your wrist.
+• Apple Watch Remote — A massive, user-configurable interface featuring a drag-and-drop designer to completely customize the buttons on your wrist. Assign the Digital Crown to control volume or scrub playback.
 
 ACCESSIBILITY & NEURODIVERSITY FIRST
 
