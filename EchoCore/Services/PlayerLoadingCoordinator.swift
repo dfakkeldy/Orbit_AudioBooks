@@ -57,6 +57,18 @@ final class PlayerLoadingCoordinator {
         guard let state, let playbackController, let playlistManager, let persistence,
               let timelinePersistence, let bookSettingsOverrideStore, let bookmarkStore else { return }
 
+        // ── Save the *current* book's progress before it gets overwritten ──
+        // stop() zeroes audioEngine.currentTime, and state.folderURL is about to
+        // change to the new book's key.  Capture both now so the old book's
+        // last-known-good position is persisted under the correct folder key.
+        if let oldFolderKey = state.folderURL?.absoluteString,
+           state.tracks.indices.contains(state.currentIndex),
+           let audioEngine {
+            let oldTrackId = state.tracks[state.currentIndex].id
+            let oldTime = audioEngine.currentTime
+            persistence.saveBookProgress(for: oldFolderKey, trackId: oldTrackId, time: oldTime, folderURL: state.folderURL)
+        }
+
         playbackController.stop()
 
         // Start security-scoped access for the entire folder loading flow.
@@ -65,7 +77,22 @@ final class PlayerLoadingCoordinator {
         securityScope?.startSelection(url: url)
 
         let isDir = loadTracksAndDetectDirectory(url: url, state: state, playlistManager: playlistManager)
-        state.folderURL = url
+
+        // Normalize folderURL to always be a directory. When the user opens a
+        // single file (e.g. an M4B), use its parent directory as the canonical
+        // key for persistence, timeline items, EPUB blocks, and CloudKit sync.
+        // This ensures opening the folder and opening any file within it
+        // produce the same audiobookID — so EPUBs load consistently and
+        // playback position is shared across both entry points.
+        if isDir {
+            state.folderURL = url
+        } else {
+            let parentDir = url.deletingLastPathComponent()
+            state.folderURL = parentDir
+            // Start security-scoped access on the parent directory so
+            // EPUB auto-import can enumerate sibling files.
+            _ = parentDir.startAccessingSecurityScopedResource()
+        }
 
         // Load per-book settings overrides
         bookSettingsOverrideStore.loadOverrides(for: url.absoluteString)
@@ -86,7 +113,9 @@ final class PlayerLoadingCoordinator {
         onPersistSelection?(url)
 
         // Post-load hooks: SQL bookmarks, EPUB auto-import.
-        configurePostLoadHooks(folderURL: url, state: state, bookmarkStore: bookmarkStore)
+        // Use the normalized folderURL (always a directory — see above) so
+        // EPUB blocks are keyed consistently regardless of entry point.
+        configurePostLoadHooks(folderURL: state.folderURL ?? url, state: state, bookmarkStore: bookmarkStore)
         onConfigureContinuousAlignment?()
     }
 

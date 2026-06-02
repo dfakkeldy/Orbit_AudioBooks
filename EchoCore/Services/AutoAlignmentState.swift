@@ -9,9 +9,9 @@ final class AutoAlignmentState {
     enum Phase: String, Sendable {
         case idle
         case loadingModel
-        case tier1_ChapterSnap
-        case tier2_DriftDetection
-        case tier3_DriftRepair
+        case mappingSilences
+        case transcribingAudio
+        case computingAlignment
         case completed
         case failed
     }

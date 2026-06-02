@@ -1,5 +1,5 @@
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import UIKit
 import os.log
 
@@ -254,14 +254,14 @@ final class BookmarkStore: BookmarkStoreProtocol {
             isPlayingVoiceMemo = true
             voiceMemoProgress = 0.0
 
-            playerNode.scheduleFile(audioFile, at: nil) { [weak self] in
-                Task { @MainActor in self?.voiceMemoDidFinish() }
+            playerNode.scheduleFile(audioFile, at: nil) {
+                Task { @MainActor [weak self] in self?.voiceMemoDidFinish() }
             }
             playerNode.play()
 
             voiceMemoProgressTimer?.invalidate()
-            voiceMemoProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                Task { @MainActor in
+            voiceMemoProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                Task { @MainActor [weak self] in
                     guard let self,
                           let node = self.voiceMemoPlayerNode,
                           node.isPlaying,

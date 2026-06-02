@@ -65,12 +65,6 @@
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"
-    },
-    {
-      "filename" : "icon 1.png",
-      "idiom" : "watch",
-      "role" : "appIcon",
-      "size" : "1024x1024"
     }
   ],
   "info" : {

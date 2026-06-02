@@ -182,14 +182,18 @@ struct AlignmentService {
             }
             return dict
         }()
-        // Pre-compute text positions for proportional interpolation
+        // Pre-compute text start positions for proportional interpolation
         let sortedAllBlocks = blocks.sorted { $0.sequenceIndex < $1.sequenceIndex }
         var wordPositionByBlockID: [String: Double] = [:]
         var cumulativeWordCount: Double = 0
         for block in sortedAllBlocks {
-            let weight = Double(max(1, block.text?.count ?? 1))
-            let center = cumulativeWordCount + weight / 2.0
-            wordPositionByBlockID[block.id] = center
+            let weight: Double
+            if block.isHidden || EPubBlockRecord.Kind(rawValue: block.blockKind) == .image {
+                weight = 0.0
+            } else {
+                weight = Double(max(1, block.text?.count ?? 1))
+            }
+            wordPositionByBlockID[block.id] = cumulativeWordCount
             cumulativeWordCount += weight
         }
 

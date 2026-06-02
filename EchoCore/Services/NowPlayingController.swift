@@ -132,6 +132,10 @@ final class NowPlayingController {
         }
 
         info[MPNowPlayingInfoPropertyPlaybackRate] = params.isPaused ? 0.0 : params.playbackRate
+        // The system uses DefaultPlaybackRate to know what "1×" means for this item.
+        // Without it, Lock Screen / Control Center may show the wrong transport button
+        // after a playback-rate change (e.g. speed 2× → pause → Lock Screen still shows ⏸).
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
 
         if let chapterIdx = params.chapterIndex {
             info[MPNowPlayingInfoPropertyChapterNumber] = chapterIdx + 1
@@ -146,9 +150,11 @@ final class NowPlayingController {
 
     /// Updates only the elapsed time in the current Now Playing info, preserving
     /// all other metadata. Call this at the audio engine's tick rate.
+    /// Does NOT create a new info dictionary from scratch — that would lack
+    /// the playback rate and cause the Lock Screen to show the wrong button.
     func updateElapsedTime(_ elapsed: TimeInterval, chapterStartOffset: TimeInterval?) {
         guard elapsed.isFinite else { return }
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
         if let offset = chapterStartOffset {
             info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = max(0, elapsed - offset)
         } else {

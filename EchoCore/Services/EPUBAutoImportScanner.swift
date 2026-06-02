@@ -28,9 +28,21 @@ enum EPUBAutoImportScanner {
         // 1. Scan for .epub files in the folder.
         let epubFiles: [URL]
         var isDir: ObjCBool = false
-        let targetURL = FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDir) && isDir.boolValue
-            ? folderURL
-            : folderURL.deletingLastPathComponent()
+        let folderIsDirectory = FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDir) && isDir.boolValue
+        let targetURL = folderIsDirectory ? folderURL : folderURL.deletingLastPathComponent()
+
+        // When the original URL is a single file (e.g. an M4B opened directly),
+        // SecurityScopeManager only covers that file — not its parent directory.
+        // Start a temporary scope on the parent so we can enumerate siblings.
+        let needsParentScope = !folderIsDirectory
+        if needsParentScope {
+            _ = targetURL.startAccessingSecurityScopedResource()
+        }
+        defer {
+            if needsParentScope {
+                targetURL.stopAccessingSecurityScopedResource()
+            }
+        }
 
         do {
             let contents = try FileManager.default.contentsOfDirectory(

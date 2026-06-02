@@ -60,7 +60,10 @@ final class ContinuousAlignmentService {
         }
         
         timer = Timer.scheduledTimer(withTimeInterval: Config.interval, repeats: true) { [weak self] _ in
-            self?.processBufferedAudio()
+            guard let self else { return }
+            MainActor.assumeIsolated {
+                self.processBufferedAudio()
+            }
         }
         logger.info("Continuous alignment started")
     }

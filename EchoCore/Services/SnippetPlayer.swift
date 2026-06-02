@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import os.log
 
 /// Plays a segment of an audio file using a separate AVAudioEngine instance,
@@ -52,8 +52,8 @@ final class SnippetPlayer {
 
         onPlaybackWillStart?()
 
-        node.scheduleSegment(file, startingFrame: startFrame, frameCount: framesToPlay, at: nil) { [weak self] in
-            Task { @MainActor in
+        node.scheduleSegment(file, startingFrame: startFrame, frameCount: framesToPlay, at: nil) {
+            Task { @MainActor [weak self] in
                 guard let self, generation == self.currentGeneration else { return }
                 self.handlePlaybackEnded()
             }

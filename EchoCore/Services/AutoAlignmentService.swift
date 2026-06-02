@@ -117,91 +117,14 @@ final class AutoAlignmentService {
 
         guard !Task.isCancelled else { return }
 
-        // ── Tier 0: Silence Mapping ──
-        state.phase = .tier1_ChapterSnap // Repurpose tier 1 UI for tier 0
-        state.log("═══ Tier 0: Silence Mapping ═══")
-        let silenceAnchors = try await runTier0(chapters: chapters, blocks: blocks)
-        state.log("Tier 0 done: \(silenceAnchors) tentpole anchors created")
-        logger.info("Tier 0 complete — \(silenceAnchors) anchors created")
+        // ── VAD Chunking + DTW Alignment ──
+        try await runDTWPipeline(chapters: chapters, blocks: blocks)
 
         guard !Task.isCancelled else { return }
 
-        // ── Tier 1: Chapter Snap ──
-        state.phase = .tier1_ChapterSnap
-        state.log("═══ Tier 1: Chapter Snap — \(chapters.count) chapters ═══")
-        let anchorCount = try await runTier1(chapters: chapters, blocks: blocks)
-        state.log("Tier 1 done: \(anchorCount) anchors created")
-        logger.info("Tier 1 complete — \(anchorCount) anchors created")
-
-        guard !Task.isCancelled else { return }
-
-        // ── Tier 2: Drift Detection ──
-        state.phase = .tier2_DriftDetection
-        state.log("═══ Tier 2: Drift Detection ═══")
-        let flaggedChapters = try await runTier2(chapters: chapters, blocks: blocks)
-        state.driftedChapterIDs = flaggedChapters
-        state.log("Tier 2 done: \(flaggedChapters.count) flagged, \(chapters.count - flaggedChapters.count) clean")
-        logger.info("Tier 2 complete — \(flaggedChapters.count) chapters flagged")
-
-        guard !Task.isCancelled else { return }
-
-        // ── Tier 3: Drift Repair ──
-        if !flaggedChapters.isEmpty {
-            state.phase = .tier3_DriftRepair
-            state.log("═══ Tier 3: Drift Repair — \(flaggedChapters.count) chapters ═══")
-            let repairs = try await runTier3(flaggedChapters: flaggedChapters,
-                                               chapters: chapters, blocks: blocks)
-            state.repairAnchorCount = repairs
-            logger.info("Tier 3 complete — \(repairs) repair anchors inserted")
-        }
-
-        guard !Task.isCancelled else { return }
-
-        state.log("═══ Pipeline complete: \(state.anchoredChapterCount) chapters anchored, \(state.driftedChapterIDs.count) drifted, \(state.repairAnchorCount) repairs ═══")
+        state.log("═══ Pipeline complete: \(state.anchoredChapterCount) chapters anchored ═══")
         state.complete()
         scheduleModelUnload()
-    }
-
-    // MARK: - Block Time Estimation (shared by Tier 1 & Tier 3)
-
-    /// Pre-computes estimated audio-time positions for every visible EPUB block
-    /// using proportional word-count within each chapter.  Called once per
-    /// pipeline run so Tier 1 and Tier 3 don't duplicate the same O(N) work.
-    func estimateBlockTimes(
-        blocks: [EPubBlockRecord],
-        chapters: [Chapter],
-        totalDuration: TimeInterval
-    ) -> (allVisible: [EPubBlockRecord], estimatedTimeByBlockID: [String: TimeInterval]) {
-        let allVisible = blocks.filter { !$0.isHidden }.sorted { $0.sequenceIndex < $1.sequenceIndex }
-        var estimatedTimeByBlockID: [String: TimeInterval] = [:]
-
-        let blocksByChapter = Dictionary(grouping: allVisible, by: { $0.chapterIndex })
-        for ch in chapters {
-            let chBlocks = blocksByChapter[ch.index] ?? []
-            let chTotalWords = chBlocks.reduce(0.0) { $0 + Double(max(1, $1.wordCount ?? 1)) }
-            var cumulative: Double = 0
-            for block in chBlocks {
-                let weight = Double(max(1, block.wordCount ?? 1))
-                let midFraction = chTotalWords > 0 ? (cumulative + weight / 2.0) / chTotalWords : 0
-                let span = ch.endSeconds - ch.startSeconds
-                estimatedTimeByBlockID[block.id] = ch.startSeconds + midFraction * span
-                cumulative += weight
-            }
-        }
-
-        // Fallback for blocks without a chapter index
-        let totalWordsGlobal = allVisible.reduce(0.0) { $0 + Double(max(1, $1.wordCount ?? 1)) }
-        var cumulativeGlobal: Double = 0
-        for block in allVisible {
-            let weight = Double(max(1, block.wordCount ?? 1))
-            let midFraction = totalWordsGlobal > 0 ? (cumulativeGlobal + weight / 2.0) / totalWordsGlobal : 0
-            if estimatedTimeByBlockID[block.id] == nil {
-                estimatedTimeByBlockID[block.id] = midFraction * totalDuration
-            }
-            cumulativeGlobal += weight
-        }
-
-        return (allVisible, estimatedTimeByBlockID)
     }
 
     // MARK: - Manual Alignment Fine-Tuning
@@ -245,494 +168,148 @@ final class AutoAlignmentService {
         }
     }
 
-    // MARK: - Tier 0: Silence Mapping
 
-    func runTier0(chapters: [Chapter],
-                          blocks: [EPubBlockRecord]) async throws -> Int {
-        guard let audioURL = audioEngine.audioFileURL else { return 0 }
+
+    private func runDTWPipeline(chapters: [Chapter], blocks: [EPubBlockRecord]) async throws {
+        let existingAnchors = try anchorDAO.anchors(for: audiobookID)
+        let existingIDs = Set(existingAnchors.map { $0.epubBlockID })
+        let iso = AlignmentService.isoFormatter
         
-        state.update(phase: .tier1_ChapterSnap, progress: 0.0, statusMessage: "Scanning audio for silences...")
+        let blocksByChapter = Dictionary(grouping: blocks.sorted { $0.sequenceIndex < $1.sequenceIndex }, by: { $0.chapterIndex })
+        
+        guard let audioURL = audioEngine.audioFileURL else { return }
+        state.update(phase: .mappingSilences, progress: 0.0, statusMessage: "Scanning audio for silences...")
         
         let silenceDetector = SilenceDetectionService(audioURL: audioURL)
         let silences = try await silenceDetector.detectSilences()
         
         var createdAnchors: [AlignmentAnchorRecord] = []
-        let existingAnchors = try anchorDAO.anchors(for: audiobookID)
-        let existingIDs = Set(existingAnchors.map { $0.epubBlockID })
-        let iso = AlignmentService.isoFormatter
-        let blocksByChapter = Dictionary(grouping: blocks, by: { $0.chapterIndex })
-        
+        var chapterAnchoredCount = 0
+
         for (idx, chapter) in chapters.enumerated() {
-            let progress = Double(idx) / Double(max(1, chapters.count))
-            state.update(phase: .tier1_ChapterSnap, progress: progress, statusMessage: "Mapping silence to chapter \(idx + 1)...")
+            try Task.checkCancellation()
             
-            // Expected start is chapter.startSeconds. We allow a little slop.
-            // If there's a silence ending within ~5 seconds of chapter.startSeconds, we use it.
-            if let matchingSilence = silences.first(where: { abs($0.end - chapter.startSeconds) < 10.0 }) {
-                guard let firstBlock = blocksByChapter[chapter.index]?.first else { continue }
-                if existingIDs.contains(firstBlock.id) { continue }
+            state.currentChapterIndex = idx
+            let baseProgress = Double(idx) / Double(max(1, chapters.count))
+            state.log("═══ Chapter \(idx + 1) DTW Alignment ═══")
+            
+            guard let chapterBlocks = blocksByChapter[chapter.index], !chapterBlocks.isEmpty else {
+                state.log("ch\(idx): skip — no visible blocks")
+                continue
+            }
+            
+            let chapterDuration = chapter.endSeconds - chapter.startSeconds
+            guard chapterDuration > 5 else {
+                state.log("ch\(idx): skip — too short")
+                continue
+            }
+            
+            // 1. Generate audio chunks bounded by silence
+            var chunks: [(start: TimeInterval, end: TimeInterval)] = []
+            var currentChunkStart = chapter.startSeconds
+            
+            let chapterSilences = silences.filter { $0.end > chapter.startSeconds && $0.start < chapter.endSeconds }
+            
+            for s in chapterSilences {
+                let silenceMid = (s.start + s.end) / 2.0
+                if silenceMid - currentChunkStart >= 15.0 {
+                    chunks.append((start: currentChunkStart, end: silenceMid))
+                    currentChunkStart = silenceMid
+                }
+            }
+            if chapter.endSeconds - currentChunkStart > 5.0 {
+                chunks.append((start: currentChunkStart, end: chapter.endSeconds))
+            }
+            if chunks.isEmpty {
+                chunks.append((start: chapter.startSeconds, end: chapter.endSeconds))
+            }
+            
+            state.log("ch\(idx): generated \(chunks.count) VAD chunks")
+            
+            // 2. Transcribe chunks
+            var audioTokens: [TokenDTW.AudioToken] = []
+            for (cIdx, chunk) in chunks.enumerated() {
+                try Task.checkCancellation()
+                
+                let p = baseProgress + (Double(cIdx) / Double(max(1, chunks.count))) * (1.0 / Double(max(1, chapters.count)))
+                state.update(phase: .transcribingAudio, progress: p,
+                             statusMessage: "Transcribing chapter \(idx + 1) (chunk \(cIdx + 1)/\(chunks.count))…")
+                
+                let duration = chunk.end - chunk.start
+                guard let capture = try await captureAndTranscribe(at: chunk.start, duration: duration), !capture.text.isEmpty else { continue }
+                
+                let tokens = TokenDTW.normalize(capture.text)
+                guard !tokens.isEmpty else { continue }
+                
+                let firstWordTime = chunk.start + capture.offset
+                let elapsed = duration - capture.offset
+                for (tIdx, tStr) in tokens.enumerated() {
+                    let tokenTime = firstWordTime + (Double(tIdx) / Double(tokens.count)) * elapsed
+                    audioTokens.append(TokenDTW.AudioToken(text: tStr, time: tokenTime))
+                }
+            }
+            
+            guard !audioTokens.isEmpty else {
+                state.log("ch\(idx): skip — no transcribed text")
+                continue
+            }
+            
+            // 3. Prepare EPUB blocks
+            state.update(phase: .computingAlignment, progress: baseProgress + 0.99 * (1.0 / Double(max(1, chapters.count))),
+                         statusMessage: "Aligning chapter \(idx + 1)…")
+            
+            var epubTokens: [TokenDTW.EPubToken] = []
+            for block in chapterBlocks {
+                guard let text = block.text, !block.isHidden else { continue }
+                let tokens = TokenDTW.normalize(text)
+                for tStr in tokens {
+                    epubTokens.append(TokenDTW.EPubToken(text: tStr, blockID: block.id))
+                }
+            }
+            
+            // 4. Align with DTW
+            let alignment = TokenDTW.align(epub: epubTokens, audio: audioTokens)
+            state.log("ch\(idx): DTW aligned \(alignment.count) blocks")
+            
+            var chapterCreated = 0
+            for (blockID, time) in alignment {
+                if existingIDs.contains(blockID) { continue }
+                
+                guard time >= chapter.startSeconds - 5.0 && time <= chapter.endSeconds + 5.0 else { continue }
+                
+                let clampedTime = max(chapter.startSeconds, min(chapter.endSeconds, time))
+                
+                let isFirst = blockID == chapterBlocks.first?.id
+                let isLast = blockID == chapterBlocks.last?.id
+                let kind = isFirst ? AlignmentAnchorRecord.AnchorKind.chapterStart.rawValue :
+                           (isLast ? AlignmentAnchorRecord.AnchorKind.chapterEnd.rawValue : AlignmentAnchorRecord.AnchorKind.point.rawValue)
                 
                 let anchor = AlignmentAnchorRecord(
-                    id: "auto-silence-\(UUID().uuidString)",
+                    id: "auto-dtw-\(UUID().uuidString)",
                     audiobookID: audiobookID,
-                    epubBlockID: firstBlock.id,
-                    audioTime: matchingSilence.end,
+                    epubBlockID: blockID,
+                    audioTime: clampedTime,
                     audioEndTime: nil,
-                    anchorKind: AlignmentAnchorRecord.AnchorKind.chapterStart.rawValue,
+                    anchorKind: kind,
                     source: AlignmentAnchorRecord.Source.imported.rawValue,
-                    note: "auto: silence mapped chapter start",
+                    note: "auto: dtw mapped",
                     createdAt: iso.string(from: Date()),
                     modifiedAt: nil
                 )
                 createdAnchors.append(anchor)
-                state.log("ch\(idx) silence ✓ mapped chapter start to \(String(format: "%.1f", matchingSilence.end))s")
+                chapterCreated += 1
+            }
+            
+            if chapterCreated > 0 {
+                chapterAnchoredCount += 1
             }
         }
         
         if !createdAnchors.isEmpty {
             try alignmentService.insertAnchors(createdAnchors)
+            state.log("Inserted \(createdAnchors.count) anchors total")
         }
-        
-        return createdAnchors.count
-    }
-
-    // MARK: - Tier 1: Chapter Snap
-
-    func runTier1(chapters: [Chapter],
-                          blocks: [EPubBlockRecord]) async throws -> Int {
-        let existingAnchors = try anchorDAO.anchors(for: audiobookID)
-        var createdAnchors: [AlignmentAnchorRecord] = []
-        let iso = AlignmentService.isoFormatter
-
-        let (allVisible, estimatedTimeByBlockID) = estimateBlockTimes(
-            blocks: blocks, chapters: chapters,
-            totalDuration: audioEngine.duration ?? 1.0
-        )
-        let blocksByChapter = Dictionary(grouping: allVisible, by: { $0.chapterIndex })
-
-        func blocksNear(_ time: TimeInterval, window: TimeInterval, limit: Int, preferredChapterIndex: Int? = nil) -> [EPubBlockRecord] {
-            let filtered = allVisible.filter { 
-                $0.chapterIndex == preferredChapterIndex || abs((estimatedTimeByBlockID[$0.id] ?? 0) - time) < window 
-            }
-            return filtered
-                .sorted {
-                    let c0 = ($0.chapterIndex == preferredChapterIndex) ? 0 : 1
-                    let c1 = ($1.chapterIndex == preferredChapterIndex) ? 0 : 1
-                    if c0 != c1 { return c0 < c1 }
-                    return abs((estimatedTimeByBlockID[$0.id] ?? 0) - time) < abs((estimatedTimeByBlockID[$1.id] ?? 0) - time)
-                }
-                .prefix(limit)
-                .map { $0 }
-        }
-
-        for (idx, chapter) in chapters.enumerated() {
-            try Task.checkCancellation()
-
-            state.currentChapterIndex = idx
-            let baseProgress = Double(idx) / Double(max(1, chapters.count))
-
-            let chapterDuration = chapter.endSeconds - chapter.startSeconds
-            guard chapterDuration > 5 else {
-                state.log("ch\(idx): skip — too short (\(String(format: "%.0f", chapterDuration))s)")
-                continue
-            }
-
-            // Check whether a chapter-start anchor already exists near this boundary.
-            let hasStartAnchor = existingAnchors.contains {
-                $0.anchorKind == "chapterStart" && abs($0.audioTime - chapter.startSeconds) < 15
-            }
-            let hasEndAnchor = existingAnchors.contains {
-                $0.anchorKind == "chapterEnd" && abs($0.audioTime - chapter.endSeconds) < 15
-            }
-
-            state.log("ch\(idx): \(allVisible.count) visible blocks total, duration \(String(format: "%.0f", chapterDuration))s, startAnchor:\(hasStartAnchor) endAnchor:\(hasEndAnchor)")
-
-            // ── Chapter Start (sliding window, time-based candidates) ──
-            if !hasStartAnchor {
-                // For very short chapters use a smaller preamble skip so we
-                // still have room to capture before the chapter ends.
-                let effectivePreamble: TimeInterval = chapterDuration < 30
-                    ? min(Config.preambleSkipDuration, chapterDuration * 0.3)
-                    : Config.preambleSkipDuration
-
-                let maxSearchOffset = min(chapterDuration * 0.40, 120.0)
-                let windowAdvance = Config.chapterStartCaptureDuration * 0.75
-                let maxAttempts = min(3, max(1, Int(maxSearchOffset / windowAdvance)))
-                var attempt = 0
-                var foundStart = false
-
-                // Allow capture up to the chapter end minus a 5 % margin.
-                let endMargin = chapterDuration * 0.05
-
-                while attempt < maxAttempts, !foundStart {
-                    try Task.checkCancellation()
-
-                    let windowStart = chapter.startSeconds
-                        + effectivePreamble
-                        + (Double(attempt) * windowAdvance)
-
-                    guard windowStart + Config.chapterStartCaptureDuration < chapter.endSeconds - endMargin else {
-                        break
-                    }
-
-                    if attempt == 0 {
-                        state.update(phase: .tier1_ChapterSnap, progress: baseProgress,
-                                     statusMessage: "Chapter \(idx + 1) of \(chapters.count) — start…")
-                    } else {
-                        state.update(phase: .tier1_ChapterSnap, progress: baseProgress,
-                                     statusMessage: "Chapter \(idx + 1) start — retrying further in…")
-                    }
-
-                    // Dynamic Sample Sizing: Try larger windows if ambiguous or no match
-                    let durations: [TimeInterval] = [Config.chapterStartCaptureDuration, 10.0, 15.0]
-                    var finalMatch: AutoAlignmentTextMatcher.Match?
-                    var finalCapture: (text: String, offset: TimeInterval)?
-                    var finalDuration: TimeInterval = Config.chapterStartCaptureDuration
-                    var finalCandidates: [EPubBlockRecord] = []
-
-                    for duration in durations {
-                        guard windowStart + duration < chapter.endSeconds - endMargin else { break }
-                        
-                        guard let capture = try await captureAndTranscribe(
-                            at: windowStart, duration: duration
-                        ), !capture.text.isEmpty else {
-                            continue
-                        }
-
-                        // Filter to blocks near this time
-                        let candidates = blocksNear(windowStart, window: 300, limit: 30, preferredChapterIndex: chapter.index)
-                        
-                        // Calculate expectedIndex to boost Locality Bias
-                        var expectedIndex: Int?
-                        if let bestExpected = candidates.enumerated().min(by: { abs((estimatedTimeByBlockID[$0.element.id] ?? 0) - windowStart) < abs((estimatedTimeByBlockID[$1.element.id] ?? 0) - windowStart) }) {
-                            expectedIndex = bestExpected.offset
-                        }
-
-                        if let match = findBestMatch(transcribedText: capture.text,
-                                                     candidates: candidates,
-                                                     expectedIndex: expectedIndex) {
-                            finalMatch = match
-                            finalCapture = capture
-                            finalDuration = duration
-                            finalCandidates = candidates
-                            break
-                        }
-                    }
-
-                    guard let match = finalMatch, let capture = finalCapture else {
-                        attempt += 1
-                        continue
-                    }
-                    
-                    let matched = match.block
-                    let confidence = match.confidence
-                    let transcribed = capture.text
-
-                    // Anchor placement: if the matched block is the
-                    // chapter's first visible block, the chapter audibly
-                    // begins right when the audio chapter begins — use
-                    // `chapter.startSeconds` directly. Otherwise the
-                    // capture landed mid-block, so back-project from the
-                    // matcher's window start to the block's first word.
-                    let firstBlock = blocksByChapter[chapter.index]?.first
-                    let isFirstBlockMatch = firstBlock?.id == matched.id
-                    let projected = AutoAlignmentTextMatcher.projectedBlockStart(
-                            windowStart: windowStart,
-                            firstWordOffset: capture.offset,
-                            captureDuration: finalDuration,
-                            transcriptTokenCount: match.transcriptTokenCount,
-                            matchedBlockWindowStart: match.bestWindowStart
-                        )
-                        let anchorTime = isFirstBlockMatch
-                            ? chapter.startSeconds
-                            : max(chapter.startSeconds, projected)
-                        let preview = String(matched.text?.prefix(60) ?? "").replacingOccurrences(of: "\n", with: " ")
-                        state.log("ch\(idx) start ✓ attempt \(attempt + 1): conf=\(String(format: "%.2f", confidence)) win=\(match.bestWindowStart) tok=\(match.transcriptTokenCount) anchor=\(String(format: "%.1f", anchorTime))s (\(isFirstBlockMatch ? "first-block" : "projected")) → \"\(preview)\"")
-                        let anchor = AlignmentAnchorRecord(
-                            id: "auto-start-\(UUID().uuidString)",
-                            audiobookID: audiobookID,
-                            epubBlockID: matched.id,
-                            audioTime: anchorTime,
-                            audioEndTime: nil,
-                            anchorKind: AlignmentAnchorRecord.AnchorKind.chapterStart.rawValue,
-                            source: AlignmentAnchorRecord.Source.imported.rawValue,
-                            note: "auto: ch\(idx) start (attempt \(attempt + 1), conf \(String(format: "%.2f", confidence)))",
-                            createdAt: iso.string(from: Date()),
-                            modifiedAt: nil
-                        )
-                        createdAnchors.append(anchor)
-                        foundStart = true
-
-                    attempt += 1
-                }
-                if !foundStart {
-                    state.log("ch\(idx) start ✗ all \(attempt) attempts exhausted")
-                }
-            } else {
-                state.log("ch\(idx) start → already anchored")
-            }
-
-            // ── Chapter End (sliding window backwards, time-based candidates) ──
-            if !hasEndAnchor, chapterDuration > 15 {
-                let subProgress = baseProgress + (0.5 / Double(max(1, chapters.count)))
-                let maxAttempts = 3
-                var attempt = 0
-                var foundEnd = false
-
-                while attempt < maxAttempts, !foundEnd {
-                    try Task.checkCancellation()
-
-                    let windowStart = chapter.endSeconds
-                        - Config.chapterEndCaptureDuration
-                        - (Double(attempt) * Config.chapterEndCaptureDuration)
-
-                    guard windowStart > chapter.startSeconds + 15 else { break }
-
-                    if attempt == 0 {
-                        state.update(phase: .tier1_ChapterSnap, progress: subProgress,
-                                     statusMessage: "Chapter \(idx + 1) of \(chapters.count) — end…")
-                    }
-
-                    // Dynamic Sample Sizing: Try larger windows if ambiguous or no match
-                    let durations: [TimeInterval] = [Config.chapterEndCaptureDuration, 10.0, 15.0]
-                    var finalMatch: AutoAlignmentTextMatcher.Match?
-                    var finalCapture: (text: String, offset: TimeInterval)?
-                    var finalDuration: TimeInterval = Config.chapterEndCaptureDuration
-
-                    for duration in durations {
-                        guard windowStart + duration < chapter.endSeconds else { break }
-                        
-                        guard let capture = try await captureAndTranscribe(
-                            at: windowStart, duration: duration
-                        ), !capture.text.isEmpty else {
-                            continue
-                        }
-
-                        let candidates = blocksNear(windowStart, window: 300, limit: 30, preferredChapterIndex: chapter.index)
-                        
-                        var expectedIndex: Int?
-                        if let bestExpected = candidates.enumerated().min(by: { abs((estimatedTimeByBlockID[$0.element.id] ?? 0) - windowStart) < abs((estimatedTimeByBlockID[$1.element.id] ?? 0) - windowStart) }) {
-                            expectedIndex = bestExpected.offset
-                        }
-
-                        if let match = findBestMatch(transcribedText: capture.text,
-                                                     candidates: candidates,
-                                                     expectedIndex: expectedIndex) {
-                            finalMatch = match
-                            finalCapture = capture
-                            finalDuration = duration
-                            break
-                        }
-                    }
-
-                    guard let match = finalMatch, let capture = finalCapture else {
-                        attempt += 1
-                        continue
-                    }
-                    
-                    let matched = match.block
-                    let confidence = match.confidence
-                        // Chapter-end captures usually land deep inside the
-                        // last paragraph, so back-project to that block's
-                        // first-word time. Clamp inside chapter bounds.
-                        let projected = AutoAlignmentTextMatcher.projectedBlockStart(
-                            windowStart: windowStart,
-                            firstWordOffset: capture.offset,
-                            captureDuration: finalDuration,
-                            transcriptTokenCount: match.transcriptTokenCount,
-                            matchedBlockWindowStart: match.bestWindowStart
-                        )
-                        let anchorTime = max(chapter.startSeconds,
-                                              min(chapter.endSeconds, projected))
-                        let preview = String(matched.text?.prefix(60) ?? "").replacingOccurrences(of: "\n", with: " ")
-                        state.log("ch\(idx) end ✓ attempt \(attempt + 1): conf=\(String(format: "%.2f", confidence)) win=\(match.bestWindowStart) tok=\(match.transcriptTokenCount) anchor=\(String(format: "%.1f", anchorTime))s → \"\(preview)\"")
-                        let anchor = AlignmentAnchorRecord(
-                            id: "auto-end-\(UUID().uuidString)",
-                            audiobookID: audiobookID,
-                            epubBlockID: matched.id,
-                            audioTime: anchorTime,
-                            audioEndTime: nil,
-                            anchorKind: AlignmentAnchorRecord.AnchorKind.chapterEnd.rawValue,
-                            source: AlignmentAnchorRecord.Source.imported.rawValue,
-                            note: "auto: ch\(idx) end (attempt \(attempt + 1), conf \(String(format: "%.2f", confidence)))",
-                            createdAt: iso.string(from: Date()),
-                            modifiedAt: nil
-                        )
-                        createdAnchors.append(anchor)
-                        foundEnd = true
-
-                    attempt += 1
-                }
-                if !foundEnd {
-                    state.log("ch\(idx) end ✗ all \(attempt) attempts exhausted")
-                }
-            } else if hasEndAnchor {
-                state.log("ch\(idx) end → already anchored")
-            }
-        }
-
-        if !createdAnchors.isEmpty {
-            try alignmentService.insertAnchors(createdAnchors)
-        }
-
-        state.anchoredChapterCount = createdAnchors.count / 2
-        return createdAnchors.count
-    }
-
-    // MARK: - Tier 2: Drift Detection
-
-    func runTier2(chapters: [Chapter],
-                          blocks: [EPubBlockRecord]) async throws -> [Int] {
-        var flagged: [Int] = []
-
-        for (idx, chapter) in chapters.enumerated() {
-            try Task.checkCancellation()
-
-            state.currentChapterIndex = idx
-            let progress = Double(idx) / Double(max(1, chapters.count))
-            state.update(phase: .tier2_DriftDetection, progress: progress,
-                         statusMessage: "Checking chapter \(idx + 1) of \(chapters.count)…")
-
-            let midpoint = (chapter.startSeconds + chapter.endSeconds) / 2.0
-            
-            // Find the expected block at this time from the interpolated timeline.
-            guard let expectedBlock = blockAtTime(midpoint, blocks: blocks),
-                  expectedBlock.text?.isEmpty == false else { continue }
-            
-            let durations: [TimeInterval] = [Config.driftCheckDuration, 10.0, 15.0]
-            var driftDetected = false
-            var bestConfidence = 0.0
-
-            for duration in durations {
-                guard let capture = try await captureAndTranscribe(at: midpoint, duration: duration),
-                      !capture.text.isEmpty else { continue }
-                      
-                let confidence = AutoAlignmentTextMatcher.findBestMatch(
-                    transcribedText: capture.text,
-                    candidates: [expectedBlock],
-                    matchThreshold: 0,
-                    expectedIndex: 0
-                )?.confidence ?? 0
-                
-                bestConfidence = max(bestConfidence, confidence)
-                if confidence >= Config.driftConfidenceThreshold {
-                    driftDetected = false
-                    break // We verified it's clean, stop expanding duration
-                } else {
-                    driftDetected = true // Temporarily flagged as drifted, try longer sample
-                }
-            }
-
-            if driftDetected {
-                flagged.append(idx)
-                state.log("ch\(idx) drift ⚠ conf=\(String(format: "%.2f", bestConfidence)) < threshold \(String(format: "%.2f", Config.driftConfidenceThreshold))")
-                logger.warning("Chapter \(idx) drift detected (confidence: \(bestConfidence, privacy: .public))")
-            }
-        }
-
-        return flagged
-    }
-
-    // MARK: - Tier 3: Drift Repair
-
-    func runTier3(flaggedChapters: [Int],
-                          chapters: [Chapter],
-                          blocks: [EPubBlockRecord]) async throws -> Int {
-        var repairAnchors: [AlignmentAnchorRecord] = []
-        let iso = AlignmentService.isoFormatter
-
-        let (allVisible, estimatedTimeByBlockID) = estimateBlockTimes(
-            blocks: blocks, chapters: chapters,
-            totalDuration: audioEngine.duration ?? 1.0
-        )
-
-        for (tierIdx, chIdx) in flaggedChapters.enumerated() {
-            try Task.checkCancellation()
-
-            let chapter = chapters[chIdx]
-            let baseProgress = Double(tierIdx) / Double(max(1, flaggedChapters.count))
-            state.currentChapterIndex = chIdx
-            state.update(phase: .tier3_DriftRepair, progress: baseProgress,
-                         statusMessage: "Repairing chapter \(chIdx + 1)…")
-
-            let span = chapter.endSeconds - chapter.startSeconds
-            let checkPoints: [TimeInterval] = [
-                chapter.startSeconds + span * 0.25,
-                chapter.startSeconds + span * 0.50,
-                chapter.startSeconds + span * 0.75,
-            ]
-
-            var driftTime: TimeInterval?
-            for cp in checkPoints {
-                guard let capture = try await captureAndTranscribe(at: cp, duration: Config.tier3CaptureDuration),
-                      !capture.text.isEmpty else { continue }
-                let transcribed = capture.text
-
-                // Match against blocks near this time, not against the
-                // interpolated timeline (which may be way off for drifted chapters).
-                let candidates = allVisible.filter {
-                    $0.chapterIndex == chapter.index || abs((estimatedTimeByBlockID[$0.id] ?? 0) - cp) < 300
-                }
-                .sorted {
-                    let c0 = ($0.chapterIndex == chapter.index) ? 0 : 1
-                    let c1 = ($1.chapterIndex == chapter.index) ? 0 : 1
-                    if c0 != c1 { return c0 < c1 }
-                    return abs((estimatedTimeByBlockID[$0.id] ?? 0) - cp)
-                    < abs((estimatedTimeByBlockID[$1.id] ?? 0) - cp)
-                }
-                .prefix(30)
-                .map { $0 }
-
-                guard let match = findBestMatch(transcribedText: transcribed,
-                                                candidates: candidates) else {
-                    state.log("ch\(chIdx) repair: no match at \(String(format: "%.0f", cp))s")
-                    continue
-                }
-                let best = match.block
-
-                // Back-project from the checkpoint capture to the matched
-                // block's first-word audio time. Clamp inside chapter bounds.
-                let projected = AutoAlignmentTextMatcher.projectedBlockStart(
-                    windowStart: cp,
-                    firstWordOffset: capture.offset,
-                    captureDuration: Config.tier3CaptureDuration,
-                    transcriptTokenCount: match.transcriptTokenCount,
-                    matchedBlockWindowStart: match.bestWindowStart
-                )
-                let anchorTime = max(chapter.startSeconds,
-                                      min(chapter.endSeconds, projected))
-
-                let estimatedPos = estimatedTimeByBlockID[best.id] ?? 0
-                let drift = abs(estimatedPos - cp)
-                state.log("ch\(chIdx) repair: found \"\(String(best.text?.prefix(40) ?? ""))\" at est \(String(format: "%.0f", estimatedPos))s (drift \(String(format: "%.0f", drift))s) win=\(match.bestWindowStart) anchor=\(String(format: "%.1f", anchorTime))s")
-
-                let anchor = AlignmentAnchorRecord(
-                    id: "auto-repair-\(UUID().uuidString)",
-                    audiobookID: audiobookID,
-                    epubBlockID: best.id,
-                    audioTime: anchorTime,
-                    audioEndTime: nil,
-                    anchorKind: AlignmentAnchorRecord.AnchorKind.point.rawValue,
-                    source: AlignmentAnchorRecord.Source.imported.rawValue,
-                    note: "auto: drift repair ch\(chIdx)",
-                    createdAt: iso.string(from: Date()),
-                    modifiedAt: nil
-                )
-                repairAnchors.append(anchor)
-                state.log("ch\(chIdx) repair ✓ anchor inserted at \(String(format: "%.1f", anchorTime))s")
-                driftTime = cp
-                break
-            }
-
-            if driftTime == nil {
-                state.log("ch\(chIdx) repair: no matches found to repair drift")
-            }
-        }
-
-        if !repairAnchors.isEmpty {
-            try alignmentService.insertAnchors(repairAnchors)
-        }
-        return repairAnchors.count
+        state.anchoredChapterCount = chapterAnchoredCount
     }
 
     // MARK: - Audio Capture + Transcription

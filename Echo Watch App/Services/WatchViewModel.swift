@@ -143,8 +143,8 @@ class WatchViewModel: NSObject, WCSessionDelegate {
 
     private func scheduleRollback() {
         rollbackTimer?.invalidate()
-        rollbackTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+        rollbackTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+            Task { @MainActor [weak self] in
                 self?.rollback()
                 self?.requestCurrentState()
             }
@@ -156,7 +156,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             if playbackTimer == nil {
                 lastTimerTick = Date()
                 playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-                    self?.tickPlayback()
+                    guard let self else { return }
+                    MainActor.assumeIsolated {
+                        self.tickPlayback()
+                    }
                 }
             }
         } else {
@@ -170,15 +173,29 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         let now = Date()
         let elapsed = now.timeIntervalSince(lastTick)
         lastTimerTick = now
-        
+
+        // If the timer was suspended (watch asleep / backgrounded), the first
+        // fire on wake can carry minutes of accumulated wall-clock time.
+        // Advancing progress by that much would animate through every
+        // intermediate value — the "catching up through chapters" glitch.
+        // Cap the raw wall-clock delta at 2.0 s (4× the 0.5 s interval).
+        // Beyond that, skip the local tick entirely and request a fresh state
+        // from the phone, which has the authoritative position.
+        let maxExpectedDelta: TimeInterval = 2.0
+        guard elapsed <= maxExpectedDelta else {
+            logger.debug("Skipping stale timer tick after \(elapsed)s suspension; requesting fresh state")
+            requestCurrentState()
+            return
+        }
+
         let delta = elapsed * playbackSpeed
         currentTime += delta
-        
+
         if totalBookDuration > 0 {
             let frac = min(1.0, max(0.0, currentTime / totalBookDuration))
             self.totalProgressFraction = frac
         }
-        
+
         if chapterDuration > 0 {
             let newFrac = min(1.0, max(0.0, progressFraction + (delta / chapterDuration)))
             self.progressFraction = newFrac
@@ -306,6 +323,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
         guard session.activationState == .activated else { return }
         applyState(userInfo)
+        // userInfo deliveries can be minutes stale (queued while unreachable).
+        // Request the phone's current state so the watch converges to the
+        // authoritative position instead of displaying an outdated snapshot.
+        requestCurrentState()
     }
 
     private func applyState(_ state: [String: Any]) {

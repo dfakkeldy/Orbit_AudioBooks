@@ -162,8 +162,8 @@ final class TimelineService {
     // MARK: - Push-forward logic
 
     private func startPushForwardTimer() {
-        pushForwardTimer = Timer.scheduledTimer(withTimeInterval: pushForwardInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+        pushForwardTimer = Timer.scheduledTimer(withTimeInterval: pushForwardInterval, repeats: true) { _ in
+            Task { @MainActor [weak self] in
                 self?.pushForwardUncompletedItems()
             }
         }
@@ -186,8 +186,8 @@ final class TimelineService {
     // MARK: - Now timer
 
     private func startNowTimer() {
-        nowTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+        nowTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor [weak self] in
                 self?.now = Date()
             }
         }

@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Observation
 import os.log
 
@@ -207,13 +207,16 @@ final class AudioEngine {
         }
         let gainDelta = (targetGain - startGain) / Float(steps)
         var currentStep = 0
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak eqNode] timer in
-            currentStep += 1
-            if currentStep >= steps {
-                eqNode?.globalGain = targetGain
-                timer.invalidate()
-            } else {
-                eqNode?.globalGain = startGain + gainDelta * Float(currentStep)
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            MainActor.assumeIsolated {
+                currentStep += 1
+                if currentStep >= steps {
+                    self.eqNode?.globalGain = targetGain
+                    timer.invalidate()
+                } else {
+                    self.eqNode?.globalGain = startGain + gainDelta * Float(currentStep)
+                }
             }
         }
         fadeTimer = timer
@@ -346,10 +349,9 @@ final class AudioEngine {
             startingFrame: startFrame,
             frameCount: frames,
             at: nil
-        ) { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                guard generation == self.seekGeneration else { return }
+        ) {
+            Task { @MainActor [weak self] in
+                guard let self, generation == self.seekGeneration else { return }
                 self.isPlaying = false
                 self.stopTimeTimer()
                 self.currentTime = self.duration ?? self.currentTime
@@ -391,7 +393,10 @@ final class AudioEngine {
     private func startTimeTimer() {
         stopTimeTimer()
         timeTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            self?.updateCurrentTime()
+            guard let self else { return }
+            MainActor.assumeIsolated {
+                self.updateCurrentTime()
+            }
         }
         if let timer = timeTimer {
             RunLoop.main.add(timer, forMode: .common)
@@ -433,14 +438,19 @@ final class AudioEngine {
 
             switch type {
             case .began:
-                self.audioSessionConfigured = false
-                self.isPlaying = false
-                self.stopTimeTimer()
-                self.delegate?.audioEngineInterruptionBegan(self)
+                MainActor.assumeIsolated {
+                    self.audioSessionConfigured = false
+                    self.isPlaying = false
+                    self.stopTimeTimer()
+                    self.delegate?.audioEngineInterruptionBegan(self)
+                }
             case .ended:
                 let optionsValue = (userInfo[AVAudioSessionInterruptionOptionKey] as? UInt) ?? 0
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                self.delegate?.audioEngineInterruptionEnded(self, shouldResume: options.contains(.shouldResume))
+                let shouldResume = options.contains(.shouldResume)
+                MainActor.assumeIsolated {
+                    self.delegate?.audioEngineInterruptionEnded(self, shouldResume: shouldResume)
+                }
             @unknown default:
                 break
             }
@@ -463,9 +473,11 @@ final class AudioEngine {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            self.isPlaying = false
-            self.stopTimeTimer()
-            self.delegate?.audioEngineInterruptionBegan(self)
+            MainActor.assumeIsolated {
+                self.isPlaying = false
+                self.stopTimeTimer()
+                self.delegate?.audioEngineInterruptionBegan(self)
+            }
         }
 
         mediaServicesResetObserver = NotificationCenter.default.addObserver(
@@ -474,8 +486,10 @@ final class AudioEngine {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            self.audioSessionConfigured = false
-            self.configureAudioSession()
+            MainActor.assumeIsolated {
+                self.audioSessionConfigured = false
+                self.configureAudioSession()
+            }
         }
     }
 

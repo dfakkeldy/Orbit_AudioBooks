@@ -122,13 +122,18 @@ final class PlaybackController: PlaybackControllerProtocol {
 
         applySpeedToCurrentItem()
 
+        // Set Now Playing metadata *before* starting the audio engine.
+        // The engine starts a repeating Timer on playImmediately; if the first
+        // tick fires before MPNowPlayingInfoCenter has playbackRate set, the
+        // Lock Screen may show the wrong transport button.
+        coordinator_persistAndSync?(false)
+
         audioEngine.playImmediately(atRate: speed)
         state.isPlaying = true
         if audioEngine.currentTime.isFinite {
             coordinator_checkVoiceMemo?(audioEngine.currentTime, nil)
         }
 
-        coordinator_persistAndSync?(false)
         coordinator_playStateChanged?(true)
     }
 

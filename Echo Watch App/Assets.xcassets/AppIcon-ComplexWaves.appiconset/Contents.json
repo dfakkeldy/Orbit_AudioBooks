@@ -3,7 +3,6 @@
     {
       "filename" : "icon.png",
       "idiom" : "watch",
-      "role" : "appIcon",
       "size" : "1024x1024"
     }
   ],

@@ -168,9 +168,9 @@ struct AutoAlignmentProgressView: View {
     private var phaseIcon: String {
         switch phase {
         case .idle, .loadingModel: return "arrow.down.circle"
-        case .tier1_ChapterSnap: return "text.book.closed"
-        case .tier2_DriftDetection: return "magnifyingglass"
-        case .tier3_DriftRepair: return "wrench.adjustable"
+        case .mappingSilences: return "waveform"
+        case .transcribingAudio: return "text.bubble"
+        case .computingAlignment: return "link"
         case .completed: return "checkmark.circle.fill"
         case .failed: return "exclamationmark.circle.fill"
         }
