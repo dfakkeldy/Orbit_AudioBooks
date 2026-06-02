@@ -154,7 +154,13 @@ struct Persistence {
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            KeychainStore.set(data, for: .securityScopedBookmark)
+            let success = KeychainStore.set(data, for: .securityScopedBookmark)
+            if !success {
+                os_log(.error, "Keychain save failed, falling back to UserDefaults for bookmark")
+                defaults.set(data, forKey: bookmarkKey)
+            } else {
+                defaults.removeObject(forKey: bookmarkKey)
+            }
         } catch {
             os_log(.error, "Bookmark save failed: %{private}@", error.localizedDescription)
         }
@@ -165,8 +171,10 @@ struct Persistence {
         // move it to Keychain and clean up the plaintext copy.  (§6.2)
         var data = KeychainStore.data(for: .securityScopedBookmark)
         if data == nil, let legacy = defaults.data(forKey: bookmarkKey) {
-            KeychainStore.set(legacy, for: .securityScopedBookmark)
-            defaults.removeObject(forKey: bookmarkKey)
+            let success = KeychainStore.set(legacy, for: .securityScopedBookmark)
+            if success {
+                defaults.removeObject(forKey: bookmarkKey)
+            }
             data = legacy
         }
         guard let data else { return nil }

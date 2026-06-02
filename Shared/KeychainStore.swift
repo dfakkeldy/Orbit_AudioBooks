@@ -17,8 +17,8 @@ enum KeychainStore {
         case bookmarkNotes
     }
 
-    /// Writes `Data` to the Keychain for the given key.
-    static func set(_ data: Data, for key: Key, service: String = "com.orbitaudiobooks") {
+    @discardableResult
+    static func set(_ data: Data, for key: Key, service: String = "com.orbitaudiobooks") -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key.rawValue,
@@ -26,7 +26,8 @@ enum KeychainStore {
             kSecValueData as String: data,
         ]
         SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        return status == errSecSuccess
     }
 
     /// Reads `Data` from the Keychain for the given key.

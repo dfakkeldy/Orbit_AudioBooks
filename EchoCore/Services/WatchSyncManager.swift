@@ -56,12 +56,12 @@ final class WatchSyncManager: NSObject, WCSessionDelegate {
         guard session.activationState == .activated, let context = stateProvider?() else { return }
 
         if session.isReachable {
-            session.sendMessage(context, replyHandler: nil) { error in
+            session.sendMessage(context, replyHandler: { _ in }) { error in
                 os_log(.error, "Immediate watch sync failed: %{private}@", error.localizedDescription)
-                WCSession.default.transferUserInfo(context)
+                try? WCSession.default.updateApplicationContext(context)
             }
         } else {
-            session.transferUserInfo(context)
+            try? session.updateApplicationContext(context)
         }
 
         sendThumbnailIfNeeded()
@@ -80,6 +80,10 @@ final class WatchSyncManager: NSObject, WCSessionDelegate {
             "artworkKey": artworkKey,
             "thumbnailData": data
         ]
+        // Since thumbnail is large, transferUserInfo is still appropriate here
+        // as updateApplicationContext overwrites and we don't want to lose the
+        // main state payload. But we can merge it into a single context if we want.
+        // For now, leave it as transferUserInfo to not disrupt main context.
         session.transferUserInfo(payload)
     }
 
