@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Echo_Audiobooks
+@testable import Echo
 
 struct AutoAlignmentTextMatcherTests {
 
