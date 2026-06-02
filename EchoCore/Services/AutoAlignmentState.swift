@@ -8,6 +8,7 @@ final class AutoAlignmentState {
     /// Current phase of the auto-alignment pipeline.
     enum Phase: String, Sendable {
         case idle
+        case matchingTitles
         case loadingModel
         case mappingSilences
         case transcribingAudio
@@ -24,6 +25,7 @@ final class AutoAlignmentState {
     var currentChapterIndex: Int = 0
     var totalChapters: Int = 0
     var anchoredChapterCount: Int = 0
+    var titleMatchedChapterCount: Int = 0
     var driftedChapterIDs: [Int] = []
     var repairAnchorCount: Int = 0
     var errorMessage: String?
@@ -56,6 +58,7 @@ final class AutoAlignmentState {
         currentChapterIndex = 0
         totalChapters = 0
         anchoredChapterCount = 0
+        titleMatchedChapterCount = 0
         driftedChapterIDs = []
         repairAnchorCount = 0
         errorMessage = nil
