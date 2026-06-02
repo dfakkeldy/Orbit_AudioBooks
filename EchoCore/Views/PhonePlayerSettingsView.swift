@@ -303,7 +303,7 @@ private struct PhonePreviewCanvas: View {
                     Text(String(localized: "Audiobook Title"))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text(String(localized: "Chapter 1"))
+                    Text(String(localized: "Ch 1"))
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                 }

@@ -64,6 +64,7 @@ extension PlayerModel {
         s.circularRingHidden = settings?.circularRingHidden ?? SettingsManager.Defaults.circularRingHidden
         s.watchArtworkLayout = settings?.watchArtworkLayout ?? SettingsManager.Defaults.watchArtworkLayout
         s.watchBackgroundStyle = settings?.watchBackgroundStyle ?? SettingsManager.Defaults.watchBackgroundStyle
+        s.watchTitleScrollEnabled = settings?.watchTitleScrollEnabled ?? SettingsManager.Defaults.watchTitleScrollEnabled
 
         // Thumbnail availability
         s.hasThumbnail = watchThumbnailData != nil

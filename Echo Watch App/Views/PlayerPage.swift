@@ -65,13 +65,23 @@ struct PlayerPage: View {
         VStack(spacing: 8) {
             classicArtwork
 
-            Text(viewModel.title)
-                .font(.system(.caption, design: .rounded))
-                .fontWeight(.medium)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .truncationMode(.tail)
+            if viewModel.watchTitleScrollEnabled {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(viewModel.title)
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                }
                 .padding(.horizontal)
+            } else {
+                Text(viewModel.title)
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .padding(.horizontal)
+            }
 
             bottomControls(isCompactLayout: true)
         }
@@ -110,18 +120,35 @@ struct PlayerPage: View {
     }
 
     private var titleView: some View {
-        Text(viewModel.title)
-            .font(.system(.caption, design: .rounded))
-            .fontWeight(.semibold)
-            .multilineTextAlignment(.center)
-            .lineLimit(2)
-            .truncationMode(.tail)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, layout == .classic ? 4 : 6)
-            .frame(maxWidth: .infinity)
-            .background(layout == .classic ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
-            .padding(.horizontal, 18)
+        Group {
+            if viewModel.watchTitleScrollEnabled {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(viewModel.title)
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, layout == .classic ? 4 : 6)
+                .frame(maxWidth: .infinity)
+                .background(layout == .classic ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+                .padding(.horizontal, 18)
+            } else {
+                Text(viewModel.title)
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, layout == .classic ? 4 : 6)
+                    .frame(maxWidth: .infinity)
+                    .background(layout == .classic ? AnyShapeStyle(Color.clear) : AnyShapeStyle(.ultraThinMaterial), in: Capsule())
+                    .padding(.horizontal, 18)
+            }
+        }
     }
 
     @ViewBuilder

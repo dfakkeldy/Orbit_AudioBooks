@@ -83,7 +83,7 @@ struct PlayerControlBar: View {
     private var titleText: String {
         if model.chapters.count >= 2 {
             return model.currentSubtitle.isEmpty
-                ? String(localized: "Chapter \((model.currentChapterIndex ?? 0) + 1)")
+                ? String(localized: "Ch \((model.currentChapterIndex ?? 0) + 1)")
                 : model.currentSubtitle
         } else {
             return model.currentTitle

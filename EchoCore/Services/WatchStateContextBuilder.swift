@@ -44,6 +44,7 @@ struct WatchStateSnapshot {
     var circularRingHidden: Bool = SettingsManager.Defaults.circularRingHidden
     var watchArtworkLayout: String = SettingsManager.Defaults.watchArtworkLayout
     var watchBackgroundStyle: String = SettingsManager.Defaults.watchBackgroundStyle
+    var watchTitleScrollEnabled: Bool = SettingsManager.Defaults.watchTitleScrollEnabled
 
     // MARK: Thumbnail availability
     var hasThumbnail: Bool = false
@@ -83,7 +84,7 @@ enum WatchStateContextBuilder {
         // Title
         let title: String = if s.chapterCount >= 2 {
             s.currentSubtitle.isEmpty
-                ? String(localized: "Chapter \((s.currentChapterIndex ?? 0) + 1)")
+                ? String(localized: "Ch \((s.currentChapterIndex ?? 0) + 1)")
                 : s.currentSubtitle
         } else {
             s.currentTitle
@@ -120,6 +121,7 @@ enum WatchStateContextBuilder {
         context["circularRingHidden"] = s.circularRingHidden
         context["watchArtworkLayout"] = s.watchArtworkLayout
         context["watchBackgroundStyle"] = s.watchBackgroundStyle
+        context["watchTitleScrollEnabled"] = s.watchTitleScrollEnabled
         context["hasThumbnail"] = s.hasThumbnail
 
         // Sleep timer

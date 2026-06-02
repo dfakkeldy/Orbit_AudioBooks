@@ -214,6 +214,13 @@ struct WatchAppSettingsView: View {
                                 model.syncToWatch()
                             }
                         }
+
+                        Divider()
+
+                        Toggle("Scroll Title", isOn: $settings.watchTitleScrollEnabled)
+                            .onChange(of: settings.watchTitleScrollEnabled) { _, _ in
+                                model.syncToWatch()
+                            }
                     }
                     .padding()
                     .background(
@@ -469,7 +476,7 @@ private struct WatchPreviewCanvas: View {
                 AppIconThumbnail(size: 64)
                     .padding(.top, 4)
 
-                Text(String(localized: "Chapter 1"))
+                Text(String(localized: "Ch 1"))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)

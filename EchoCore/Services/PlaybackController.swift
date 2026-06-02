@@ -128,13 +128,12 @@ final class PlaybackController: PlaybackControllerProtocol {
         // Lock Screen may show the wrong transport button.
         state.isPlaying = true
         coordinator_persistAndSync?(false)
+        coordinator_playStateChanged?(true)
 
         audioEngine.playImmediately(atRate: speed)
         if audioEngine.currentTime.isFinite {
             coordinator_checkVoiceMemo?(audioEngine.currentTime, nil)
         }
-
-        coordinator_playStateChanged?(true)
     }
 
     /// Computes and applies the smart rewind target based on pause duration.

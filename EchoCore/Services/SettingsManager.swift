@@ -36,6 +36,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let circularRingHidden = false
         static let watchArtworkLayout = "immersive"
         static let watchBackgroundStyle = "artwork"
+        static let watchTitleScrollEnabled = false
         static let isHapticFeedbackEnabled = true
         static let watchQuickBookmarkTimeoutSeconds = 5
         static let silenceDetectionLookbackSeconds = 10.0
@@ -84,6 +85,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let circularRingHidden = "circularRingHidden"
         static let watchArtworkLayout = "watchArtworkLayout"
         static let watchBackgroundStyle = "watchBackgroundStyle"
+        static let watchTitleScrollEnabled = "watchTitleScrollEnabled"
         static let isHapticFeedbackEnabled = "isHapticFeedbackEnabled"
         static let volumeBoostGain = "volumeBoostGain"
         static let watchQuickBookmarkTimeoutSeconds = "watchQuickBookmarkTimeoutSeconds"
@@ -168,6 +170,7 @@ final class SettingsManager: SettingsManagerProtocol {
     var circularRingHidden: Bool { didSet { appGroupSet(circularRingHidden, forKey: Keys.circularRingHidden) } }
     var watchArtworkLayout: String { didSet { appGroupSet(watchArtworkLayout, forKey: Keys.watchArtworkLayout) } }
     var watchBackgroundStyle: String { didSet { appGroupSet(watchBackgroundStyle, forKey: Keys.watchBackgroundStyle) } }
+    var watchTitleScrollEnabled: Bool { didSet { appGroupSet(watchTitleScrollEnabled, forKey: Keys.watchTitleScrollEnabled) } }
     var isHapticFeedbackEnabled: Bool { didSet { appGroupSet(isHapticFeedbackEnabled, forKey: Keys.isHapticFeedbackEnabled) } }
     var volumeBoostGain: Float { didSet { defaults.set(volumeBoostGain, forKey: Keys.volumeBoostGain) } }
 
@@ -242,6 +245,7 @@ final class SettingsManager: SettingsManagerProtocol {
                 (Keys.circularRingHidden, { defaults.object(forKey: Keys.circularRingHidden) }),
                 (Keys.watchArtworkLayout, { defaults.object(forKey: Keys.watchArtworkLayout) }),
                 (Keys.watchBackgroundStyle, { defaults.object(forKey: Keys.watchBackgroundStyle) }),
+                (Keys.watchTitleScrollEnabled, { defaults.object(forKey: Keys.watchTitleScrollEnabled) }),
                 (Keys.isHapticFeedbackEnabled, { defaults.object(forKey: Keys.isHapticFeedbackEnabled) }),
                 (Keys.watchQuickBookmarkTimeoutSeconds, { defaults.object(forKey: Keys.watchQuickBookmarkTimeoutSeconds) }),
             ]
@@ -287,6 +291,7 @@ final class SettingsManager: SettingsManagerProtocol {
         circularRingHidden = appGroupDefaults.bool(forKey: Keys.circularRingHidden)
         watchArtworkLayout = appGroupDefaults.string(forKey: Keys.watchArtworkLayout) ?? Defaults.watchArtworkLayout
         watchBackgroundStyle = appGroupDefaults.string(forKey: Keys.watchBackgroundStyle) ?? Defaults.watchBackgroundStyle
+        watchTitleScrollEnabled = appGroupDefaults.bool(forKey: Keys.watchTitleScrollEnabled)
         isHapticFeedbackEnabled = appGroupDefaults.bool(forKey: Keys.isHapticFeedbackEnabled)
         volumeBoostGain = defaults.object(forKey: Keys.volumeBoostGain) as? Float ?? Defaults.volumeBoostGain
         watchQuickBookmarkTimeoutSeconds = max(
@@ -379,6 +384,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.circularRingHidden: Defaults.circularRingHidden,
             Keys.watchArtworkLayout: Defaults.watchArtworkLayout,
             Keys.watchBackgroundStyle: Defaults.watchBackgroundStyle,
+            Keys.watchTitleScrollEnabled: Defaults.watchTitleScrollEnabled,
             Keys.isHapticFeedbackEnabled: Defaults.isHapticFeedbackEnabled,
             Keys.volumeBoostGain: Defaults.volumeBoostGain,
             Keys.watchQuickBookmarkTimeoutSeconds: Defaults.watchQuickBookmarkTimeoutSeconds

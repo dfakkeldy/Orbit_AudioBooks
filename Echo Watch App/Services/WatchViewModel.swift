@@ -83,6 +83,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
     var circularRingHidden: Bool = false
     var watchArtworkLayout: String = "immersive"
     var watchBackgroundStyle: String = "artwork"
+    var watchTitleScrollEnabled: Bool = false
 
     /// Top words for the current chapter, received from the iPhone.
     var currentWordCloud: [WordFrequency] = []
@@ -274,6 +275,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         circularRingHidden = defaults.bool(forKey: "circularRingHidden")
         watchArtworkLayout = defaults.string(forKey: "watchArtworkLayout") ?? "immersive"
         watchBackgroundStyle = defaults.string(forKey: "watchBackgroundStyle") ?? "artwork"
+        watchTitleScrollEnabled = defaults.bool(forKey: "watchTitleScrollEnabled")
     }
 
     private func parseSlots(_ raw: String) -> [WatchAction] {
@@ -485,6 +487,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             if let watchBackgroundStyle = state["watchBackgroundStyle"] as? String {
                 self.watchBackgroundStyle = watchBackgroundStyle
                 self.defaults.set(watchBackgroundStyle, forKey: "watchBackgroundStyle")
+            }
+            if let watchTitleScrollEnabled = state["watchTitleScrollEnabled"] as? Bool {
+                self.watchTitleScrollEnabled = watchTitleScrollEnabled
+                self.defaults.set(watchTitleScrollEnabled, forKey: "watchTitleScrollEnabled")
             }
             if let thumbnailData = state["thumbnailData"] as? Data {
                 self.defaults.set(thumbnailData, forKey: "thumbnailData")

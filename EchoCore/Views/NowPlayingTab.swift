@@ -47,7 +47,7 @@ struct NowPlayingTab: View {
                 caption: "",
                 mainText: model.chapters.count >= 2
                     ? (model.currentSubtitle.isEmpty
-                        ? String(localized: "Chapter \((model.currentChapterIndex ?? 0) + 1)")
+                        ? String(localized: "Ch \((model.currentChapterIndex ?? 0) + 1)")
                         : model.currentSubtitle)
                     : model.currentTitle,
                 appFont: model.resolvedAppFont,
@@ -125,7 +125,7 @@ struct NowPlayingTab: View {
         let chapterIndex = (model.currentChapterIndex ?? 0) + 1
         let chapterCount = model.chapters.count
         let parts = bookProgressParts()
-        return String(localized: "Chapter \(chapterIndex) of \(chapterCount), \(parts.elapsed) elapsed, \(parts.remaining) remaining")
+        return String(localized: "Ch \(chapterIndex) of \(chapterCount), \(parts.elapsed) elapsed, \(parts.remaining) remaining")
     }
 
     private func trackProgressText() -> String {

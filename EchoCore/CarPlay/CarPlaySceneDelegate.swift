@@ -55,7 +55,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             sections.append(CPListSection(items: chapterItems, header: "Chapters", sectionIndexTitle: nil))
         } else if let chapters = model?.chapters, chapters.count >= 2 {
             let chapterItems = chapters.map { chapter -> CPListItem in
-                let title = chapter.title ?? "Chapter \(chapter.index + 1)"
+                let title = chapter.title ?? "Ch \(chapter.index + 1)"
                 let item = CPListItem(text: title,
                                       detailText: NowPlayingController.formatTime(chapter.endSeconds - chapter.startSeconds))
                 item.handler = { [weak model] _, completion in
