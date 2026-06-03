@@ -10,7 +10,7 @@ docs: ## Generate DocC documentation
 	xcodebuild docbuild \
 		-scheme "Echo: Audiobook Study Player" \
 		-destination 'generic/platform=iOS' \
-		DOCC_HOSTING_BASE_PATH="/orbit_audiobooks"
+		DOCC_HOSTING_BASE_PATH="/echo"
 	@echo "Documentation successfully built in derived data."
 
 architecture: ## Generate ARCHITECTURE.md from source tree

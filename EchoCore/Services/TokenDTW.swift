@@ -25,7 +25,17 @@ struct TokenDTW {
         var dir = Array(repeating: Int8(0), count: (n + 1) * (m + 1))
         
         cost[0] = 0 // (0, 0)
-        
+
+        // Initialize boundary row (deletion of EPUB tokens) and column
+        // (insertion of audio tokens) with cumulative gap costs so the DP
+        // can skip leading tokens that have no match in the other sequence.
+        for i in 1...n {
+            cost[i * (m + 1) + 0] = Int32(i) * 2
+        }
+        for j in 1...m {
+            cost[0 * (m + 1) + j] = Int32(j) * 2
+        }
+
         for i in 1...n {
             for j in 1...m {
                 let eToken = epub[i - 1].text

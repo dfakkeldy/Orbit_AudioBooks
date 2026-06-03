@@ -9,7 +9,7 @@ import SwiftUI
 
 @main
 struct EchoCoreApp: App {
-    @State private var model = PlayerModel()
+    @State private var model: PlayerModel
     @State private var settings = SettingsManager()
     @State private var storeManager = StoreManager()
     @State private var pendingDeepLink: PlayerDeepLink?
@@ -29,18 +29,26 @@ struct EchoCoreApp: App {
         #if DEBUG && targetEnvironment(simulator)
         MockMediaProvider.seedSampleAudiobookIfNeeded()
         #endif
+        
+        let initialModel = PlayerModel()
+        var initialError: Error? = nil
+        
         do {
             let db = try DatabaseService()
-            model.databaseService = db
+            initialModel.databaseService = db
             #if os(iOS)
             MigrationService.migrateIfNeeded(database: db)
             #endif
         } catch {
-            databaseError = error
+            initialError = error
             // Attempt in-memory fallback so the app remains functional.
             // The error is presented to the user in the view hierarchy.
         }
-        Self.playerModel = model
+        
+        _model = State(wrappedValue: initialModel)
+        _databaseError = State(wrappedValue: initialError)
+        Self.playerModel = initialModel
+        
         ReviewNotificationService.requestAuthorization()
     }
 
@@ -53,8 +61,8 @@ struct EchoCoreApp: App {
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
-                .tint(ThemeColor(rawValue: settings.themeColor)?.color)
-                .accentColor(ThemeColor(rawValue: settings.themeColor)?.color)
+                .tint(resolvedAccentColor)
+                .accentColor(resolvedAccentColor)
                 .alert("Database Error", isPresented: Binding(
                     get: { databaseError != nil },
                     set: { if !$0 { databaseError = nil } }
@@ -75,6 +83,17 @@ struct EchoCoreApp: App {
                     Text(databaseError?.localizedDescription ?? "An unknown database error occurred.")
                 }
         }
+    }
+
+    /// Resolves the active accent colour: uses the artwork-derived colour when
+    /// the theme is set to `.artwork`, otherwise falls back to the static theme colour.
+    /// When both the theme and artwork colour are unavailable, SwiftUI uses the
+    /// system default (blue) automatically via `nil` coalescing in the modifier chain.
+    private var resolvedAccentColor: Color? {
+        if settings.themeColor == ThemeColor.artwork.rawValue {
+            return model.artworkAccentColor
+        }
+        return ThemeColor(rawValue: settings.themeColor)?.color
     }
 
     private func handleDeepLink(_ url: URL) {

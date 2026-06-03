@@ -161,6 +161,29 @@ final class PlayerModel {
     var currentDisplayArtworkVersion: Int { state.currentDisplayArtworkVersion }
     var watchThumbnailData: Data? { state.watchThumbnailData }
 
+    // MARK: - Dynamic accent colour from artwork
+
+    /// Cached dominant colour extracted from the current cover artwork.
+    /// Invalidated automatically when `currentDisplayArtworkVersion` changes.
+    @ObservationIgnored private var cachedArtworkAccent: Color?
+    @ObservationIgnored private var cachedArtworkAccentVersion: Int = -1
+
+    /// Returns the best accent colour derived from the current book's cover,
+    /// or `nil` when no artwork is loaded or no vivid colour could be found.
+    var artworkAccentColor: Color? {
+        guard let image = currentDisplayArtwork else {
+            cachedArtworkAccent = nil
+            cachedArtworkAccentVersion = currentDisplayArtworkVersion
+            return nil
+        }
+        let version = currentDisplayArtworkVersion
+        if version != cachedArtworkAccentVersion {
+            cachedArtworkAccent = DominantColorExtractor.extract(from: image)
+            cachedArtworkAccentVersion = version
+        }
+        return cachedArtworkAccent
+    }
+
     // MARK: - Chapters (pass-through to PlaybackState)
 
     var chapters: [Chapter] {

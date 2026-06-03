@@ -139,7 +139,13 @@ enum HelpContent {
 
             **Automatic alignment:** When you first open an EPUB, the app automatically aligns each chapter to the corresponding audio chapter. Paragraphs are spaced proportionally within each chapter based on their word count — longer paragraphs get wider time ranges for more accurate estimates.
 
-            **Auto-Align Chapters:** Long-press any card and choose "Auto-Align Chapters" to let the app intelligently align your audiobook. It transcribes short audio clips at chapter boundaries using on-device speech recognition (Whisper), then matches the transcribed text against the EPUB to lock paragraphs to exact timestamps. It handles long preambles, chapter-end content, and even detects alignment drift mid-chapter. A live log shows every match attempt so you can see exactly what's happening. Best run when you have a few minutes — it processes each chapter sequentially.
+            **Auto-Align Chapters:** Long-press any card and choose "Auto-Align Chapters" to run the full 3-tier alignment pipeline using on-device speech recognition (WhisperKit + CoreML):
+
+            • Tier 1 — Chapter Snap: The app transcribes short audio clips at each chapter boundary and fuzzy-matches the recognized text against your EPUB to anchor chapter start/end positions.
+            • Tier 2 — Drift Detection: Each chapter's interpolated block positions are compared against the boundaries to flag chapters that have drifted out of alignment.
+            • Tier 3 — Drift Repair: For misaligned chapters, TokenDTW (Dynamic Time Warping) aligns transcribed audio tokens against EPUB tokens at word-level precision and inserts correction anchors at the best-matching positions.
+
+            A live log shows every match attempt so you can see exactly what's happening. Best run when you have a few minutes — it processes each chapter sequentially.
 
             **Manual alignment:** Long-press any paragraph card and choose "Align to Now" to lock that paragraph to the current playback position. This makes the alignment exact. The more paragraphs you lock, the more precise the alignment becomes. You can also use "Align to Chapter Start/End" on heading cards to match them to specific chapter boundaries. Locked-anchor cards show a green badge with the anchored timestamp.
 
@@ -158,6 +164,8 @@ enum HelpContent {
             **Bookmarks from text:** Long-press a paragraph and choose "Save Bookmark" to create a timestamped bookmark linked to that text. The bookmark's note is pre-filled with the first 200 characters of the paragraph.
 
             **Copy text:** Long-press and choose "Copy Text" to copy the paragraph to your clipboard.
+
+            **Inline formatting & markers:** The reader preserves bold, italic, and underline formatting from the EPUB. Images, hyperlinks, blockquotes, and horizontal rules are detected and displayed in the reading feed.
 
             **Reader settings:** Tap the font size icon in the header to adjust font size, line spacing, and the default card background tint.
             """

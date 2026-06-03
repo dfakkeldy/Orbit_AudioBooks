@@ -3,7 +3,7 @@
 <!-- ⚠️  AUTO-GENERATED — do not edit directly. -->
 <!-- Regenerate with: `make architecture`                        -->
 
-**Last generated:** 2026-06-02 (added TokenDTW aligner, removed Tier 0 silence mapping, Swift concurrency modernization, watch timer fixes)
+**Last generated:** 2026-06-02 (added TokenDTW aligner, removed Tier 0 silence mapping, Swift concurrency modernization, watch timer fixes, Schema V9 marker/format columns)
 
 This document maps the source-tree layout of the Xcode targets and Shared/
 module in the Echo: Audiobook Study Player project. Folders are shown in the order
@@ -322,6 +322,7 @@ The Reader tab renders EPUB content as a feed of styled cards aligned to the aud
 | V6 | Minor schema refinements |
 | V7 | `html_content` (TEXT) and `card_color` (TEXT) columns on `epub_block` — preserves inner HTML for rich text rendering and per-card tint overrides |
 | V8 | `word_count` (INTEGER) column on `epub_block` — enables proportional interpolation weighted by paragraph word length instead of raw sequence index |
+| V9 | `markers` (TEXT) and `text_formats` (TEXT) columns on `epub_block` — stores JSON-encoded `[SyncMarker]` and `[TextFormat]` arrays extracted during unified EPUB parsing for richer reader display |
 
 Key indexes: `idx_epub_block_sequence` (audiobook_id, sequence_index), `idx_epub_block_chapter` (audiobook_id, chapter_index), `idx_epub_block_hidden` (audiobook_id, is_hidden), `idx_alignment_anchor_time` (audiobook_id, audio_time), `idx_alignment_anchor_block` (audiobook_id, epub_block_id).
 

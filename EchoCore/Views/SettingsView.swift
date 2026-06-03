@@ -498,41 +498,73 @@ private struct ProTranscriptsSettingsView: View {
 
 private struct ThemeSelectionView: View {
     @Environment(SettingsManager.self) private var settings
-    
+    @Environment(PlayerModel.self) private var playerModel
+
     var body: some View {
         Form {
-            ForEach(ThemeColor.allCases) { theme in
-                Button {
-                    settings.themeColor = theme.rawValue
-                } label: {
-                    HStack {
-                        if theme != .system {
-                            Image(systemName: "circle.fill")
-                                .foregroundStyle(theme.color ?? Color.accentColor)
-                        } else {
-                            Image(systemName: "circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        Text(theme.rawValue)
-                            .foregroundStyle(.primary)
-                        
-                        Spacer()
-                        
-                        if settings.themeColor == theme.rawValue {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(Color.accentColor)
+            Section {
+                ForEach(ThemeColor.allCases) { theme in
+                    Button {
+                        settings.themeColor = theme.rawValue
+                    } label: {
+                        HStack {
+                            if theme == .artwork {
+                                artworkPreviewCircle
+                            } else if theme != .system {
+                                Image(systemName: "circle.fill")
+                                    .foregroundStyle(theme.color ?? Color.accentColor)
+                            } else {
+                                Image(systemName: "circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(theme.rawValue)
+                                    .foregroundStyle(.primary)
+                                if theme == .artwork {
+                                    Text("Matches your current book's cover")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            if settings.themeColor == theme.rawValue {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
                         }
                     }
+                }
+            } footer: {
+                if settings.themeColor == ThemeColor.artwork.rawValue,
+                   playerModel.artworkAccentColor == nil,
+                   playerModel.currentDisplayArtwork == nil {
+                    Text("Load an audiobook to see the extracted accent colour.")
                 }
             }
         }
         .navigationTitle("Accent Color")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    /// Renders the Artwork option's colour indicator — either the live extracted
+    /// colour from the current cover or a fallback placeholder.
+    @ViewBuilder
+    private var artworkPreviewCircle: some View {
+        if let dynamicColor = playerModel.artworkAccentColor {
+            Image(systemName: "circle.fill")
+                .foregroundStyle(dynamicColor)
+        } else {
+            Image(systemName: "circle.dashed")
+                .foregroundStyle(.secondary)
+        }
+    }
 }
 
 enum ThemeColor: String, CaseIterable, Identifiable {
+    case artwork = "Artwork"
     case system = "System"
     case blue = "Blue"
     case purple = "Purple"
@@ -545,11 +577,14 @@ enum ThemeColor: String, CaseIterable, Identifiable {
     case teal = "Teal"
     case cyan = "Cyan"
     case indigo = "Indigo"
-    
+
     var id: String { self.rawValue }
-    
+
+    /// Returns the static colour for this theme, or `nil` for `.system`
+    /// (use OS default) and `.artwork` (use dynamic colour from cover).
     var color: Color? {
         switch self {
+        case .artwork: return nil
         case .system: return nil
         case .blue: return .blue
         case .purple: return .purple

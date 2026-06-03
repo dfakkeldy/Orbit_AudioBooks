@@ -2,7 +2,9 @@ Welcome to the Echo beta! This build is all about turning your DRM-free audioboo
 
 WHAT'S NEW
 
-• WhisperKit Auto-Alignment — On-device speech recognition automatically aligns your ePub to your audiobook. No cloud, no privacy concerns. Includes silence gap detection, chapter snapping, drift detection, and continuous alignment.
+• TokenDTW Auto-Alignment — The 3-tier alignment pipeline now uses TokenDTW (Dynamic Time Warping) for word-level drift repair, replacing the earlier silence-mapping approach. Tier 1 snaps chapter boundaries, Tier 2 detects drift, and Tier 3 inserts precision correction anchors via token-level DTW alignment.
+
+• EPUB Marker & Format Extraction — The unified EPUB parser now extracts inline markers (images, hyperlinks, blockquotes, horizontal rules) and text formats (bold, italic, underline) alongside paragraph text. Markers and formats are stored in the database for richer reader display.
 
 • Alternate App Icons — Choose from multiple icon designs in Settings, including the new ComplexWaves icon.
 
@@ -14,7 +16,8 @@ WHAT'S NEW
 
 WHAT TO TEST
 
-• Auto-Alignment: Add an ePub alongside an audiobook and tap "Auto-Align Chapters" — does it map chapters correctly?
+• Auto-Alignment: Add an ePub alongside an audiobook and tap "Auto-Align Chapters" — does the 3-tier pipeline (snap → drift detection → repair) map chapters correctly?
+• EPUB Reader: Check that paragraph formatting (bold, italic) and markers (images, links) render correctly in the reader feed.
 • Alternate Icons: Try all available icons from Settings.
 • Apple Watch: Test the customizable button layout and Digital Crown scrubbing.
 • Bookmarks & Flashcards: Create voice memo bookmarks and SRS flashcards during playback.

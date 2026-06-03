@@ -8,12 +8,12 @@ Fastlane `deliver` will automatically upload them to App Store Connect.
 Use numbered prefixes to control sort order, a descriptive slug, and the device type:
 
 ```
-1_Player_iPhone.png
-2_Library_iPhone.png
-3_Search_iPhone.png
-1_Player_Mac.png
-2_Library_Mac.png
-1_NowPlaying_Watch.png
+1_NowPlaying_iPhone.png
+2_Reader_iPhone.png
+3_Playlist_iPhone.png
+1_NowPlaying_Mac.png
+2_Reader_Mac.png
+1_Player_Watch.png
 ```
 
 ## Required Sizes

@@ -10,7 +10,7 @@ final class SettingsManager: SettingsManagerProtocol {
     enum Defaults {
         static let isDarkMode = true
         static let appFont = "Lexend"
-        static let themeColor = "System"
+        static let themeColor = "Artwork"
         static let isRewindEnabled = false
         static let rewindPauseSecondsThreshold = 30
         static let rewindAmountAfterSeconds = 10

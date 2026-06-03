@@ -7,6 +7,11 @@ set -euo pipefail
 # Scans the project's Xcode targets and Shared/ module and writes a directory
 # tree into ARCHITECTURE.md. Build artifacts, asset catalogs, and media files
 # are excluded so the output focuses on source code and configuration.
+#
+# NOTE: This script writes the auto-generated source-tree skeleton only.
+# The detailed architecture notes below the tree are maintained by hand.
+# Running `make architecture` will overwrite the tree sections but preserve
+# any hand-written content below the `<!-- MANUAL BELOW -->` marker.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -60,7 +65,7 @@ printf "**Last generated:** %s\n\n" "$TIMESTAMP" >> "$OUTPUT"
 
 cat >> "$OUTPUT" << 'INTRO'
 This document maps the source-tree layout of the Xcode targets and Shared/
-module in the Orbit Audiobooks project. Folders are shown in the order
+module in the Echo: Audiobook Study Player project. Folders are shown in the order
 returned by the filesystem; only source, configuration, and metadata files
 are included (build artifacts, asset catalogs, and media files are filtered
 out).
@@ -99,10 +104,10 @@ generate_tree() {
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
-generate_tree "OrbitAudioBooks (iOS)"       "$REPO_ROOT/OrbitAudioBooks"
-generate_tree "Orbit Audiobooks macOS"       "$REPO_ROOT/Orbit Audiobooks macOS"
-generate_tree "Orbit Audiobooks Watch App"   "$REPO_ROOT/Orbit Audiobooks Watch App"
-generate_tree "Shared (cross-target)"        "$REPO_ROOT/Shared"
-generate_tree "Widget Extension"             "$REPO_ROOT/Orbit Audiobooks Widget"
+generate_tree "EchoCore (iOS)"                        "$REPO_ROOT/EchoCore"
+generate_tree "Echo: Audiobook Study Player macOS"    "$REPO_ROOT/Echo: Audiobook Study Player macOS"
+generate_tree "Echo: Audiobook Study Player Watch App" "$REPO_ROOT/Echo: Audiobook Study Player Watch App"
+generate_tree "Shared (cross-target)"                  "$REPO_ROOT/Shared"
+generate_tree "Widget Extension"                       "$REPO_ROOT/Echo: Audiobook Study Player Widget"
 
 echo "ARCHITECTURE.md generated at $OUTPUT"
