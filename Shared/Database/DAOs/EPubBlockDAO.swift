@@ -183,4 +183,23 @@ struct EPubBlockDAO {
             )
         }
     }
+
+    /// Update the chapter theme color for all blocks in a given chapter.
+    func setChapterThemeColor(_ color: String?, chapterIndex: Int, audiobookID: String) throws {
+        try db.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE epub_block
+                    SET chapter_theme_color = :color, modified_at = :now
+                    WHERE chapter_index = :chapterIndex AND audiobook_id = :audiobookID
+                    """,
+                arguments: [
+                    "color": color,
+                    "now": Self.isoFormatter.string(from: Date()),
+                    "chapterIndex": chapterIndex,
+                    "audiobookID": audiobookID
+                ]
+            )
+        }
+    }
 }

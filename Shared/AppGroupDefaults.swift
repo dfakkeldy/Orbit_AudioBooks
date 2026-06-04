@@ -48,3 +48,13 @@ public enum AppGroupDefaults {
         groupedDefaults.set(true, forKey: migrationKey)
     }
 }
+
+extension String {
+    /// Truncates instances of the word "Chapter" to "Ch." if the provided setting is enabled.
+    func applyingChapterTruncation(enabled: Bool) -> String {
+        guard enabled else { return self }
+        return self
+            .replacingOccurrences(of: "Chapter ", with: "Ch. ", options: .caseInsensitive)
+            .replacingOccurrences(of: "Chapter", with: "Ch.", options: .caseInsensitive)
+    }
+}

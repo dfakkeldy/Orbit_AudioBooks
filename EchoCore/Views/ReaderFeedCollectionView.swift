@@ -141,7 +141,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         var autoScrollEnabled: Binding<Bool>
         var topChapterTitle: Binding<String?>
         var topSectionTitle: Binding<String?>
-        var settings: ReaderSettings = ReaderSettings(fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8")
+        var settings: ReaderSettings = ReaderSettings(fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8", appFont: "System")
         var alignmentStatusByBlockID: [String: String] = [:]
         var audioStartTimeByBlockID: [String: TimeInterval] = [:]
         var searchQuery: String? = nil
@@ -187,9 +187,9 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     guard let headingCell = collectionView.dequeueReusableCell(
                         withReuseIdentifier: HeadingCardCell.reuseIdentifier, for: indexPath
                     ) as? HeadingCardCell else { return UICollectionViewCell() }
-                    let font = UIFont(name: "Lexend-SemiBold", size: settings.fontSize + 3) ?? UIFont.preferredFont(forTextStyle: .title3)
-                    let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
-                    headingCell.configure(with: block.text ?? "", font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
+                    let font = settings.uiFont(forTextStyle: .title3, weight: .semibold)
+                    let cardTint = UIColor(hex: block.cardColor ?? block.chapterThemeColor ?? settings.cardTintHex) ?? UIColor.systemBackground
+                    headingCell.configure(with: block.text ?? "", font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil || block.chapterThemeColor != nil, searchQuery: searchQuery)
                     headingCell.isActiveBlock = (block.id == activeBlockID)
                     let timeString = audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "None"
                     let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"
@@ -200,7 +200,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     guard let imageCell = collectionView.dequeueReusableCell(
                         withReuseIdentifier: ImageCardCell.reuseIdentifier, for: indexPath
                     ) as? ImageCardCell else { return UICollectionViewCell() }
-                    let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
+                    let cardTint = UIColor(hex: block.cardColor ?? block.chapterThemeColor ?? settings.cardTintHex) ?? UIColor.systemBackground
                     imageCell.configure(with: block, tint: cardTint)
                     return imageCell
 
@@ -208,9 +208,9 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     guard let paraCell = collectionView.dequeueReusableCell(
                         withReuseIdentifier: ParagraphCardCell.reuseIdentifier, for: indexPath
                     ) as? ParagraphCardCell else { return UICollectionViewCell() }
-                    let font = UIFont(name: "Lexend-Regular", size: settings.fontSize) ?? UIFont.preferredFont(forTextStyle: .body)
-                    let cardTint = UIColor(hex: block.cardColor ?? settings.cardTintHex) ?? UIColor.systemBackground
-                    paraCell.configure(with: block, font: font, tint: cardTint, lineSpacing: settings.lineSpacing, isExplicitHighlight: block.cardColor != nil, searchQuery: searchQuery)
+                    let font = settings.uiFont(forTextStyle: .body, weight: .regular)
+                    let cardTint = UIColor(hex: block.cardColor ?? block.chapterThemeColor ?? settings.cardTintHex) ?? UIColor.systemBackground
+                    paraCell.configure(with: block, font: font, tint: cardTint, lineSpacing: settings.lineSpacing, isExplicitHighlight: block.cardColor != nil || block.chapterThemeColor != nil, searchQuery: searchQuery)
                     paraCell.isActiveBlock = (block.id == activeBlockID)
                     let timeString = audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "None"
                     let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"

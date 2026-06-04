@@ -10,3 +10,13 @@ enum Schema_V9 {
         }
     }
 }
+
+/// V10 migration — adds chapter_theme_color to epub_block
+/// for storing chapter-level themes set by the user on headings.
+enum Schema_V10 {
+    static func migrate(_ db: Database) throws {
+        try db.alter(table: "epub_block") { t in
+            t.add(column: "chapter_theme_color", .text)
+        }
+    }
+}

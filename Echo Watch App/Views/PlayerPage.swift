@@ -66,12 +66,11 @@ struct PlayerPage: View {
             classicArtwork
 
             if viewModel.watchTitleScrollEnabled {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Text(viewModel.title)
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                }
+                MarqueeText(
+                    text: viewModel.title,
+                    font: .system(.caption, design: .rounded),
+                    fontWeight: .medium
+                )
                 .padding(.horizontal)
             } else {
                 Text(viewModel.title)
@@ -122,13 +121,12 @@ struct PlayerPage: View {
     private var titleView: some View {
         Group {
             if viewModel.watchTitleScrollEnabled {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Text(viewModel.title)
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
+                MarqueeText(
+                    text: viewModel.title,
+                    font: .system(.caption, design: .rounded),
+                    fontWeight: .semibold,
+                    foregroundStyle: Color.white
+                )
                 .padding(.horizontal, 10)
                 .padding(.vertical, layout == .classic ? 4 : 6)
                 .frame(maxWidth: .infinity)
@@ -849,5 +847,63 @@ struct NewBookmarkView: View {
     private func showAlert(_ message: String) {
         alertMessage = message
         isShowingAlert = true
+    }
+}
+
+struct MarqueeText: View {
+    let text: String
+    var font: Font = .body
+    var fontWeight: Font.Weight = .regular
+    var foregroundStyle: Color? = nil
+
+    @State private var textWidth: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { proxy in
+            let containerWidth = proxy.size.width
+
+            if textWidth > containerWidth {
+                TimelineView(.animation) { timeline in
+                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    let distance = textWidth + 40
+                    let offset = CGFloat(time * 30.0).truncatingRemainder(dividingBy: distance)
+
+                    HStack(spacing: 40) {
+                        textView
+                        textView
+                    }
+                    .fixedSize()
+                    .offset(x: -offset)
+                }
+            } else {
+                textView
+                    .frame(width: containerWidth, alignment: .center)
+            }
+        }
+        .background(
+            textView
+                .fixedSize()
+                .background(GeometryReader { geo in
+                    Color.clear.onAppear { textWidth = geo.size.width }
+                        .onChange(of: text) { _, _ in textWidth = geo.size.width }
+                })
+                .hidden()
+        )
+    }
+
+    @ViewBuilder
+    private var textView: some View {
+        if let color = foregroundStyle {
+            Text(text)
+                .font(font)
+                .fontWeight(fontWeight)
+                .foregroundStyle(color)
+                .lineLimit(1)
+        } else {
+            Text(text)
+                .font(font)
+                .fontWeight(fontWeight)
+                .lineLimit(1)
+        }
     }
 }

@@ -6,6 +6,7 @@ struct RootTabView: View {
     @Environment(SettingsManager.self) private var settings
     @Environment(StoreManager.self) private var storeManager
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var showingFolderPicker = false
     @State private var showingSettings = false
@@ -158,10 +159,23 @@ struct RootTabView: View {
             .onChange(of: pendingDeepLink) { _, _ in
                 applyPendingDeepLinkIfNeeded()
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .background || newPhase == .inactive {
+                    model.persistCurrentState()
+                }
+            }
             .task {
                 await storeManager.requestProducts()
             }
-            .preferredColorScheme(settings.isDarkMode ? .dark : .light)
+            .preferredColorScheme(colorScheme(for: settings.appAppearance))
+        }
+    }
+
+    private func colorScheme(for appearance: String) -> ColorScheme? {
+        switch appearance {
+        case "Light": return .light
+        case "Dark": return .dark
+        default: return nil
         }
     }
 

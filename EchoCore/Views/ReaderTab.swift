@@ -13,8 +13,8 @@ struct ReaderTab: View {
     @State private var showSettings = false
     @State private var showTOC = false
     @State var showChapterPickerForBlockID: String? = nil
-    @State var showEndChapterPickerForBlockID: String? = nil
     @State var showCardColorPickerForBlockID: String? = nil
+    @State var showChapterThemePickerForBlockID: String? = nil
     @State private var isHeaderVisible = true
     @State private var autoScrollEnabled = true
     @State private var topChapterTitle: String? = nil
@@ -34,7 +34,7 @@ struct ReaderTab: View {
     let logger = Logger(category: "ReaderTab")
 
     @State private var readerSettings = ReaderSettings(
-        fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8"
+        fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8", appFont: "System"
     )
 
     var body: some View {
@@ -138,8 +138,26 @@ struct ReaderTab: View {
             }
         }
         .onAppear {
+            let overrides = BookPreferencesService.loadOverrides(for: folderURL.absoluteString)
+            readerSettings = ReaderSettings.resolved(
+                fontSizeOverride: nil,
+                lineSpacingOverride: nil,
+                cardTintOverride: nil,
+                appFontOverride: overrides.font,
+                globalFontSize: settingsManager.readerFontSize,
+                globalLineSpacing: settingsManager.readerLineSpacing,
+                globalCardTint: settingsManager.readerCardTint,
+                globalAppFont: settingsManager.appFont
+            )
             loadViewModel()
         }
+        .onChange(of: settingsManager.appFont) { _, newFont in
+            let overrides = BookPreferencesService.loadOverrides(for: folderURL.absoluteString)
+            readerSettings.appFont = BookPreferencesService.resolveAppFont(override: overrides.font, globalFont: newFont)
+        }
+        .onChange(of: readerSettings.fontSize) { _, newSize in settingsManager.readerFontSize = newSize }
+        .onChange(of: readerSettings.lineSpacing) { _, newLineSpacing in settingsManager.readerLineSpacing = newLineSpacing }
+        .onChange(of: readerSettings.cardTintHex) { _, newHex in settingsManager.readerCardTint = newHex }
         .onChange(of: searchText) { _, newValue in
             viewModel?.searchQuery = newValue.isEmpty ? nil : newValue
         }
@@ -173,16 +191,7 @@ struct ReaderTab: View {
                 }
             )
         }
-        .sheet(item: endChapterPickerBinding) { ident in
-            let blockID = ident.id
-            ChapterPickerSheet(
-                chapters: model.alignmentPickerChapters,
-                onSelect: { selectedChapter in
-                    alignChapterEnd(blockID, chapterIndex: nil, to: selectedChapter.endSeconds)
-                    showEndChapterPickerForBlockID = nil
-                }
-            )
-        }
+
         .sheet(item: cardColorPickerBinding) { ident in
             let blockID = ident.id
             CardColorPickerSheet(blockID: blockID) { blockID, colorHex in
@@ -196,6 +205,23 @@ struct ReaderTab: View {
                     }
                 }
                 showCardColorPickerForBlockID = nil
+            }
+        }
+        .sheet(item: chapterThemePickerBinding) { ident in
+            let blockID = ident.id
+            CardColorPickerSheet(blockID: blockID) { blockID, colorHex in
+                if let db = model.databaseService, let audiobookID = folderURL.absoluteString as String? {
+                    let blockDAO = EPubBlockDAO(db: db.writer)
+                    do {
+                        if let chapterIndex = (try blockDAO.blocks(for: audiobookID).first { $0.id == blockID })?.chapterIndex {
+                            try blockDAO.setChapterThemeColor(colorHex, chapterIndex: chapterIndex, audiobookID: audiobookID)
+                            viewModel?.reload()
+                        }
+                    } catch {
+                        // Best-effort
+                    }
+                }
+                showChapterThemePickerForBlockID = nil
             }
         }
         .sheet(isPresented: $showAutoAlignmentProgress) {
@@ -225,17 +251,18 @@ struct ReaderTab: View {
         )
     }
 
-    private var endChapterPickerBinding: Binding<IdentifiableBlockID?> {
-        Binding<IdentifiableBlockID?>(
-            get: { showEndChapterPickerForBlockID.map(IdentifiableBlockID.init) },
-            set: { showEndChapterPickerForBlockID = $0?.id }
-        )
-    }
 
     private var cardColorPickerBinding: Binding<IdentifiableBlockID?> {
         Binding<IdentifiableBlockID?>(
             get: { showCardColorPickerForBlockID.map(IdentifiableBlockID.init) },
             set: { showCardColorPickerForBlockID = $0?.id }
+        )
+    }
+
+    private var chapterThemePickerBinding: Binding<IdentifiableBlockID?> {
+        Binding<IdentifiableBlockID?>(
+            get: { showChapterThemePickerForBlockID.map(IdentifiableBlockID.init) },
+            set: { showChapterThemePickerForBlockID = $0?.id }
         )
     }
 

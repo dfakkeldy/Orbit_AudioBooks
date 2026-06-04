@@ -23,9 +23,6 @@ final class PlaylistManager {
     // MARK: - Track Loading
 
     func loadTracks(from folder: URL) -> [Track] {
-        let didStart = folder.startAccessingSecurityScopedResource()
-        defer { if didStart { folder.stopAccessingSecurityScopedResource() } }
-
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.isRegularFileKey, .nameKey]
 

@@ -146,7 +146,9 @@ final class PlayerModel {
 
     var isPlaying: Bool { state.isPlaying }
     var currentTitle: String { state.currentTitle }
-    var currentSubtitle: String { state.currentSubtitle }
+    var currentSubtitle: String {
+        state.currentSubtitle.applyingChapterTruncation(enabled: settingsManager?.truncateChapterNamesEnabled ?? false)
+    }
     var isManualSeeking: Bool { state.isManualSeeking }
 
     // MARK: - Progress (pass-through to PlaybackState)
@@ -602,6 +604,9 @@ final class PlayerModel {
         playbackController.coordinator_persistAndSync = { [weak self] isPaused in
             self?.updateNowPlayingInfo(isPaused: isPaused)
             self?.syncToWatch()
+            if let folder = self?.folderURL?.absoluteString {
+                self?.persistence.savePauseTimestamp(self?.state.pauseTimestamp, for: folder)
+            }
         }
         playbackController.coordinator_checkVoiceMemo = { [weak self] at, prev in
             self?.checkVoiceMemoTrigger(at: at, previousSeconds: prev)
@@ -682,6 +687,17 @@ final class PlayerModel {
     /// Delegates to `WatchSyncManager.syncToWatch()`.
     func syncToWatch() {
         watchSyncManager.syncToWatch()
+    }
+
+    /// Persists the current playback progress and pause timestamp.
+    /// Called when the app enters the background to prevent data loss.
+    func persistCurrentState() {
+        if audioEngine.isItemLoaded,
+           let folder = state.folderURL?.absoluteString,
+           state.tracks.indices.contains(state.currentIndex) {
+            persistence.saveBookProgress(for: folder, trackId: state.tracks[state.currentIndex].id, time: audioEngine.currentTime, folderURL: state.folderURL)
+            persistence.savePauseTimestamp(state.pauseTimestamp, for: folder)
+        }
     }
 
     deinit {

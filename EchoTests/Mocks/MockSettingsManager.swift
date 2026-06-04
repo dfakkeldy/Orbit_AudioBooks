@@ -3,7 +3,7 @@ import Foundation
 
 /// In-memory SettingsManager for unit testing.
 final class MockSettingsManager: SettingsManagerProtocol {
-    var isDarkMode: Bool = true
+    var appAppearance: String = "System"
     var appFont: String = "Lexend"
     var themeColor: String = "System"
 

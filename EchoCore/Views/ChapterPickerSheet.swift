@@ -5,6 +5,7 @@ struct ChapterPickerSheet: View {
     let chapters: [Chapter]
     let onSelect: (Chapter) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(SettingsManager.self) private var settings
 
     var body: some View {
         NavigationStack {
@@ -15,7 +16,9 @@ struct ChapterPickerSheet: View {
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(chapter.title ?? "Chapter \(chapter.index + 1)")
+                            let defaultTitle = String(localized: "Chapter \(chapter.index + 1)")
+                            let displayTitle = (chapter.title ?? defaultTitle).applyingChapterTruncation(enabled: settings.truncateChapterNamesEnabled)
+                            Text(displayTitle)
                                 .font(.body)
                                 .lineLimit(2)
                             Text(formatTime(chapter.startSeconds))

@@ -102,9 +102,40 @@ final class AutoAlignmentService {
             return
         }
 
+        // ── Tier 0: Metadata Title Matching ──
+        // Compare audiobook chapter titles (from M4B metadata) to EPUB
+        // heading blocks before doing any expensive transcription. A
+        // strong match lets us skip DTW for that chapter entirely.
+        state.phase = .matchingTitles
+        state.update(phase: .matchingTitles, progress: 0.0,
+                     statusMessage: "Matching chapter titles to EPUB headings…")
+        state.log("Tier 0: matching \(chapters.count) chapter titles against EPUB headings…")
+
+        let titleMatches = ChapterTitleMatcher.matchChapterTitles(
+            chapters: chapters, blocks: blocks
+        )
+        let highConfidenceIndices = Set(titleMatches
+            .filter { $0.confidence >= ChapterTitleMatcher.Threshold.highConfidence }
+            .map { $0.chapter.index })
+        let mediumConfidenceIndices = Set(titleMatches
+            .filter { $0.confidence < ChapterTitleMatcher.Threshold.highConfidence }
+            .map { $0.chapter.index })
+
+        if !titleMatches.isEmpty {
+            state.log("Tier 0: \(titleMatches.count) title matches — \(highConfidenceIndices.count) high-confidence, \(mediumConfidenceIndices.count) medium-confidence")
+            let titleAnchors = createTitleMatchAnchors(matches: titleMatches)
+            try alignmentService.insertAnchors(titleAnchors)
+            state.log("Tier 0: inserted \(titleAnchors.count) title-match anchors")
+            state.titleMatchedChapterCount = titleMatches.count
+        } else {
+            state.log("Tier 0: no title matches — falling through to DTW pipeline")
+        }
+
+        guard !Task.isCancelled else { return }
+
         // ── Load model ──
         state.phase = .loadingModel
-        state.update(phase: .loadingModel, progress: 0.0,
+        state.update(phase: .loadingModel, progress: 0.05,
                      statusMessage: "Loading speech recognition model…")
         state.log("Loading WhisperKit model '\(Config.modelSize)'…")
         do {
@@ -118,11 +149,15 @@ final class AutoAlignmentService {
         guard !Task.isCancelled else { return }
 
         // ── VAD Chunking + DTW Alignment ──
-        try await runDTWPipeline(chapters: chapters, blocks: blocks)
+        try await runDTWPipeline(
+            chapters: chapters,
+            blocks: blocks,
+            skipChapterIndices: highConfidenceIndices
+        )
 
         guard !Task.isCancelled else { return }
 
-        state.log("═══ Pipeline complete: \(state.anchoredChapterCount) chapters anchored ═══")
+        state.log("═══ Pipeline complete: \(state.anchoredChapterCount) chapters anchored (\(state.titleMatchedChapterCount) via title match) ═══")
         state.complete()
         scheduleModelUnload()
     }
@@ -170,7 +205,39 @@ final class AutoAlignmentService {
 
 
 
-    private func runDTWPipeline(chapters: [Chapter], blocks: [EPubBlockRecord]) async throws {
+    // MARK: - Tier 0: Title Match Anchors
+
+    /// Converts `ChapterTitleMatcher.Match` results into `AlignmentAnchorRecord`
+    /// values suitable for batch insertion.
+    ///
+    /// Each match produces a `chapterStart` anchor at the chapter's `startSeconds`,
+    /// pointing to the matched EPUB heading block. These anchors serve as
+    /// high-quality bootstrap points for timeline interpolation.
+    private func createTitleMatchAnchors(
+        matches: [ChapterTitleMatcher.Match]
+    ) -> [AlignmentAnchorRecord] {
+        let iso = AlignmentService.isoFormatter
+        return matches.map { match in
+            AlignmentAnchorRecord(
+                id: "auto-tier0-\(UUID().uuidString)",
+                audiobookID: audiobookID,
+                epubBlockID: match.block.id,
+                audioTime: match.chapter.startSeconds,
+                audioEndTime: nil,
+                anchorKind: AlignmentAnchorRecord.AnchorKind.chapterStart.rawValue,
+                source: AlignmentAnchorRecord.Source.imported.rawValue,
+                note: "auto: tier0 title match (conf: \(String(format: "%.2f", match.confidence)))",
+                createdAt: iso.string(from: Date()),
+                modifiedAt: nil
+            )
+        }
+    }
+
+    private func runDTWPipeline(
+        chapters: [Chapter],
+        blocks: [EPubBlockRecord],
+        skipChapterIndices: Set<Int> = []
+    ) async throws {
         let existingAnchors = try anchorDAO.anchors(for: audiobookID)
         let existingIDs = Set(existingAnchors.map { $0.epubBlockID })
         let iso = AlignmentService.isoFormatter
@@ -191,6 +258,14 @@ final class AutoAlignmentService {
             
             state.currentChapterIndex = idx
             let baseProgress = Double(idx) / Double(max(1, chapters.count))
+
+            // Skip chapters that already have a high-confidence Tier 0 title match.
+            if skipChapterIndices.contains(chapter.index) {
+                state.log("═══ Chapter \(idx + 1) — skipped (Tier 0 title match) ═══")
+                chapterAnchoredCount += 1
+                continue
+            }
+
             state.log("═══ Chapter \(idx + 1) DTW Alignment ═══")
             
             guard let chapterBlocks = blocksByChapter[chapter.index], !chapterBlocks.isEmpty else {

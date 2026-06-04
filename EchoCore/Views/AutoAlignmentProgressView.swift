@@ -20,6 +20,7 @@ struct AutoAlignmentProgressView: View {
     @State private var currentChapter = 0
     @State private var totalChapters = 0
     @State private var anchoredChapters = 0
+    @State private var titleMatchedChapters = 0
     @State private var driftedIDs: [Int] = []
     @State private var repairCount = 0
     @State private var errorMessage: String?
@@ -157,6 +158,7 @@ struct AutoAlignmentProgressView: View {
         currentChapter = sharedState.currentChapterIndex
         totalChapters = sharedState.totalChapters
         anchoredChapters = sharedState.anchoredChapterCount
+        titleMatchedChapters = sharedState.titleMatchedChapterCount
         driftedIDs = sharedState.driftedChapterIDs
         repairCount = sharedState.repairAnchorCount
         errorMessage = sharedState.errorMessage
@@ -168,6 +170,7 @@ struct AutoAlignmentProgressView: View {
     private var phaseIcon: String {
         switch phase {
         case .idle, .loadingModel: return "arrow.down.circle"
+        case .matchingTitles: return "text.badge.checkmark"
         case .mappingSilences: return "waveform"
         case .transcribingAudio: return "text.bubble"
         case .computingAlignment: return "link"
@@ -187,6 +190,9 @@ struct AutoAlignmentProgressView: View {
     private var detailView: some View {
         if phase == .completed {
             VStack(alignment: .leading, spacing: 4) {
+                if titleMatchedChapters > 0 {
+                    Text("• \(titleMatchedChapters) via title match (Tier 0)")
+                }
                 if anchoredChapters > 0 {
                     Text("• \(anchoredChapters) chapter\(anchoredChapters == 1 ? "" : "s") anchored")
                 }

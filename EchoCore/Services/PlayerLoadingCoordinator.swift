@@ -144,8 +144,6 @@ final class PlayerLoadingCoordinator {
 
     private func ingestMultiM4BChapters(folderURL: URL, state: PlaybackState, timelinePersistence: PlayerTimelinePersistenceService) {
         Task {
-            let didStart = folderURL.startAccessingSecurityScopedResource()
-            defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
             guard let parsed = await M4BParser.parseFolder(folderURL) else { return }
             state.m4bBooks = parsed.books
             state.aggregatedChapters = parsed.aggregatedChapters
@@ -164,8 +162,6 @@ final class PlayerLoadingCoordinator {
 
     private func ingestMultiTrackChapters(folderURL: URL, tracks: [Track], state: PlaybackState, timelinePersistence: PlayerTimelinePersistenceService) {
         Task {
-            let didStart = folderURL.startAccessingSecurityScopedResource()
-            defer { if didStart { folderURL.stopAccessingSecurityScopedResource() } }
             var allChapters: [Chapter] = []
             for track in tracks {
                 let asset = AVURLAsset(url: track.url)
@@ -190,10 +186,14 @@ final class PlayerLoadingCoordinator {
 
     /// Restores the last-played track index, or defaults to 0.
     private func restoreTrackPosition(folderURL: URL, state: PlaybackState, persistence: Persistence, autoplay: Bool) {
-        if let folderKey = state.folderURL?.absoluteString,
-           let savedTrackId = persistence.getLastTrack(for: folderKey),
-           let idx = state.tracks.firstIndex(where: { $0.id == savedTrackId }) {
-            state.currentIndex = idx
+        if let folderKey = state.folderURL?.absoluteString {
+            state.pauseTimestamp = persistence.getPauseTimestamp(for: folderKey)
+            if let savedTrackId = persistence.getLastTrack(for: folderKey),
+               let idx = state.tracks.firstIndex(where: { $0.id == savedTrackId }) {
+                state.currentIndex = idx
+            } else {
+                state.currentIndex = 0
+            }
         } else {
             state.currentIndex = 0
         }

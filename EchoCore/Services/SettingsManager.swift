@@ -8,7 +8,7 @@ final class SettingsManager: SettingsManagerProtocol {
     nonisolated private static let legacySystemFontName = "Helvetica"
 
     enum Defaults {
-        static let isDarkMode = true
+        static let appAppearance = "System"
         static let appFont = "Lexend"
         static let themeColor = "Artwork"
         static let isRewindEnabled = false
@@ -39,6 +39,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let watchTitleScrollEnabled = false
         static let isHapticFeedbackEnabled = true
         static let watchQuickBookmarkTimeoutSeconds = 5
+        static let truncateChapterNamesEnabled = false
         static let silenceDetectionLookbackSeconds = 10.0
         static let phonePage: [WatchAction] = [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack]
         static let phoneLongPressPage: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
@@ -58,7 +59,7 @@ final class SettingsManager: SettingsManagerProtocol {
     }
 
     private enum Keys {
-        static let isDarkMode = "isDarkMode"
+        static let appAppearance = "appAppearance"
         static let appFont = "appFont"
         static let themeColor = "themeColor"
         static let isRewindEnabled = "isRewindEnabled"
@@ -89,6 +90,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let isHapticFeedbackEnabled = "isHapticFeedbackEnabled"
         static let volumeBoostGain = "volumeBoostGain"
         static let watchQuickBookmarkTimeoutSeconds = "watchQuickBookmarkTimeoutSeconds"
+        static let truncateChapterNamesEnabled = "truncateChapterNamesEnabled"
         static let silenceDetectionLookbackSeconds = "silenceDetectionLookbackSeconds"
         static let phonePage = "phonePage"
         static let phoneLongPressPage = "phoneLongPressPage"
@@ -121,7 +123,7 @@ final class SettingsManager: SettingsManagerProtocol {
 
     // MARK: - Appearance
 
-    var isDarkMode: Bool { didSet { defaults.set(isDarkMode, forKey: Keys.isDarkMode) } }
+    var appAppearance: String { didSet { defaults.set(appAppearance, forKey: Keys.appAppearance) } }
     var appFont: String { didSet { defaults.set(appFont, forKey: Keys.appFont) } }
     var themeColor: String { didSet { defaults.set(themeColor, forKey: Keys.themeColor) } }
     var playerLayoutStyle: String { didSet { defaults.set(playerLayoutStyle, forKey: Keys.playerLayoutStyle) } }
@@ -172,6 +174,7 @@ final class SettingsManager: SettingsManagerProtocol {
     var watchBackgroundStyle: String { didSet { appGroupSet(watchBackgroundStyle, forKey: Keys.watchBackgroundStyle) } }
     var watchTitleScrollEnabled: Bool { didSet { appGroupSet(watchTitleScrollEnabled, forKey: Keys.watchTitleScrollEnabled) } }
     var isHapticFeedbackEnabled: Bool { didSet { appGroupSet(isHapticFeedbackEnabled, forKey: Keys.isHapticFeedbackEnabled) } }
+    var truncateChapterNamesEnabled: Bool { didSet { appGroupSet(truncateChapterNamesEnabled, forKey: Keys.truncateChapterNamesEnabled) } }
     var volumeBoostGain: Float { didSet { defaults.set(volumeBoostGain, forKey: Keys.volumeBoostGain) } }
 
     // MARK: - Reader
@@ -247,6 +250,7 @@ final class SettingsManager: SettingsManagerProtocol {
                 (Keys.watchBackgroundStyle, { defaults.object(forKey: Keys.watchBackgroundStyle) }),
                 (Keys.watchTitleScrollEnabled, { defaults.object(forKey: Keys.watchTitleScrollEnabled) }),
                 (Keys.isHapticFeedbackEnabled, { defaults.object(forKey: Keys.isHapticFeedbackEnabled) }),
+                (Keys.truncateChapterNamesEnabled, { defaults.object(forKey: Keys.truncateChapterNamesEnabled) }),
                 (Keys.watchQuickBookmarkTimeoutSeconds, { defaults.object(forKey: Keys.watchQuickBookmarkTimeoutSeconds) }),
             ]
             for (key, read) in watchKeys {
@@ -257,7 +261,20 @@ final class SettingsManager: SettingsManagerProtocol {
             appGroupDefaults.set(true, forKey: "didMigrateWatchSettingsToAppGroup_v2")
         }
 
-        isDarkMode = defaults.bool(forKey: Keys.isDarkMode)
+        if defaults.object(forKey: "isDarkMode") != nil {
+            let dark = defaults.bool(forKey: "isDarkMode")
+            if defaults.object(forKey: Keys.appAppearance) == nil {
+                let migrated = dark ? "Dark" : "Light"
+                appAppearance = migrated
+                defaults.set(migrated, forKey: Keys.appAppearance)
+            } else {
+                appAppearance = defaults.string(forKey: Keys.appAppearance) ?? Defaults.appAppearance
+            }
+            defaults.removeObject(forKey: "isDarkMode")
+        } else {
+            appAppearance = defaults.string(forKey: Keys.appAppearance) ?? Defaults.appAppearance
+        }
+        
         let storedAppFont = defaults.string(forKey: Keys.appFont) ?? Defaults.appFont
         let normalizedAppFont = Self.normalizedAppFont(storedAppFont)
         appFont = normalizedAppFont
@@ -293,6 +310,7 @@ final class SettingsManager: SettingsManagerProtocol {
         watchBackgroundStyle = appGroupDefaults.string(forKey: Keys.watchBackgroundStyle) ?? Defaults.watchBackgroundStyle
         watchTitleScrollEnabled = appGroupDefaults.bool(forKey: Keys.watchTitleScrollEnabled)
         isHapticFeedbackEnabled = appGroupDefaults.bool(forKey: Keys.isHapticFeedbackEnabled)
+        truncateChapterNamesEnabled = appGroupDefaults.bool(forKey: Keys.truncateChapterNamesEnabled)
         volumeBoostGain = defaults.object(forKey: Keys.volumeBoostGain) as? Float ?? Defaults.volumeBoostGain
         watchQuickBookmarkTimeoutSeconds = max(
             1,
@@ -340,7 +358,7 @@ final class SettingsManager: SettingsManagerProtocol {
         }()
     ) {
         defaults.register(defaults: [
-            Keys.isDarkMode: Defaults.isDarkMode,
+            Keys.appAppearance: Defaults.appAppearance,
             Keys.appFont: Defaults.appFont,
             Keys.themeColor: Defaults.themeColor,
             Keys.isRewindEnabled: Defaults.isRewindEnabled,
@@ -386,6 +404,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.watchBackgroundStyle: Defaults.watchBackgroundStyle,
             Keys.watchTitleScrollEnabled: Defaults.watchTitleScrollEnabled,
             Keys.isHapticFeedbackEnabled: Defaults.isHapticFeedbackEnabled,
+            Keys.truncateChapterNamesEnabled: Defaults.truncateChapterNamesEnabled,
             Keys.volumeBoostGain: Defaults.volumeBoostGain,
             Keys.watchQuickBookmarkTimeoutSeconds: Defaults.watchQuickBookmarkTimeoutSeconds
         ])

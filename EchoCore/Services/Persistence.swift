@@ -141,6 +141,28 @@ struct Persistence {
         return nil
     }
 
+    // MARK: - Pause Timestamp
+
+    private let pauseTimestampKey = "EchoAudiobooks.pauseTimestamp.dictionary"
+
+    func savePauseTimestamp(_ timestamp: Date?, for folderKey: String) {
+        var dict = defaults.dictionary(forKey: pauseTimestampKey) as? [String: Double] ?? [:]
+        if let timestamp {
+            dict[folderKey] = timestamp.timeIntervalSince1970
+        } else {
+            dict.removeValue(forKey: folderKey)
+        }
+        defaults.set(dict, forKey: pauseTimestampKey)
+    }
+
+    func getPauseTimestamp(for folderKey: String) -> Date? {
+        let dict = defaults.dictionary(forKey: pauseTimestampKey) as? [String: Double] ?? [:]
+        if let interval = dict[folderKey] {
+            return Date(timeIntervalSince1970: interval)
+        }
+        return nil
+    }
+
     // MARK: - Security-Scoped Bookmark
 
     /// Stores a security-scoped bookmark in the Keychain rather than

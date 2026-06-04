@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor protocol SettingsManagerProtocol: AnyObject {
     // MARK: - Appearance
-    var isDarkMode: Bool { get set }
+    var appAppearance: String { get set }
     var appFont: String { get set }
     var themeColor: String { get set }
 

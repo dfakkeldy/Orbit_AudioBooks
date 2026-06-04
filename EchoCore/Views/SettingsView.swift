@@ -142,11 +142,19 @@ struct SettingsView: View {
                 Text(message)
             }
         }
-        .preferredColorScheme(settings.isDarkMode ? .dark : .light)
+        .preferredColorScheme(colorScheme(for: settings.appAppearance))
         .tint(ThemeColor(rawValue: settings.themeColor)?.color)
     }
 
     // MARK: - Helpers
+
+    private func colorScheme(for appearance: String) -> ColorScheme? {
+        switch appearance {
+        case "Light": return .light
+        case "Dark": return .dark
+        default: return nil
+        }
+    }
 
     private var isShowingAlert: Binding<Bool> {
         Binding(
@@ -176,13 +184,18 @@ struct SettingsView: View {
 
 private struct SettingsAppearanceView: View {
     @Environment(SettingsManager.self) private var settings
+    @Environment(PlayerModel.self) private var model
 
     var body: some View {
         @Bindable var settings = settings
         Form {
             Section {
-                Toggle("Dark Mode", isOn: $settings.isDarkMode)
-                    .tint(ThemeColor(rawValue: settings.themeColor)?.color)
+                Picker("Appearance", selection: $settings.appAppearance) {
+                    Text("System").tag("System")
+                    Text("Light").tag("Light")
+                    Text("Dark").tag("Dark")
+                }
+                .tint(ThemeColor(rawValue: settings.themeColor)?.color)
             }
             #if os(iOS)
             Section("App Icon") {
@@ -226,6 +239,15 @@ private struct SettingsAppearanceView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+            Section("Display Options") {
+                Toggle("Truncate Chapter to Ch.", isOn: Binding(
+                    get: { settings.truncateChapterNamesEnabled },
+                    set: {
+                        settings.truncateChapterNamesEnabled = $0
+                        model.syncToWatch()
+                    }
+                ))
             }
         }
         .navigationTitle("Appearance")

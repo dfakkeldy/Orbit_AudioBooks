@@ -50,6 +50,9 @@ struct PlaylistView: View {
     @State private var showingEPUBImporter: Bool = false
     @State private var hasEPUB = false
     @State private var hasTranscript = false
+    @State private var chapterForEPUBMatch: Chapter? = nil
+    @State private var pendingEPUBMatches: [(audioChapter: Chapter, heading: EPubBlockRecord)] = []
+    @State private var showPendingMatchesAlert = false
 
     private let logger = Logger(category: "PlaylistView")
 
@@ -101,6 +104,26 @@ struct PlaylistView: View {
             }
             .environment(\.editMode, .constant(isEditing ? .active : .inactive))
             .environment(\.font, model.resolvedAppFont == SettingsManager.systemFontName ? .body : .custom(model.resolvedAppFont, size: 17, relativeTo: .body))
+            .sheet(item: $chapterForEPUBMatch) { _ in
+                if let url = model.folderURL {
+                    EPUBHeadingPickerSheet(
+                        folderURL: url,
+                        onSelect: { heading in
+                            handleEPUBMatch(heading)
+                        }
+                    )
+                }
+            }
+            .alert("Match remaining chapters?", isPresented: $showPendingMatchesAlert) {
+                Button("Cancel", role: .cancel) {
+                    pendingEPUBMatches.removeAll()
+                }
+                Button("Match All") {
+                    applyPendingMatches()
+                }
+            } message: {
+                Text("Found \(pendingEPUBMatches.count) more audio chapters that can be automatically matched to EPUB headings. Would you like to match them?")
+            }
         }
     }
 
@@ -336,7 +359,9 @@ struct PlaylistView: View {
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
+                        let defaultTitle = String(localized: "Chapter \(chapter.index + 1)")
+                        let displayTitle = (chapter.title ?? defaultTitle).applyingChapterTruncation(enabled: settings.truncateChapterNamesEnabled)
+                        Text(displayTitle)
                             .foregroundStyle(.primary)
                         Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
                             .customFont(.caption, appFont: model.resolvedAppFont)
@@ -362,6 +387,15 @@ struct PlaylistView: View {
                 Label(chapter.isEnabled ? String(localized: "Disable") : String(localized: "Enable"), systemImage: chapter.isEnabled ? "eye.slash" : "eye")
             }
             .tint(chapter.isEnabled ? .orange : .green)
+        }
+        .contextMenu {
+            if hasEPUB {
+                Button {
+                    chapterForEPUBMatch = chapter
+                } label: {
+                    Label("Match EPUB Chapter", systemImage: "link")
+                }
+            }
         }
     }
 
@@ -525,7 +559,9 @@ struct PlaylistView: View {
     private func editingChapterRow(index: Int, chapter: Chapter) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(chapter.title ?? String(localized: "Chapter \(chapter.index + 1)"))
+                let defaultTitle = String(localized: "Chapter \(chapter.index + 1)")
+                let displayTitle = (chapter.title ?? defaultTitle).applyingChapterTruncation(enabled: settings.truncateChapterNamesEnabled)
+                Text(displayTitle)
                 Text(formatDuration(chapter.endSeconds - chapter.startSeconds))
                     .customFont(.caption, appFont: model.resolvedAppFont)
                     .foregroundStyle(.secondary)
@@ -552,5 +588,65 @@ struct PlaylistView: View {
             }
         .foregroundStyle(track.isEnabled ? .primary : .tertiary)
         .opacity(track.isEnabled ? 1.0 : 0.35)
+    }
+
+    private func handleEPUBMatch(_ heading: EPubBlockRecord) {
+        guard let audioChapter = chapterForEPUBMatch,
+              let db = model.databaseService,
+              let audiobookID = model.folderURL?.absoluteString else { return }
+
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        do {
+            try alignmentService.moveBlockToCurrentTime(blockID: heading.id, time: audioChapter.startSeconds)
+            let haptic = UINotificationFeedbackGenerator()
+            haptic.notificationOccurred(.success)
+        } catch {
+            logger.error("Failed to align chapter: \(error.localizedDescription)")
+        }
+
+        let dao = EPubBlockDAO(db: db.writer)
+        do {
+            let allBlocks = try dao.blocks(for: audiobookID)
+            let allHeadings = allBlocks.filter { $0.blockKind == EPubBlockRecord.Kind.heading.rawValue && !($0.text?.isEmpty ?? true) }
+            
+            let audioChapters = model.alignmentPickerChapters
+            guard let audioIdx = audioChapters.firstIndex(where: { $0.id == audioChapter.id }),
+                  let headingIdx = allHeadings.firstIndex(where: { $0.id == heading.id }) else { return }
+            
+            let remainingAudio = audioChapters.dropFirst(audioIdx + 1)
+            let remainingHeadings = allHeadings.dropFirst(headingIdx + 1)
+            
+            let matchCount = min(remainingAudio.count, remainingHeadings.count)
+            if matchCount > 0 {
+                var pending: [(audioChapter: Chapter, heading: EPubBlockRecord)] = []
+                for i in 0..<matchCount {
+                    let a = remainingAudio[remainingAudio.startIndex + i]
+                    let h = remainingHeadings[remainingHeadings.startIndex + i]
+                    pending.append((a, h))
+                }
+                pendingEPUBMatches = pending
+                showPendingMatchesAlert = true
+            }
+        } catch {
+            logger.error("Failed to check remaining chapters: \(error.localizedDescription)")
+        }
+    }
+
+    private func applyPendingMatches() {
+        guard let db = model.databaseService,
+              let audiobookID = model.folderURL?.absoluteString else { return }
+        
+        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
+        for match in pendingEPUBMatches {
+            do {
+                try alignmentService.moveBlockToCurrentTime(blockID: match.heading.id, time: match.audioChapter.startSeconds)
+            } catch {
+                logger.error("Failed to align pending chapter: \(error.localizedDescription)")
+            }
+        }
+        
+        let haptic = UINotificationFeedbackGenerator()
+        haptic.notificationOccurred(.success)
+        pendingEPUBMatches.removeAll()
     }
 }

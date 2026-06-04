@@ -359,8 +359,10 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 self.defaults.set(isPlaying, forKey: "isPlaying")
             }
             if let title = state["title"] as? String {
-                self.title = title
-                self.defaults.set(title, forKey: "title")
+                let truncateEnabled = self.defaults.bool(forKey: "truncateChapterNamesEnabled")
+                let displayTitle = title.applyingChapterTruncation(enabled: truncateEnabled)
+                self.title = displayTitle
+                self.defaults.set(displayTitle, forKey: "title")
             }
             if let progressFraction = state["progressFraction"] as? Double {
                 let delta = abs(progressFraction - self.progressFraction)

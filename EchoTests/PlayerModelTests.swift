@@ -76,8 +76,8 @@ struct PlayerModelTests {
     func mockSettingsManagerDefaults() {
         let settings = MockSettingsManager()
 
+        #expect(settings.appAppearance == "System")
         #expect(settings.appFont == "Lexend")
-        #expect(settings.isDarkMode == true)
     }
 
     @Test("PlayerModel importEPUB preserves the source EPUB file when imported from the same folder")

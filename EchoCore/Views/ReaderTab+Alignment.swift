@@ -53,18 +53,6 @@ extension ReaderTab {
         }
     }
 
-    func alignChapterEnd(_ blockID: String, chapterIndex: Int?, to time: TimeInterval) {
-        guard let db = model.databaseService else { return }
-        let audiobookID = folderURL.absoluteString
-        let alignmentService = AlignmentService(db: db.writer, audiobookID: audiobookID)
-        do {
-            try alignmentService.anchorChapterEnd(blockID: blockID, chapterIndex: chapterIndex ?? 0, time: time)
-            viewModel?.reload()
-            haptic.impactOccurred()
-        } catch {
-            logger.error("Failed to anchor chapter end (blockID: \(blockID), chapterIndex: \(chapterIndex ?? 0)): \(error.localizedDescription)")
-        }
-    }
 
     func hideBlock(_ blockID: String) {
         guard let db = model.databaseService else { return }
@@ -198,6 +186,17 @@ extension ReaderTab {
             }
             actions.append(changeColorAction)
 
+            if kind == .heading {
+                let themeChapterAction = UIAction(
+                    title: "Set Chapter Theme", image: UIImage(systemName: "paintpalette.fill")
+                ) { _ in
+                    DispatchQueue.main.async {
+                        showChapterThemePickerForBlockID = blockID
+                    }
+                }
+                actions.append(themeChapterAction)
+            }
+
             let alignNowAction = UIAction(
                 title: "Align to Now", image: UIImage(systemName: "location.fill")
             ) { [weak model] _ in
@@ -221,12 +220,7 @@ extension ReaderTab {
             }
             actions.append(alignChapterAction)
 
-            let alignChapterEndAction = UIAction(
-                title: "Align to Chapter End", image: UIImage(systemName: "text.book.closed.fill")
-            ) { _ in
-                showEndChapterPickerForBlockID = blockID
-            }
-            actions.append(alignChapterEndAction)
+
 
             if let chapterIndex = block.chapterIndex {
                 let skipChapterAction = UIAction(

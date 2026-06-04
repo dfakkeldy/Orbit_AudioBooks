@@ -14,6 +14,7 @@ struct EPubBlockRecord: Identifiable, Equatable, Hashable, Sendable, Codable, Fe
     var text: String?
     var htmlContent: String?
     var cardColor: String?
+    var chapterThemeColor: String?
     var imagePath: String?
     var chapterIndex: Int?
     var isHidden: Bool
@@ -37,6 +38,7 @@ struct EPubBlockRecord: Identifiable, Equatable, Hashable, Sendable, Codable, Fe
         case text
         case htmlContent = "html_content"
         case cardColor = "card_color"
+        case chapterThemeColor = "chapter_theme_color"
         case imagePath = "image_path"
         case chapterIndex = "chapter_index"
         case isHidden = "is_hidden"
