@@ -2,7 +2,7 @@ import Foundation
 import CoreGraphics
 
 /// Stores the state of the PDF view for saving into bookmarks and Anki cards.
-struct PDFViewState: Codable, Equatable, Hashable {
+struct PDFViewState: Codable, Equatable, Hashable, Sendable {
     var pageIndex: Int
     var zoomScale: Double
     var offsetX: Double

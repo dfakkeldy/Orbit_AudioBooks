@@ -71,7 +71,8 @@ final class ParagraphCardCell: UICollectionViewCell {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = lineSpacing
 
-        let textColor = isExplicitHighlight ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? UIColor.white : UIColor.label)
+        let hasThemeOrCardColor = block.cardColor != nil || block.chapterThemeColor != nil
+        let textColor = hasThemeOrCardColor ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? UIColor.white : UIColor.label)
         let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .paragraphStyle: paragraphStyle,
@@ -93,7 +94,14 @@ final class ParagraphCardCell: UICollectionViewCell {
         }
 
         label.attributedText = attributed
-        contentView.backgroundColor = isExplicitHighlight ? tint : tint.withAlphaComponent(0.08)
+        
+        if block.cardColor != nil {
+            contentView.backgroundColor = tint
+        } else if block.chapterThemeColor != nil {
+            contentView.backgroundColor = UITraitCollection.current.userInterfaceStyle == .dark ? UIColor.black.withAlphaComponent(0.2) : UIColor.white.withAlphaComponent(0.4)
+        } else {
+            contentView.backgroundColor = tint.withAlphaComponent(0.08)
+        }
     }
     
     func setManuallyAligned(_ isAnchored: Bool, timeString: String?) {

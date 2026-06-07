@@ -2,7 +2,7 @@ import GRDB
 
 /// V1 schema — creates all tables, views, and FTS5 indexes for the unified timeline.
 enum Schema_V1 {
-    static func migrate(_ db: Database) throws {
+    nonisolated static func migrate(_ db: Database) throws {
         // ── Foundation ──
         try db.create(table: "audiobook") { t in
             t.column("id", .text).primaryKey()

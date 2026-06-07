@@ -202,4 +202,22 @@ struct EPubBlockDAO {
             )
         }
     }
+    
+    func setChapterThemeColor(_ color: String?, blockIDs: [String]) throws {
+        guard !blockIDs.isEmpty else { return }
+        try db.write { db in
+            let placeholders = blockIDs.map { _ in "?" }.joined(separator: ",")
+            var arguments: StatementArguments = [color, Self.isoFormatter.string(from: Date())]
+            arguments += StatementArguments(blockIDs)
+            
+            try db.execute(
+                sql: """
+                    UPDATE epub_block
+                    SET chapter_theme_color = ?, modified_at = ?
+                    WHERE id IN (\(placeholders))
+                    """,
+                arguments: arguments
+            )
+        }
+    }
 }

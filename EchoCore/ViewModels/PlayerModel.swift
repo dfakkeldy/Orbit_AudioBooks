@@ -245,11 +245,13 @@ final class PlayerModel {
 
     /// Whether EPUB blocks have been imported for the current audiobook.
     var hasEPUB: Bool {
-        timelinePersistence.hasEPUB(for: folderURL?.absoluteString)
+        _ = state.documentIngestionTrigger // register dependency
+        return timelinePersistence.hasEPUB(for: folderURL?.absoluteString)
     }
 
     /// Whether a PDF file is present in the current audiobook folder.
     var hasPDF: Bool {
+        _ = state.documentIngestionTrigger // register dependency
         guard let url = folderURL else { return false }
         do {
             let files = try FileManager.default.contentsOfDirectory(atPath: url.path)
@@ -261,7 +263,8 @@ final class PlayerModel {
 
     /// Whether transcript or enhanced transcript data is loaded for the current audiobook.
     var hasTranscript: Bool {
-        !transcription.isEmpty || !enhancedTranscription.isEmpty
+        _ = state.documentIngestionTrigger // register dependency
+        return !transcription.isEmpty || !enhancedTranscription.isEmpty
     }
 
     var isTranscriptProcessingEnabled: Bool {

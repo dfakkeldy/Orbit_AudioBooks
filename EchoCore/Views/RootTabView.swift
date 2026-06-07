@@ -71,6 +71,7 @@ struct RootTabView: View {
             .toolbarVisibility(model.selectedTab != .nowPlaying ? .automatic : .hidden, for: .navigationBar)
             .toolbarBackground(model.selectedTab != .nowPlaying ? .automatic : .hidden, for: .navigationBar)
             .toolbarBackgroundVisibility(model.selectedTab != .nowPlaying ? .automatic : .hidden, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {

@@ -93,13 +93,17 @@ struct ManualAlignmentSheet: View {
     
     private func startScrubbing() {
         joystickTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            let speed = joystickValue * 10.0 // up to 10 seconds per 0.1s tick
-            scrubbedTime = max(0, min(model.durationSeconds ?? .infinity, scrubbedTime + speed))
-            model.seek(toSeconds: scrubbedTime)
+            Task { @MainActor in
+                let speed = joystickValue * 10.0 // up to 10 seconds per 0.1s tick
+                scrubbedTime = max(0, min(model.durationSeconds ?? .infinity, scrubbedTime + speed))
+                model.seek(toSeconds: scrubbedTime)
+            }
         }
         
         snippetTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
-            playScrubSnippet()
+            Task { @MainActor in
+                playScrubSnippet()
+            }
         }
     }
     

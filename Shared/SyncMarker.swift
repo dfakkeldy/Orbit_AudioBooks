@@ -12,7 +12,7 @@ public struct SyncMarker: Codable, Equatable, Sendable {
     }
 }
 
-public enum MarkerType: String, Codable, Equatable {
+public enum MarkerType: String, Codable, Equatable, Sendable {
     case chapterStart
     case image
     case hyperlink

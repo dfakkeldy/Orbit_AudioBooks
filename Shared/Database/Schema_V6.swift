@@ -2,7 +2,7 @@ import GRDB
 
 /// V6 migration — performance indexes, transcription_word primary key, and data integrity fixes.
 enum Schema_V6 {
-    static func migrate(_ db: Database) throws {
+    nonisolated static func migrate(_ db: Database) throws {
         // ── Missing performance indexes ──
         try db.create(index: "idx_audiobook_added_at", on: "audiobook",
                        columns: ["added_at"], unique: false, ifNotExists: true)

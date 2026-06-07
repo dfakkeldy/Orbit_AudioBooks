@@ -68,6 +68,7 @@ final class ContainerXMLParser: NSObject, XMLParserDelegate {
 /// elements to produce `SpineItemDescriptor` values in reading order.
 final class OPFParserDelegate: NSObject, XMLParserDelegate {
     var spineItems: [SpineItemDescriptor] = []
+    var tocHref: String?
     private var manifestItems: [String: SpineItemDescriptor] = [:]
     private var spineIDRefs: [String] = []
     private var currentAttributes: [String: String] = [:]
@@ -103,11 +104,74 @@ final class OPFParserDelegate: NSObject, XMLParserDelegate {
            let href = currentAttributes["href"],
            let mediaType = currentAttributes["media-type"] {
             manifestItems[id] = SpineItemDescriptor(id: id, href: href, mediaType: mediaType)
+            
+            if id == "ncx" || mediaType == "application/x-dtbncx+xml" || currentAttributes["properties"] == "nav" {
+                tocHref = href
+            }
         }
     }
 
     func parserDidEndDocument(_ parser: XMLParser) {
         spineItems = spineIDRefs.compactMap { manifestItems[$0] }
+    }
+}
+
+// MARK: - TOC Parser
+
+/// Parses `toc.ncx` (EPUB 2) or `nav.xhtml` (EPUB 3) to extract a mapping from `href` to TOC title.
+final class TOCParserDelegate: NSObject, XMLParserDelegate {
+    var tocMap: [String: String] = [:]
+    private var isInsideNavLabelText = false
+    private var currentText = ""
+    private var currentSrc = ""
+
+    func parse(_ data: Data) {
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        parser.parse()
+    }
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName: String?, attributes attributeDict: [String: String] = [:]) {
+        if elementName == "text" { // NCX
+            isInsideNavLabelText = true
+            currentText = ""
+        } else if elementName == "content" { // NCX
+            if let src = attributeDict["src"] {
+                currentSrc = src
+                if !currentText.isEmpty {
+                    let href = String(currentSrc.components(separatedBy: "#")[0])
+                    let decodedHref = href.removingPercentEncoding ?? href
+                    if tocMap[decodedHref] == nil {
+                        tocMap[decodedHref] = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            }
+        } else if elementName == "a" { // NAV (EPUB3)
+            if let href = attributeDict["href"] {
+                currentSrc = href
+                isInsideNavLabelText = true
+                currentText = ""
+            }
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if isInsideNavLabelText {
+            currentText += string
+        }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName: String?) {
+        if elementName == "text" { // NCX end text
+            isInsideNavLabelText = false
+        } else if elementName == "a" { // NAV end a
+            isInsideNavLabelText = false
+            let href = String(currentSrc.components(separatedBy: "#")[0])
+            let decodedHref = href.removingPercentEncoding ?? href
+            if tocMap[decodedHref] == nil && !currentText.isEmpty {
+                tocMap[decodedHref] = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
     }
 }
 
@@ -123,6 +187,7 @@ final class OPFParserDelegate: NSObject, XMLParserDelegate {
 /// - Extracts image blocks from `<img src="...">` elements.
 final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
     var textBlocks: [TextBlockDescriptor] = []
+    var documentTitle: String?
     private var currentText = ""
     private var currentHTML = ""
     private var inlineDepth = 0
@@ -130,7 +195,9 @@ final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
     private var currentHeading = ""
     private var isInHeading = false
     private var skipDepth = 0
-    private let skipTags: Set<String> = ["script", "style", "head", "figcaption"]
+    private var isInsideHead = false
+    private var isInsideTitle = false
+    private let skipTags: Set<String> = ["script", "style", "figcaption"]
     private let blockTags: Set<String> = ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li", "section"]
     private let inlineTags: Set<String> = ["b", "i", "em", "strong", "span", "small", "sub", "sup", "a", "br"]
 
@@ -158,6 +225,15 @@ final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
     ) {
         if skipTags.contains(elementName) { skipDepth += 1; return }
         guard skipDepth == 0 else { return }
+
+        if elementName == "head" {
+            isInsideHead = true
+            return
+        }
+        if elementName == "title" {
+            isInsideTitle = true
+            return
+        }
 
         if ["h1", "h2", "h3", "h4", "h5", "h6"].contains(elementName) {
             flushBlock()
@@ -212,6 +288,14 @@ final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
         guard skipDepth == 0 else { return }
+        
+        if isInsideTitle {
+            let docTitle = documentTitle ?? ""
+            documentTitle = docTitle + string
+            return
+        }
+        if isInsideHead { return } // ignore all other text in head
+        
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         if isInHeading { currentHeading += trimmed + " " }
         if !trimmed.isEmpty {
@@ -231,6 +315,15 @@ final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
     ) {
         if skipTags.contains(elementName) { skipDepth = max(0, skipDepth - 1); return }
         guard skipDepth == 0 else { return }
+
+        if elementName == "head" {
+            isInsideHead = false
+            return
+        }
+        if elementName == "title" {
+            isInsideTitle = false
+            return
+        }
 
         if inlineTags.contains(elementName) {
             currentHTML += "</\(elementName)>"
@@ -257,9 +350,11 @@ final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
             isInBlock = false
             let heading = currentHeading.trimmingCharacters(in: .whitespaces)
             let html = currentHTML.trimmingCharacters(in: .whitespaces)
-            // Emit chapterStart marker at the heading's position within the block
+            // Emit chapterStart marker at the heading's position within the block.
+            // We store the heading level (e.g. "2" for "h2") in the payload.
+            let level = String(elementName.dropFirst())
             let headingMarkers: [SyncMarker] = heading.isEmpty ? [] : [
-                SyncMarker(type: .chapterStart, payload: heading, epubCharOffset: max(0, currentCharOffset - heading.count - 1))
+                SyncMarker(type: .chapterStart, payload: level, epubCharOffset: max(0, currentCharOffset - heading.count - 1))
             ]
             currentText = ""
             currentHTML = ""
@@ -314,18 +409,18 @@ func parseContainerXML(from data: Data) -> String? {
     return parser.rootfilePath
 }
 
-/// Parse OPF data and return spine items in EPUB reading order.
-func parseOPF(from data: Data) -> [SpineItemDescriptor] {
+/// Parse OPF data and return spine items in EPUB reading order, along with the optional TOC href.
+func parseOPF(from data: Data) -> (spine: [SpineItemDescriptor], tocHref: String?) {
     let parser = OPFParserDelegate()
     parser.parse(data)
-    return parser.spineItems
+    return (parser.spineItems, parser.tocHref)
 }
 
-/// Parse XHTML data into an array of text / image block descriptors.
-func parseXHTML(from data: Data) -> [TextBlockDescriptor] {
+/// Parse XHTML data into an array of text / image block descriptors and the document title if available.
+func parseXHTML(from data: Data) -> (blocks: [TextBlockDescriptor], title: String?) {
     let parser = XHTMLBlockDelegate()
     parser.parse(data)
-    return parser.textBlocks
+    return (parser.textBlocks, parser.documentTitle)
 }
 
 // MARK: - Streaming Helper
