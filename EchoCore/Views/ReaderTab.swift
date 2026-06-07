@@ -20,6 +20,7 @@ struct ReaderTab: View {
     @State private var topPartTitle: String? = nil
     @State private var topChapterTitle: String? = nil
     @State private var topSectionTitle: String? = nil
+    @State private var topChapterThemeColor: String? = nil
     @State var pulseBlockID: String? = nil
     @State private var forceScrollBlockID: String? = nil
     @State private var forceScrollTrigger: Int = 0
@@ -37,6 +38,87 @@ struct ReaderTab: View {
     @State private var readerSettings = ReaderSettings(
         fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8", appFont: "System"
     )
+
+    private var topBannerColor: Color {
+        if let hex = topChapterThemeColor {
+            return Color(hex: hex).opacity(0.95)
+        }
+        return Color(uiColor: .systemBackground).opacity(0.95)
+    }
+
+    @ViewBuilder
+    private var topChapterHeaderView: some View {
+        VStack(spacing: 4) {
+            if let part = topPartTitle, !part.isEmpty {
+                Text(part)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
+            if let title = topChapterTitle, !title.isEmpty {
+                let isTop = topPartTitle?.isEmpty ?? true
+                Text(title)
+                    .font(isTop ? .headline : .subheadline)
+                    .foregroundStyle(isTop ? .primary : .secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.top, isTop ? 8 : 0)
+            }
+            if let section = topSectionTitle, !section.isEmpty {
+                Text(section)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            } else {
+                Spacer().frame(height: 4)
+            }
+        }
+        .background(
+            Rectangle()
+                .fill(topBannerColor)
+                .shadow(color: Color.black.opacity(0.05), radius: 3, y: 2)
+        )
+        .zIndex(1)
+    }
+
+    @ViewBuilder
+    private var feedCollectionView: some View {
+        if let vm = viewModel {
+            let query: String? = searchText.isEmpty ? nil : searchText
+            let bindableVM = Bindable(vm)
+            
+            ReaderFeedCollectionView(
+                sections: vm.sections,
+                activeBlockID: bindableVM.activeBlockID,
+                isHeaderVisible: $isHeaderVisible,
+                autoScrollEnabled: $autoScrollEnabled,
+                topPartTitle: $topPartTitle,
+                topChapterTitle: $topChapterTitle,
+                topSectionTitle: $topSectionTitle,
+                topChapterThemeColor: $topChapterThemeColor,
+                settings: readerSettings,
+                alignmentStatusByBlockID: vm.alignmentStatusByBlockID,
+                audioStartTimeByBlockID: vm.audioStartTimeByBlockID,
+                searchQuery: query,
+                pulseBlockID: pulseBlockID,
+                forceScrollBlockID: forceScrollBlockID,
+                forceScrollTrigger: forceScrollTrigger,
+                onTapBlock: { (blockID: String) -> Void in
+                    seekToBlock(blockID)
+                },
+                onContextMenu: { (block: EPubBlockRecord) -> UIContextMenuConfiguration? in
+                    buildContextMenu(block: block)
+                }
+            )
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -59,44 +141,7 @@ struct ReaderTab: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
-                    VStack(spacing: 4) {
-                        if let part = topPartTitle, !part.isEmpty {
-                            Text(part)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                        }
-                        if let title = topChapterTitle, !title.isEmpty {
-                            let isTop = (topPartTitle == nil || topPartTitle!.isEmpty)
-                            Text(title)
-                                .font(isTop ? .headline : .subheadline)
-                                .foregroundStyle(isTop ? .primary : .secondary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 16)
-                                .padding(.top, isTop ? 8 : 0)
-                        }
-                        if let section = topSectionTitle, !section.isEmpty {
-                            Text(section)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 8)
-                        } else {
-                            Spacer().frame(height: 4)
-                        }
-                    }
-                    .background(
-                        Rectangle()
-                            .fill(Color(uiColor: .systemBackground).opacity(0.95))
-                            .shadow(color: Color.black.opacity(0.05), radius: 3, y: 2)
-                    )
-                    .zIndex(1)
+                    topChapterHeaderView
 
                     // ── Context menu / alignment hints ──
                     if !hasSeenContextMenuHint {
@@ -115,28 +160,7 @@ struct ReaderTab: View {
                         )
                     }
 
-                    ReaderFeedCollectionView(
-                        sections: vm.sections,
-                        activeBlockID: Bindable(vm).activeBlockID,
-                        isHeaderVisible: $isHeaderVisible,
-                        autoScrollEnabled: $autoScrollEnabled,
-                        topPartTitle: $topPartTitle,
-                        topChapterTitle: $topChapterTitle,
-                        topSectionTitle: $topSectionTitle,
-                        settings: readerSettings,
-                        alignmentStatusByBlockID: vm.alignmentStatusByBlockID,
-                        audioStartTimeByBlockID: vm.audioStartTimeByBlockID,
-                        searchQuery: searchText.isEmpty ? nil : searchText,
-                        pulseBlockID: pulseBlockID,
-                        forceScrollBlockID: forceScrollBlockID,
-                        forceScrollTrigger: forceScrollTrigger,
-                        onTapBlock: { blockID in
-                            seekToBlock(blockID)
-                        },
-                        onContextMenu: { block in
-                            buildContextMenu(block: block)
-                        }
-                    )
+                    feedCollectionView
                 } else {
                     Spacer()
                     ProgressView("Loading EPUB...")
@@ -222,12 +246,21 @@ struct ReaderTab: View {
         .sheet(item: chapterThemePickerBinding) { ident in
             let blockID = ident.id
             CardColorPickerSheet(blockID: blockID) { blockID, colorHex in
-                if let db = model.databaseService, let audiobookID = folderURL.absoluteString as String? {
+                if let db = model.databaseService {
                     let blockDAO = EPubBlockDAO(db: db.writer)
                     do {
-                        if let chapterIndex = (try blockDAO.blocks(for: audiobookID).first { $0.id == blockID })?.chapterIndex {
-                            try blockDAO.setChapterThemeColor(colorHex, chapterIndex: chapterIndex, audiobookID: audiobookID)
+                        // Find the chapterIndex of the selected block
+                        let allBlocks = viewModel?.sections.flatMap(\.items).compactMap { item -> EPubBlockRecord? in
+                            if case .block(let b) = item { return b }
+                            return nil
+                        } ?? []
+                        
+                        if let block = allBlocks.first(where: { $0.id == blockID }),
+                           let chapterIndex = block.chapterIndex {
+                            try blockDAO.setChapterThemeColor(colorHex, chapterIndex: chapterIndex, audiobookID: block.audiobookID)
                             viewModel?.reload()
+                            // Immediately update the top theme color so the screen background changes without scrolling
+                            topChapterThemeColor = colorHex
                         }
                     } catch {
                         // Best-effort
@@ -247,7 +280,7 @@ struct ReaderTab: View {
         } message: {
             Text(autoAlignmentErrorMessage ?? "An unknown error occurred.")
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(topChapterThemeColor.map { Color(hex: $0) } ?? Color(uiColor: .systemBackground))
     }
 
     // MARK: - Helpers

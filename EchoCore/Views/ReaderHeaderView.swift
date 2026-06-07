@@ -44,7 +44,8 @@ struct ReaderHeaderView: View {
                 .accessibilityLabel(Text("Reader settings"))
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.top, 0)
+            .padding(.bottom, 4)
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -62,7 +63,7 @@ struct ReaderHeaderView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .background(Color(.secondarySystemBackground))
             .cornerRadius(10)
             .padding(.horizontal, 12)

@@ -63,21 +63,32 @@ final class HeadingCardCell: UICollectionViewCell {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
-    func configure(with text: String, font: UIFont, tint: UIColor, isExplicitHighlight: Bool, searchQuery: String? = nil) {
+    func configure(with block: EPubBlockRecord, font: UIFont, tint: UIColor, isExplicitHighlight: Bool, searchQuery: String? = nil) {
+        let text = block.text ?? ""
         let plainText = text
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
+        let hasThemeOrCardColor = block.cardColor != nil || block.chapterThemeColor != nil
+        let textColor = hasThemeOrCardColor ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? UIColor.white : UIColor.label)
+        
         if let query = searchQuery, !query.isEmpty {
-            label.attributedText = highlightedText(plainText, query: query, font: font, textColor: isExplicitHighlight ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? .white : .label))
+            label.attributedText = highlightedText(plainText, query: query, font: font, textColor: textColor)
         } else {
             label.text = plainText
             label.font = font
-            label.textColor = isExplicitHighlight ? tint.contrastingTextColor : (UITraitCollection.current.userInterfaceStyle == .dark ? .white : .label)
+            label.textColor = textColor
         }
-        contentView.backgroundColor = isExplicitHighlight ? tint : tint.withAlphaComponent(0.15)
+        
+        if block.cardColor != nil {
+            contentView.backgroundColor = tint
+        } else if block.chapterThemeColor != nil {
+            contentView.backgroundColor = UITraitCollection.current.userInterfaceStyle == .dark ? UIColor.black.withAlphaComponent(0.2) : UIColor.white.withAlphaComponent(0.4)
+        } else {
+            contentView.backgroundColor = tint.withAlphaComponent(0.08)
+        }
     }
 
     private func highlightedText(_ text: String, query: String, font: UIFont, textColor: UIColor) -> NSAttributedString {

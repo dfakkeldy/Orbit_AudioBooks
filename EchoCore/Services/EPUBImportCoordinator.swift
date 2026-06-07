@@ -17,7 +17,7 @@ enum EPUBImportCoordinator {
         databaseService: DatabaseService,
         chapters: [Chapter],
         duration: TimeInterval?
-    ) {
+    ) async {
         let didStartSource = sourceURL.startAccessingSecurityScopedResource()
         defer { if didStartSource { sourceURL.stopAccessingSecurityScopedResource() } }
 
@@ -41,10 +41,29 @@ enum EPUBImportCoordinator {
         // Same-folder imports skip the copy to avoid replacing a file with itself.
         if standardizedDest.path != standardizedSource.path {
             do {
-                if FileManager.default.fileExists(atPath: destinationURL.path) {
-                    try FileManager.default.removeItem(at: destinationURL)
+                let files = try FileManager.default.contentsOfDirectory(atPath: targetFolder.path)
+                for file in files {
+                    let lower = file.lowercased()
+                    if lower.hasSuffix(".pdf") || lower.hasSuffix(".epub") {
+                        let fileURL = targetFolder.appendingPathComponent(file)
+                        if fileURL.resolvingSymlinksInPath().standardized.path != standardizedSource.path {
+                            try FileManager.default.removeItem(at: fileURL)
+                        }
+                    }
                 }
-                try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                var copyError: Error?
+                let coordinator = NSFileCoordinator()
+                var coordinatorError: NSError?
+                coordinator.coordinate(readingItemAt: sourceURL, options: .withoutChanges, error: &coordinatorError) { url in
+                    do {
+                        try FileManager.default.copyItem(at: url, to: destinationURL)
+                    } catch {
+                        copyError = error
+                    }
+                }
+                if let error = copyError ?? coordinatorError {
+                    throw error
+                }
             } catch {
                 logger.error("Failed to copy EPUB into folder: \(error.localizedDescription)")
                 return
@@ -61,15 +80,13 @@ enum EPUBImportCoordinator {
         }
 
         // Trigger extraction and block parsing asynchronously.
-        Task {
-            await EPUBAutoImportScanner.importEPUBFile(
-                epubURL: destinationURL,
-                audiobookID: audiobookID,
-                databaseService: databaseService,
-                chapters: chapters,
-                duration: duration,
-                force: true
-            )
-        }
+        await EPUBAutoImportScanner.importEPUBFile(
+            epubURL: destinationURL,
+            audiobookID: audiobookID,
+            databaseService: databaseService,
+            chapters: chapters,
+            duration: duration,
+            force: true
+        )
     }
 }

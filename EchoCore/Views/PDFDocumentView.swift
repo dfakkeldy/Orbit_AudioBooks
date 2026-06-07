@@ -61,6 +61,12 @@ struct PDFDocumentView: View {
             ManualAlignmentSheet(folderURL: folderURL)
                 .presentationDetents([.fraction(0.5)])
         }
+        .onReceive(NotificationCenter.default.publisher(for: .timelineItemsIngested)) { notification in
+            guard let ingestedID = notification.userInfo?["audiobookID"] as? String,
+                  ingestedID == folderURL.absoluteString
+            else { return }
+            loadPDF()
+        }
     }
     
     private func loadPDF() {

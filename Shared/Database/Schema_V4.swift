@@ -3,7 +3,7 @@ import GRDB
 /// V4 migration — materialized timeline_item table replacing the timeline VIEW
 /// for dense/sparse dual-path feed queries.
 enum Schema_V4 {
-    static func migrate(_ db: Database) throws {
+    nonisolated static func migrate(_ db: Database) throws {
         try db.create(table: "timeline_item") { t in
             t.column("id", .text).primaryKey()
             t.column("audiobook_id", .text).notNull()

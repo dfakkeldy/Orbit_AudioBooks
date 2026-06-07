@@ -4,7 +4,7 @@ import GRDB
 /// manual EPUB timeline alignment system, and extends timeline_item with
 /// alignment-specific columns.
 enum Schema_V5 {
-    static func migrate(_ db: Database) throws {
+    nonisolated static func migrate(_ db: Database) throws {
         // ── EPUB block store ──
         try db.create(table: "epub_block") { t in
             t.column("id", .text).primaryKey()

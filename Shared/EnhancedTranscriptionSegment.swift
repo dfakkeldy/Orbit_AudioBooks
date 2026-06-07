@@ -49,7 +49,7 @@ public struct TextFormat: Codable, Equatable, Sendable {
     }
 }
 
-public enum FormatType: String, Codable, Equatable {
+public enum FormatType: String, Codable, Equatable, Sendable {
     case bold
     case italic
     case underline

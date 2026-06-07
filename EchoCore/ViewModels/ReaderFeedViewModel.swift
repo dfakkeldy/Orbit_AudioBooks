@@ -71,6 +71,7 @@ final class ReaderFeedViewModel {
                         chapterTitle = chapters?[safe: key]?.title ?? "Chapter \(key + 1)"
                     }
                     
+                    var activeHeadings: [String?] = Array(repeating: nil, count: 6)
                     var currentHeadingStack: [String] = [chapterTitle]
                     var currentItems: [ReaderCardItem] = []
                     var sectionIndex = 0
@@ -80,16 +81,34 @@ final class ReaderFeedViewModel {
                             let lower = text.lowercased()
                             let isUtility = lower == "tip" || lower == "warning" || lower == "note" || lower == "caution" || lower == "important"
                             let isTooLong = text.count > 100
-                            let isFrontMatterHeader = lower.contains("front matter") || lower == "title" || lower == "copyright"
                             let isFigure = lower.hasPrefix("figure ") || lower.hasPrefix("table ") || lower.hasPrefix("image ")
-                            
-                            if !(isUtility || isTooLong || isFrontMatterHeader || isFigure) {
+
+                            // Comprehensive front/back matter detection.
+                            // Without this, copyright pages, dedications, TOC pages, etc.
+                            // create "junk chapters" that clutter the reader feed.
+                            let isNonContent = Self.isNonContentHeading(text)
+
+                            if !(isUtility || isTooLong || isNonContent || isFigure) {
                                 if !currentItems.isEmpty {
                                     parsedSections.append(ReaderCardSection(id: "ch\(key)-s\(sectionIndex)", headingStack: currentHeadingStack, items: currentItems))
                                     currentItems = []
                                     sectionIndex += 1
                                 }
-                                currentHeadingStack = [chapterTitle, text]
+                                
+                                let markers = block.decodedMarkers
+                                var level = 1 // default
+                                if let startMarker = markers.first(where: { $0.type == MarkerType.chapterStart }),
+                                   let parsedLevel = Int(startMarker.payload) {
+                                    level = parsedLevel
+                                }
+                                
+                                let depthIndex = max(0, min(5, level - 1))
+                                activeHeadings[depthIndex] = text
+                                for i in (depthIndex + 1)..<6 {
+                                    activeHeadings[i] = nil
+                                }
+                                
+                                currentHeadingStack = [chapterTitle] + activeHeadings.compactMap { $0 }
                             }
                         }
                         currentItems.append(.block(block))
@@ -178,6 +197,63 @@ final class ReaderFeedViewModel {
     /// Index path for a given block ID, if present in the current sections.
     func indexForBlockID(_ blockID: String) -> IndexPath? {
         cardIndexByBlockID[blockID]
+    }
+
+    // MARK: - Heading Classification
+
+    /// Returns `true` when a heading text matches common front-matter or back-matter
+    /// patterns that should not create reader-feed section splits.
+    ///
+    /// EPUBs often contain pages like "Title Page", "Copyright", "Contents", "Also by…"
+    /// whose headings were surfacing as junk chapters. This set-based check catches the
+    /// most common patterns without being so broad that it swallows legitimate chapter
+    /// titles (e.g. "Foreword" or "Introduction" are intentionally kept as content).
+    nonisolated static func isNonContentHeading(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
+
+        /// Headings that are almost never real chapter content.
+        let nonContentExact: Set<String> = [
+            // Title / half-title pages
+            "title page", "title", "half title", "half-title",
+            // Copyright / colophon
+            "copyright", "copyright page", "colophon",
+            // Dedication / epigraph
+            "dedication", "dedications", "epigraph",
+            // Table of contents
+            "contents", "table of contents", "toc",
+            // Publisher / promotional
+            "also by", "also by the author", "also available",
+            "praise for", "praise", "coming soon",
+            "about the publisher", "credits",
+            // Lists of figures / tables
+            "list of illustrations", "list of figures", "list of tables",
+            "cast of characters", "maps", "timeline",
+            // Explicit front matter marker
+            "front matter", "frontmatter",
+            // Bibliographic / index
+            "bibliography", "references", "index", "glossary",
+            // End notes
+            "endnotes", "notes", "footnotes",
+            // Author bio
+            "about the author", "about the authors",
+        ]
+
+        if nonContentExact.contains(lower) {
+            return true
+        }
+
+        // Prefix checks for variable patterns like "Also by J.R.R. Tolkien"
+        let nonContentPrefixes = [
+            "also by ", "praise for ", "excerpt from ", "excerpt: ",
+            "about the author", "about the publisher",
+        ]
+        for prefix in nonContentPrefixes {
+            if lower.hasPrefix(prefix) {
+                return true
+            }
+        }
+
+        return false
     }
 }
 

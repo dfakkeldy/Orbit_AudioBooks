@@ -3,7 +3,7 @@ import GRDB
 /// V2 migration — adds timeline support tables (note, planned_session, real_time_event)
 /// and extends the unified timeline VIEW to include notes.
 enum Schema_V2 {
-    static func migrate(_ db: Database) throws {
+    nonisolated static func migrate(_ db: Database) throws {
         // ── Free-text notes at media timestamps ──
         try db.create(table: "note", ifNotExists: true) { t in
             t.column("id", .text).primaryKey()

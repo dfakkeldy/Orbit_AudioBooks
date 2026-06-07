@@ -73,7 +73,8 @@ struct MacEPUBParser {
         let opfRelativePath = try parseContainerXML(at: containerURL)
         let opfURL = unzippedURL.appending(path: opfRelativePath)
         let opfDir = opfURL.deletingLastPathComponent()
-        let spine = try parseOPF(at: opfURL)
+        let spineResult = try parseOPF(at: opfURL)
+        let spine = spineResult.spine
         
         var extractions: [EPubTextExtraction] = []
         var blockCount = 0
@@ -89,7 +90,8 @@ struct MacEPUBParser {
             
             guard FileManager.default.fileExists(atPath: xhtmlURL.path) else { continue }
             let xhtmlData = try Data(contentsOf: xhtmlURL)
-            let blocks = parseXHTML(from: xhtmlData)
+            let parsedXHTML = parseXHTML(from: xhtmlData)
+            let blocks = parsedXHTML.blocks
 
             for blockText in blocks {
                 guard let text = blockText.text else { continue }
@@ -112,7 +114,7 @@ struct MacEPUBParser {
         return path
     }
 
-    private func parseOPF(at url: URL) throws -> [SpineItemDescriptor] {
+    private func parseOPF(at url: URL) throws -> (spine: [SpineItemDescriptor], tocHref: String?) {
         let data = try Data(contentsOf: url)
         return parseOPF(from: data)
     }

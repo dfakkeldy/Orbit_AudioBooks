@@ -98,17 +98,22 @@ extension PlayerModel {
 
     func importEPUB(from sourceURL: URL) {
         guard let folderURL = folderURL, let db = databaseService else { return }
-        let didStartSource = sourceURL.startAccessingSecurityScopedResource()
-        defer { if didStartSource { sourceURL.stopAccessingSecurityScopedResource() } }
-        let didStartDest = folderURL.startAccessingSecurityScopedResource()
-        defer { if didStartDest { folderURL.stopAccessingSecurityScopedResource() } }
-        EPUBImportCoordinator.importEPUB(
-            from: sourceURL,
-            to: folderURL,
-            databaseService: db,
-            chapters: state.chapters,
-            duration: state.durationSeconds
-        )
+        Task {
+            let didStartSource = sourceURL.startAccessingSecurityScopedResource()
+            defer { if didStartSource { sourceURL.stopAccessingSecurityScopedResource() } }
+            let didStartDest = folderURL.startAccessingSecurityScopedResource()
+            defer { if didStartDest { folderURL.stopAccessingSecurityScopedResource() } }
+            await EPUBImportCoordinator.importEPUB(
+                from: sourceURL,
+                to: folderURL,
+                databaseService: db,
+                chapters: self.state.chapters,
+                duration: self.state.durationSeconds
+            )
+            await MainActor.run {
+                self.playbackController.state.documentIngestionTrigger += 1
+            }
+        }
     }
 
     /// Copies the selected PDF file into the current audiobook folder.
@@ -120,7 +125,14 @@ extension PlayerModel {
         defer { if didStartDest { folderURL.stopAccessingSecurityScopedResource() } }
         PDFImportCoordinator.importPDF(
             from: sourceURL,
-            to: folderURL
+            to: folderURL,
+            databaseService: databaseService
+        )
+        playbackController.state.documentIngestionTrigger += 1
+        NotificationCenter.default.post(
+            name: .timelineItemsIngested,
+            object: nil,
+            userInfo: ["audiobookID": folderURL.absoluteString]
         )
     }
 

@@ -64,4 +64,7 @@ final class PlaybackState {
     var chapterWordClouds: [Int: [WordFrequency]] = [:]
     var rollingWordClouds: [(startTime: TimeInterval, frequencies: [WordFrequency])] = []
     var isTranscriptProcessingEnabled: Bool = true
+
+    /// A trigger used to force UI re-evaluations when documents (EPUB/PDF) are imported or replaced.
+    var documentIngestionTrigger: Int = 0
 }

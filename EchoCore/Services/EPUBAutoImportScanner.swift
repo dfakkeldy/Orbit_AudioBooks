@@ -268,7 +268,22 @@ enum EPUBAutoImportScanner {
             try FileManager.default.removeItem(at: cachedEPUB)
         }
         do {
-            try FileManager.default.copyItem(at: epubURL, to: cachedEPUB)
+            let started = epubURL.startAccessingSecurityScopedResource()
+            defer { if started { epubURL.stopAccessingSecurityScopedResource() } }
+
+            var copyError: Error?
+            let coordinator = NSFileCoordinator()
+            var coordinatorError: NSError?
+            coordinator.coordinate(readingItemAt: epubURL, options: .withoutChanges, error: &coordinatorError) { url in
+                do {
+                    try FileManager.default.copyItem(at: url, to: cachedEPUB)
+                } catch {
+                    copyError = error
+                }
+            }
+            if let error = copyError ?? coordinatorError {
+                throw error
+            }
         } catch {
             logger.error("Failed to copy EPUB to cache at \(sanitizedPath(cachedEPUB.path)): \(error.localizedDescription)")
             throw ScannerError.invalidArchive(url: epubURL)

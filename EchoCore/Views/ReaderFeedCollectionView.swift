@@ -10,6 +10,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
     @Binding var topPartTitle: String?
     @Binding var topChapterTitle: String?
     @Binding var topSectionTitle: String?
+    @Binding var topChapterThemeColor: String?
     let settings: ReaderSettings
     var alignmentStatusByBlockID: [String: String] = [:]
     var audioStartTimeByBlockID: [String: TimeInterval] = [:]
@@ -28,7 +29,8 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
             autoScrollEnabled: $autoScrollEnabled,
             topPartTitle: $topPartTitle,
             topChapterTitle: $topChapterTitle,
-            topSectionTitle: $topSectionTitle
+            topSectionTitle: $topSectionTitle,
+            topChapterThemeColor: $topChapterThemeColor
         )
     }
 
@@ -113,7 +115,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         if sections != context.coordinator.sections {
             let wasEmpty = context.coordinator.sections.isEmpty
             context.coordinator.sections = sections
-            context.coordinator.applySnapshot(animated: !wasEmpty)
+            context.coordinator.applySnapshot(animated: !wasEmpty, in: collectionView)
             
             if wasEmpty, let firstSection = sections.first, let title = firstSection.headingStack.first {
                 DispatchQueue.main.async {
@@ -144,6 +146,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         var topPartTitle: Binding<String?>
         var topChapterTitle: Binding<String?>
         var topSectionTitle: Binding<String?>
+        var topChapterThemeColor: Binding<String?>
         var settings: ReaderSettings = ReaderSettings(fontSize: 17, lineSpacing: 1.4, cardTintHex: "#F5F0E8", appFont: "System")
         var alignmentStatusByBlockID: [String: String] = [:]
         var audioStartTimeByBlockID: [String: TimeInterval] = [:]
@@ -156,7 +159,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
         var lastForceScrolledID: String?
         var lastForceScrollTrigger: Int = 0
 
-        init(onTapBlock: ((String) -> Void)?, onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?, isHeaderVisible: Binding<Bool>, autoScrollEnabled: Binding<Bool>, topPartTitle: Binding<String?>, topChapterTitle: Binding<String?>, topSectionTitle: Binding<String?>) {
+        init(onTapBlock: ((String) -> Void)?, onContextMenu: ((EPubBlockRecord) -> UIContextMenuConfiguration?)?, isHeaderVisible: Binding<Bool>, autoScrollEnabled: Binding<Bool>, topPartTitle: Binding<String?>, topChapterTitle: Binding<String?>, topSectionTitle: Binding<String?>, topChapterThemeColor: Binding<String?>) {
             self.onTapBlock = onTapBlock
             self.onContextMenu = onContextMenu
             self.isHeaderVisible = isHeaderVisible
@@ -164,6 +167,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
             self.topPartTitle = topPartTitle
             self.topChapterTitle = topChapterTitle
             self.topSectionTitle = topSectionTitle
+            self.topChapterThemeColor = topChapterThemeColor
         }
 
         func card(for id: String) -> ReaderCardItem? {
@@ -193,7 +197,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     ) as? HeadingCardCell else { return UICollectionViewCell() }
                     let font = settings.uiFont(forTextStyle: .title3, weight: .semibold)
                     let cardTint = UIColor(hex: block.cardColor ?? block.chapterThemeColor ?? settings.cardTintHex) ?? UIColor.systemBackground
-                    headingCell.configure(with: block.text ?? "", font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil || block.chapterThemeColor != nil, searchQuery: searchQuery)
+                    headingCell.configure(with: block, font: font, tint: cardTint, isExplicitHighlight: block.cardColor != nil || block.chapterThemeColor != nil, searchQuery: searchQuery)
                     headingCell.isActiveBlock = (block.id == activeBlockID)
                     let timeString = audioStartTimeByBlockID[block.id].map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) } ?? "None"
                     let isAnchored = alignmentStatusByBlockID[block.id] == "lockedAnchor"
@@ -224,7 +228,7 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
             }
         }
 
-        func applySnapshot(animated: Bool) {
+        func applySnapshot(animated: Bool, in collectionView: UICollectionView) {
             var snapshot = NSDiffableDataSourceSnapshot<String, String>()
             let sectionIDs = sections.map(\.id)
             snapshot.appendSections(sectionIDs)
@@ -232,6 +236,9 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                 snapshot.appendItems(section.items.map(\.id), toSection: section.id)
             }
             dataSource?.apply(snapshot, animatingDifferences: animated)
+            DispatchQueue.main.async {
+                self.updateTopChapterTitle(collectionView)
+            }
         }
 
         func updateActiveBlock(_ blockID: String?, in collectionView: UICollectionView) {
@@ -362,14 +369,24 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                     }
                 }
                 
-                if uniqueStack.count >= 1 {
+                let count = uniqueStack.count
+                // partTitle   = audio chapter title (always index 0)
+                // chapterTitle = first EPUB heading that isn't the part title
+                // sectionTitle = deepest heading that differs from both above
+                if count >= 1 {
                     partTitle = uniqueStack[0]
                 }
-                if uniqueStack.count >= 2 {
+                if count >= 2 {
                     chapterTitle = uniqueStack[1]
+                    if chapterTitle == partTitle, count >= 3 {
+                        chapterTitle = uniqueStack[2]
+                    }
                 }
-                if uniqueStack.count >= 3 {
-                    sectionTitle = uniqueStack.last
+                if count >= 3 {
+                    let candidate = uniqueStack.last!
+                    if candidate != chapterTitle, candidate != partTitle {
+                        sectionTitle = candidate
+                    }
                 }
                 
                 if topPartTitle.wrappedValue != partTitle {
@@ -386,6 +403,26 @@ struct ReaderFeedCollectionView: UIViewRepresentable {
                 if topSectionTitle.wrappedValue != sectionTitle {
                     DispatchQueue.main.async {
                         self.topSectionTitle.wrappedValue = sectionTitle
+                    }
+                }
+                
+                if let itemID = dataSource?.itemIdentifier(for: indexPath),
+                   case .block(let block) = card(for: itemID) {
+                    let themeColor = block.chapterThemeColor
+                    if topChapterThemeColor.wrappedValue != themeColor {
+                        DispatchQueue.main.async {
+                            self.topChapterThemeColor.wrappedValue = themeColor
+                        }
+                    }
+                } else if let firstBlock = section.items.compactMap({ item -> EPubBlockRecord? in
+                    if case .block(let b) = item { return b }
+                    return nil
+                }).first {
+                    let themeColor = firstBlock.chapterThemeColor
+                    if topChapterThemeColor.wrappedValue != themeColor {
+                        DispatchQueue.main.async {
+                            self.topChapterThemeColor.wrappedValue = themeColor
+                        }
                     }
                 }
             }
