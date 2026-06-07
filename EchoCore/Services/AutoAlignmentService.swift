@@ -245,15 +245,20 @@ final class AutoAlignmentService {
         var workingBlocks = blocks.sorted { $0.sequenceIndex < $1.sequenceIndex }
         if workingBlocks.contains(where: { $0.chapterIndex == nil }), let lastChapter = chapters.last {
             let duration = lastChapter.endSeconds
-            let totalBlocks = Double(workingBlocks.count)
+            let totalWordCount = workingBlocks.reduce(0) { $0 + ($1.wordCount ?? max(1, $1.text?.split(separator: " ").count ?? 1)) }
+            var currentWordCount = 0
+            
             for i in 0..<workingBlocks.count {
+                let blockWordCount = workingBlocks[i].wordCount ?? max(1, workingBlocks[i].text?.split(separator: " ").count ?? 1)
+                
                 if workingBlocks[i].chapterIndex == nil {
-                    let estimatedFraction = Double(workingBlocks[i].sequenceIndex) / totalBlocks
+                    let estimatedFraction = totalWordCount > 0 ? Double(currentWordCount) / Double(totalWordCount) : 0
                     let estimatedTime = estimatedFraction * duration
                     if let matched = chapters.first(where: { ch in estimatedTime >= ch.startSeconds && estimatedTime < ch.endSeconds }) {
                         workingBlocks[i].chapterIndex = matched.index
                     }
                 }
+                currentWordCount += blockWordCount
             }
         }
         

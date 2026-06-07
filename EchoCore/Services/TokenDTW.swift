@@ -21,24 +21,24 @@ struct TokenDTW {
         // we need the full matrix of directions.
         // For 3000x3000 = 9M elements. Using a flat array of Int8 for direction to save memory.
         // 0: match/sub, 1: insert, 2: delete
-        var cost = Array(repeating: Int32.max / 2, count: (n + 1) * (m + 1))
+        var cost0 = Array(repeating: Int32.max / 2, count: m + 1)
+        var cost1 = Array(repeating: Int32.max / 2, count: m + 1)
         var dir = Array(repeating: Int8(0), count: (n + 1) * (m + 1))
         
-        cost[0] = 0 // (0, 0)
+        cost0[0] = 0 // (0, 0)
 
         // Initialize boundary row (deletion of EPUB tokens) and column
         // (insertion of audio tokens) with cumulative gap costs so the DP
         // can skip leading tokens that have no match in the other sequence.
-        for i in 1...n {
-            cost[i * (m + 1) + 0] = Int32(i) * 2
-        }
         for j in 1...m {
-            cost[0 * (m + 1) + j] = Int32(j) * 2
+            cost0[j] = Int32(j) * 2
         }
 
         for i in 1...n {
+            cost1[0] = Int32(i) * 2
+            let eToken = epub[i - 1].text
+            
             for j in 1...m {
-                let eToken = epub[i - 1].text
                 let aToken = audio[j - 1].text
                 
                 // Levenshtein-like distance between words, or just strict equality
@@ -52,22 +52,23 @@ struct TokenDTW {
                     matchCost = 2 // Substitution cost
                 }
                 
-                let sub = cost[(i - 1) * (m + 1) + (j - 1)] + matchCost
-                let ins = cost[i * (m + 1) + (j - 1)] + 2 // Insertion in audio (skip audio token)
-                let del = cost[(i - 1) * (m + 1) + j] + 2 // Deletion in epub (skip epub token)
+                let sub = cost0[j - 1] + matchCost
+                let ins = cost1[j - 1] + 2 // Insertion in audio (skip audio token)
+                let del = cost0[j] + 2 // Deletion in epub (skip epub token)
                 
                 let idx = i * (m + 1) + j
                 if sub <= ins && sub <= del {
-                    cost[idx] = sub
+                    cost1[j] = sub
                     dir[idx] = 0
                 } else if ins <= del {
-                    cost[idx] = ins
+                    cost1[j] = ins
                     dir[idx] = 1
                 } else {
-                    cost[idx] = del
+                    cost1[j] = del
                     dir[idx] = 2
                 }
             }
+            swap(&cost0, &cost1)
         }
         
         // Backtrack

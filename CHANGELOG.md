@@ -35,6 +35,8 @@ All notable changes to Orbit Audiobooks.
 - **Section disclosure groups in playlist**: logical chapters with sub-section data render as expandable `DisclosureGroup` rows, with tappable section rows and now-playing indicators.
 
 ### Changed
+- **Proportional fallback chapter alignment:** `AutoAlignmentService` now calculates estimated fallback timestamps for EPUB chapters proportionally based on cumulative `word_count` instead of a linear sequence index. A block with 500 words is appropriately weighted against a block with 5 words.
+- **DTW Memory Optimization:** Reduced `TokenDTW.align` peak memory consumption by over 80% (from ~125MB to ~25MB for large chapters) by utilizing a sliding 2-row algorithm for Dynamic Time Warping instead of a full NxM cost matrix. Prevents out-of-memory crashes during WhisperKit transcription.
 - **Playlist document import unified:** The "Import EPUB" button now accepts both EPUB and PDF files, with automatic routing to the appropriate importer. The Reader tab falls back from EPUB to PDF to empty state based on available companion documents.
 - **Reader tab routing:** `RootTabView` now checks `model.hasPDF` when `model.hasEPUB` is false, routing to `PDFDocumentView` instead of `ReaderEmptyState`.
 - **Alignment interpolation now uses word-count-weighted proportional math** (Schema V8) instead of sequence-index-based linear interpolation. Results in more accurate timestamp estimates for paragraphs of varying lengths.
