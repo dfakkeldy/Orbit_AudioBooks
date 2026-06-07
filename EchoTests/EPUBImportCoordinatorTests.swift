@@ -6,7 +6,7 @@ import Foundation
 struct EPUBImportCoordinatorTests {
 
     @Test("Same-folder import preserves the source EPUB file")
-    func preservesSourceWhenSameFolder() throws {
+    func preservesSourceWhenSameFolder() async throws {
         let db = try DatabaseService(inMemory: ())
 
         let tmpDir = FileManager.default.temporaryDirectory
@@ -19,7 +19,7 @@ struct EPUBImportCoordinatorTests {
 
         #expect(FileManager.default.fileExists(atPath: epubURL.path))
 
-        EPUBImportCoordinator.importEPUB(
+        await EPUBImportCoordinator.importEPUB(
             from: epubURL,
             to: tmpDir,
             databaseService: db,
@@ -32,7 +32,7 @@ struct EPUBImportCoordinatorTests {
     }
 
     @Test("Outside-folder import copies EPUB into folder and preserves source")
-    func copiesIntoFolderAndPreservesSource() throws {
+    func copiesIntoFolderAndPreservesSource() async throws {
         let db = try DatabaseService(inMemory: ())
 
         let tmpDir = FileManager.default.temporaryDirectory
@@ -53,7 +53,7 @@ struct EPUBImportCoordinatorTests {
         let sourceURL = outerDir.appendingPathComponent("new.epub")
         try Data("new".utf8).write(to: sourceURL)
 
-        EPUBImportCoordinator.importEPUB(
+        await EPUBImportCoordinator.importEPUB(
             from: sourceURL,
             to: tmpDir,
             databaseService: db,
@@ -73,7 +73,7 @@ struct EPUBImportCoordinatorTests {
     }
 
     @Test("Overwrite replaces existing destination EPUB")
-    func overwriteReplacesExistingDestination() throws {
+    func overwriteReplacesExistingDestination() async throws {
         let db = try DatabaseService(inMemory: ())
 
         let tmpDir = FileManager.default.temporaryDirectory
@@ -94,7 +94,7 @@ struct EPUBImportCoordinatorTests {
         let sourceURL = outerDir.appendingPathComponent("book.epub")
         try Data("new content".utf8).write(to: sourceURL)
 
-        EPUBImportCoordinator.importEPUB(
+        await EPUBImportCoordinator.importEPUB(
             from: sourceURL,
             to: tmpDir,
             databaseService: db,

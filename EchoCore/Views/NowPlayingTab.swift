@@ -8,13 +8,12 @@ struct NowPlayingTab: View {
         ZStack {
             VStack(spacing: 0) {
                 GeometryReader { proxy in
-                    let artworkSize = NowPlayingLayout.artworkSize(for: proxy.size)
-                    playerContent(artworkSize: artworkSize, contentWidth: proxy.size.width, contentHeight: proxy.size.height)
+                    playerContent(proxy: proxy)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .environment(\.font, model.resolvedAppFont == SettingsManager.systemFontName ? .body : .custom(model.resolvedAppFont, size: 17, relativeTo: .body))
-            .padding(.top, NowPlayingLayout.topContentInset)
+            .padding(.top, NowPlayingLayout.topOverlayHeight)
             .padding(.bottom, NowPlayingLayout.bottomToolbarClearance)
             .grayscale(model.isPlayingVoiceMemo ? 1.0 : 0.0)
             .opacity(model.isPlayingVoiceMemo ? 0.5 : 1.0)
@@ -39,52 +38,79 @@ struct NowPlayingTab: View {
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
     }
 
-    private func playerContent(artworkSize: CGFloat, contentWidth: CGFloat, contentHeight: CGFloat) -> some View {
-        VStack(alignment: .center, spacing: 14) {
-            AlbumArtHeroView(
-                artwork: model.currentDisplayArtwork ?? model.thumbnailImage,
-                artworkVersion: model.currentDisplayArtworkVersion,
-                caption: "",
-                mainText: model.chapters.count >= 2
-                    ? (model.currentSubtitle.isEmpty
-                        ? String(localized: "Ch \((model.currentChapterIndex ?? 0) + 1)")
-                        : model.currentSubtitle)
-                    : model.currentTitle,
-                appFont: model.resolvedAppFont,
-                maxArtworkSize: artworkSize
-            )
+    private func playerContent(proxy: GeometryProxy) -> some View {
+        let titleText = model.chapters.count >= 2
+            ? (model.currentSubtitle.isEmpty
+                ? String(localized: "Ch \((model.currentChapterIndex ?? 0) + 1)")
+                : model.currentSubtitle)
+            : model.currentTitle
 
-            if model.chapters.count >= 2 {
-                Text(chapterProgressText())
-                    .customFont(.footnote, appFont: model.resolvedAppFont)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, NowPlayingLayout.horizontalPadding)
-            } else if !model.tracks.isEmpty {
-                Text(trackProgressText())
-                    .customFont(.footnote, appFont: model.resolvedAppFont)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, NowPlayingLayout.horizontalPadding)
+        return VStack(alignment: .center, spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                AlbumArtHeroView(
+                    artwork: model.currentDisplayArtwork ?? model.thumbnailImage,
+                    artworkVersion: model.currentDisplayArtworkVersion,
+                    caption: "",
+                    mainText: "",
+                    appFont: model.resolvedAppFont,
+                    isFullBleed: true
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height * 0.55)
+                .clipped()
+
+                // Bottom gradient for text readability
+                VStack {
+                    Spacer()
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.7)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                }
+
+                // Title and Progress Text
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(titleText)
+                        .customFont(.title2, weight: .bold, appFont: model.resolvedAppFont)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+
+                    if model.chapters.count >= 2 {
+                        Text(chapterProgressText())
+                            .customFont(.subheadline, appFont: model.resolvedAppFont)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                    } else if !model.tracks.isEmpty {
+                        Text(trackProgressText())
+                            .customFont(.subheadline, appFont: model.resolvedAppFont)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                    }
+                }
+                .padding(.horizontal, NowPlayingLayout.horizontalPadding)
+                .padding(.bottom, 24)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height * 0.55)
 
-            Spacer(minLength: 0)
+            VStack(spacing: 24) {
+                Spacer(minLength: 0)
 
-            PlayerScrubberView()
-                .padding(.horizontal, NowPlayingLayout.horizontalPadding)
+                PlayerScrubberView()
+                    .padding(.horizontal, NowPlayingLayout.horizontalPadding)
 
-            TransportControlsView()
-                .padding(.horizontal, NowPlayingLayout.horizontalPadding)
-                .padding(.bottom, 8)
+                TransportControlsView()
+                    .padding(.horizontal, NowPlayingLayout.horizontalPadding)
+                    .padding(.bottom, 8)
+                
+                Spacer(minLength: 0)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height * 0.45)
         }
-        .frame(width: contentWidth, height: contentHeight)
-        .clipped()
+        .frame(width: proxy.size.width, height: proxy.size.height)
     }
 
     private func formatHhMm(_ seconds: Double) -> String {
