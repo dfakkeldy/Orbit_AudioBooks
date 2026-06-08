@@ -53,7 +53,10 @@ struct UnifiedTopHeader: View {
                 .foregroundStyle(Color.accentColor)
                 .accessibilityLabel(Text("More options"))
             }
-            .padding(.horizontal, 16)
+            // Align the buttons with each tab's content: 32pt on Now Playing so
+            // they sit flush with the artwork edge (not "past the edge"), 16pt
+            // elsewhere to match the Timeline/Reader secondary rows.
+            .padding(.horizontal, model.selectedTab == .nowPlaying ? NowPlayingLayout.horizontalPadding : 16)
             .padding(.top, 8)
             .padding(.bottom, 8)
         }
