@@ -24,6 +24,11 @@ enum KeychainStore {
             kSecAttrAccount as String: key.rawValue,
             kSecAttrService as String: service,
             kSecValueData as String: data,
+            // kSecAttrAccessibleAfterFirstUnlock allows background access
+            // (e.g., background audio playback) after the device has been
+            // unlocked once, without requiring the device to be unlocked
+            // at the exact moment of access.
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
         ]
         SecItemDelete(query as CFDictionary)
         let status = SecItemAdd(query as CFDictionary, nil)

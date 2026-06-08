@@ -83,7 +83,7 @@ struct PDFDocumentView: View {
                     }
                 }
             } catch {
-                let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PDFDocumentView")
+                let logger = Logger(category: "PDFDocumentView")
                 logger.error("Failed to load PDF: \(error.localizedDescription)")
             }
         }

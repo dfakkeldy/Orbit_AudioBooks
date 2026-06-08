@@ -1012,6 +1012,26 @@ final class PlayerModel {
         syncToWatch()
     }
 
+    func toggleSleepTimer() {
+        let presets = [15, 30, 45, 60]
+        switch sleepTimerMode {
+        case .off:
+            setSleepTimer(.minutes(presets[0]))
+        case .minutes(let m) where m == presets[0]:
+            setSleepTimer(.minutes(presets[1]))
+        case .minutes(let m) where m == presets[1]:
+            setSleepTimer(.minutes(presets[2]))
+        case .minutes(let m) where m == presets[2]:
+            setSleepTimer(.minutes(presets[3]))
+        case .minutes(let m) where m == presets[3]:
+            setSleepTimer(.endOfChapter)
+        case .minutes:
+            setSleepTimer(.minutes(presets[0]))
+        case .endOfChapter:
+            cancelSleepTimer()
+        }
+    }
+
     func stop() {
         playbackController.stop()
     }

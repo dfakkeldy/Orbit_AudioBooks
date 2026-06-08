@@ -5,7 +5,7 @@ import os.log
 /// items. Extracted from PlayerModel so the view model stays focused on
 /// playback orchestration rather than database wiring.
 final class PlayerTimelinePersistenceService {
-    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PlayerTimelinePersistence")
+    private static let logger = Logger(category: "PlayerTimelinePersistence")
 
     var databaseService: DatabaseService?
 

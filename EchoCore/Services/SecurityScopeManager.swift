@@ -14,13 +14,17 @@ final class SecurityScopeManager {
     }
 
     /// Starts accessing the security-scoped resource for the given selection URL.
-    func startSelection(url: URL) {
+    /// - Returns: `true` if access was granted, `false` otherwise (bookmark stale,
+    ///            entitlements mismatch, or resource unavailable).
+    @discardableResult
+    func startSelection(url: URL) -> Bool {
         if hasSelectionAccess {
-            if selectionURL == url { return }
+            if selectionURL == url { return true }
             stopSelection()
         }
         selectionURL = url
         hasSelectionAccess = url.startAccessingSecurityScopedResource()
+        return hasSelectionAccess
     }
 
     /// Stops the selection security-scoped access and optionally starts a new one.
@@ -32,13 +36,16 @@ final class SecurityScopeManager {
     }
 
     /// Starts accessing the security-scoped resource for the given file URL.
-    func startFile(url: URL) {
+    /// - Returns: `true` if access was granted, `false` otherwise.
+    @discardableResult
+    func startFile(url: URL) -> Bool {
         if hasFileAccess {
-            if fileURL == url { return }
+            if fileURL == url { return true }
             stopFile()
         }
         fileURL = url
         hasFileAccess = url.startAccessingSecurityScopedResource()
+        return hasFileAccess
     }
 
     /// Stops the current file security-scoped access.

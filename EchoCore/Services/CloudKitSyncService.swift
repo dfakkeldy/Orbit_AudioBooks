@@ -14,7 +14,7 @@ import os.log
 /// - Validating that anchor timestamps are non-negative and within audiobook duration
 @MainActor
 final class CloudKitSyncService {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "CloudKitSyncService")
+    private let logger = Logger(category: "CloudKitSyncService")
     private let container = CKContainer(identifier: "iCloud.com.orbitaudiobooks")
     private var publicDatabase: CKDatabase { container.publicCloudDatabase }
     
@@ -101,15 +101,37 @@ final class CloudKitSyncService {
             
             let decoder = JSONDecoder()
             let anchors = try decoder.decode([AlignmentAnchorRecord].self, from: payloadData)
-            
-            // Map the downloaded anchors to this specific local audiobookID
-            let localizedAnchors = anchors.map { anchor in
+
+            // Validate payload before inserting into local database (§6.4).
+            // The public CloudKit database allows anyone with the container
+            // identifier to write arbitrary anchor data. Reject anchors whose
+            // timestamps are nonsensical relative to the audiobook duration.
+            let validAnchors = anchors.filter { anchor in
+                guard anchor.audioTime >= 0 && anchor.audioTime <= duration else {
+                    logger.warning("Rejected downloaded anchor \(anchor.id): audioTime \(anchor.audioTime)s outside [0, \(duration)]s")
+                    return false
+                }
+                if let endTime = anchor.audioEndTime {
+                    guard endTime >= 0 && endTime <= duration && endTime >= anchor.audioTime else {
+                        logger.warning("Rejected downloaded anchor \(anchor.id): audioEndTime \(endTime)s invalid for [0, \(duration)]s")
+                        return false
+                    }
+                }
+                return true
+            }
+
+            if validAnchors.count < anchors.count {
+                logger.warning("Filtered out \(anchors.count - validAnchors.count) invalid anchor(s) from downloaded payload")
+            }
+
+            // Map the validated anchors to this specific local audiobookID
+            let localizedAnchors = validAnchors.map { anchor in
                 var updated = anchor
                 updated.audiobookID = audiobookID
                 updated.source = AlignmentAnchorRecord.Source.imported.rawValue
                 return updated
             }
-            
+
             logger.info("Successfully downloaded \(localizedAnchors.count) anchors for \(title).")
             return localizedAnchors
             

@@ -8,7 +8,7 @@ import os.log
 /// For full playback use `AudioEngine`; this utility is intended for
 /// previews and snippets only.
 final class AudioSnippetPlayer {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "AudioSnippetPlayer")
+    private let logger = Logger(category: "AudioSnippetPlayer")
     private var engine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
     private var onComplete: (() -> Void)?

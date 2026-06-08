@@ -12,7 +12,7 @@ final class DailyReviewViewModel {
 
     private let db: DatabaseWriter
     private let folderURL: URL?
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "DailyReviewViewModel")
+    private let logger = Logger(category: "DailyReviewViewModel")
 
     @ObservationIgnored var snippetPlayer: SnippetPlayer?
     @ObservationIgnored var onRequestSnippetPlay: ((URL, TimeInterval, TimeInterval) -> Void)?

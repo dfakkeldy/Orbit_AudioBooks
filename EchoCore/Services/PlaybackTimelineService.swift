@@ -13,7 +13,7 @@ enum TimelineMode {
 /// Operates strictly on TimeInterval — no Date, calendar, or scheduling concepts.
 @MainActor @Observable
 final class PlaybackTimelineService {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PlaybackTimelineService")
+    private let logger = Logger(category: "PlaybackTimelineService")
     private let db: DatabaseService?
 
     // MARK: - Published state

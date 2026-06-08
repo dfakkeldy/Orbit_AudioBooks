@@ -113,9 +113,14 @@ final class PlaybackController: PlaybackControllerProtocol {
         coordinator_endBackgroundTask?()
 
         guard !state.tracks.isEmpty else { return }
+
+        assert(coordinator_configureAudioSession != nil,
+               "coordinator_configureAudioSession must be wired — audio session setup required for playback")
         coordinator_configureAudioSession?()
 
         if !audioEngine.isItemLoaded {
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — track loading required for playback")
             coordinator_loadTrack?(state.currentIndex, false)
         }
         coordinator_startSecurityScope?()
@@ -272,6 +277,8 @@ final class PlaybackController: PlaybackControllerProtocol {
         state.elapsedText = "--:--"
 
         audioEngine.stop()
+        assert(coordinator_stopSecurityScope != nil,
+               "coordinator_stopSecurityScope must be wired — security-scoped resource cleanup required")
         coordinator_stopSecurityScope?()
     }
 
@@ -287,8 +294,12 @@ final class PlaybackController: PlaybackControllerProtocol {
             return
         }
         if let newIndex = findNextEnabledTrackIndex(in: state.tracks, currentIndex: state.currentIndex) {
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — track navigation required")
             coordinator_loadTrack?(newIndex, true)
         } else if let firstEnabled = state.tracks.firstIndex(where: { $0.isEnabled }) {
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — track navigation required")
             coordinator_loadTrack?(firstEnabled, true)
         }
     }
@@ -313,6 +324,8 @@ final class PlaybackController: PlaybackControllerProtocol {
         }
 
         if let newIndex = findPrevEnabledTrackIndex(in: state.tracks, currentIndex: state.currentIndex) {
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — track navigation required")
             coordinator_loadTrack?(newIndex, true)
         } else {
             state.isManualSeeking = true
@@ -338,8 +351,12 @@ final class PlaybackController: PlaybackControllerProtocol {
         if let nextIdx = ChapterService.nextEnabledIndex(after: currentIdx, in: state.chapters) {
             seekToChapter(at: nextIdx)
         } else if let newIndex = findNextEnabledTrackIndex(in: state.tracks, currentIndex: state.currentIndex) {
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — chapter navigation fallback")
             coordinator_loadTrack?(newIndex, true)
         } else if let firstEnabled = state.tracks.firstIndex(where: { $0.isEnabled }) {
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — chapter navigation fallback")
             coordinator_loadTrack?(firstEnabled, true)
         }
     }
@@ -542,6 +559,8 @@ final class PlaybackController: PlaybackControllerProtocol {
             }
         } else {
             // Different book — load the new track. prepareToPlay will set chapters.
+            assert(coordinator_loadTrack != nil,
+                   "coordinator_loadTrack must be wired — cross-book navigation required")
             coordinator_loadTrack?(agg.bookIndex, true)
             // Defer seeking until the track is loaded (handled in PlayerModel).
             state.pendingAggregatedChapter = agg

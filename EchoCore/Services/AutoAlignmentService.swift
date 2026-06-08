@@ -24,7 +24,7 @@ import os.log
 /// and inserts a correction anchor.
 @MainActor
 final class AutoAlignmentService {
-    let logger = Logger(subsystem: "com.orbitaudiobooks", category: "AutoAlignment")
+    let logger = Logger(category: "AutoAlignment")
 
     // MARK: - Dependencies
 
@@ -37,7 +37,7 @@ final class AutoAlignmentService {
 
     // MARK: - WhisperKit State
 
-    var whisperKit: WhisperKit?
+    private var whisperKit: WhisperKit?
     var modelUnloadTimer: Timer?
 
     // MARK: - Progress

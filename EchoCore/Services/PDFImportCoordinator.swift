@@ -3,7 +3,7 @@ import os.log
 
 /// Coordinates the file-level operations of importing a PDF into an audiobook folder
 enum PDFImportCoordinator {
-    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PDFImportCoordinator")
+    private static let logger = Logger(category: "PDFImportCoordinator")
 
     /// Copies a PDF file into the audiobook folder (if not already there).
     /// Callers are responsible for starting security-scoped access on

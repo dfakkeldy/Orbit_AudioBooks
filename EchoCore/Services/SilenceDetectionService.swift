@@ -9,7 +9,7 @@ struct SilenceDetectionService {
     let thresholdRatio: Float = 0.01 // Adjust based on noise floor
     let minimumSilenceDuration: TimeInterval = 2.5
     
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "SilenceDetection")
+    private let logger = Logger(category: "SilenceDetection")
     
     struct SilenceGaps {
         let start: TimeInterval

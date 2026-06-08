@@ -11,7 +11,7 @@ import os.log
 @MainActor @Observable
 final class BookmarkStore: BookmarkStoreProtocol {
 
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "BookmarkStore")
+    private let logger = Logger(category: "BookmarkStore")
 
     /// All bookmarks for the currently loaded book.
     var bookmarks: [Bookmark] = []

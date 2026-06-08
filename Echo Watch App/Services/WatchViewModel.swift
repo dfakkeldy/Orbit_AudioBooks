@@ -547,7 +547,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         guard WCSession.isSupported() else { return }
 
         let session = WCSession.default
-        guard session.activationState == .activated, session.isReachable else { return }
+        guard session.activationState == .activated else { return }
         session.sendMessage(["command": "requestState"], replyHandler: { [weak self] reply in
             self?.applyState(reply)
         }, errorHandler: { [weak self] error in
@@ -581,30 +581,22 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             }
         }
 
-        if session.isReachable {
-            session.sendMessage(message, replyHandler: { [weak self] reply in
-                self?.clearPendingRollback()
-                self?.applyState(reply)
-                if Self.isDirectionalCommand(command),
-                   self?.loopMode == "bookmark",
-                   reply["commandResult"] as? String != "bookmarkJump" {
-                    self?.playHaptic(Self.isForwardCommand(command) ? .directionUp : .directionDown)
-                }
-            }, errorHandler: { [weak self] error in
-                self?.logger.error("Error sending command: \(error)")
-                self?.rollback()
-                self?.requestCurrentState()
-            })
-            if pendingSnapshot != nil {
-                scheduleRollback()
+        session.sendMessage(message, replyHandler: { [weak self] reply in
+            self?.clearPendingRollback()
+            self?.applyState(reply)
+            if Self.isDirectionalCommand(command),
+               self?.loopMode == "bookmark",
+               reply["commandResult"] as? String != "bookmarkJump" {
+                self?.playHaptic(Self.isForwardCommand(command) ? .directionUp : .directionDown)
             }
-        } else {
-            // Fallback for background communication when iPhone is locked/backgrounded.
-            // transferUserInfo queues the payload to be delivered even if the counterpart is suspended.
+        }, errorHandler: { [weak self] error in
+            self?.logger.error("Error sending command: \(error). Falling back to transferUserInfo.")
             session.transferUserInfo(message)
-            // Since we won't get a reply handler callback, clear the rollback timer so the UI
-            // doesn't revert prematurely before the iPhone wakes up and syncs the new state.
-            clearPendingRollback()
+            self?.rollback()
+            self?.requestCurrentState()
+        })
+        if pendingSnapshot != nil {
+            scheduleRollback()
         }
 
         if loopMode == "bookmark" && Self.isDirectionalCommand(command) {

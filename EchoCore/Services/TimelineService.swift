@@ -4,7 +4,7 @@ import os.log
 
 @MainActor @Observable
 final class TimelineService {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TimelineService")
+    private let logger = Logger(category: "TimelineService")
     private let db: DatabaseService?
     private let calendar = Calendar.current
 

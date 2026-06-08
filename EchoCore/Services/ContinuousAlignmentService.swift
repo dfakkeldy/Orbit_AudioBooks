@@ -6,7 +6,7 @@ import os.log
 
 @MainActor
 final class ContinuousAlignmentService {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "ContinuousAlignment")
+    private let logger = Logger(category: "ContinuousAlignment")
 
     // Dependencies
     private let audioEngine: AudioEngine

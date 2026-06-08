@@ -9,7 +9,7 @@ import os.log
 @MainActor
 @Observable
 final class ReaderFeedViewModel {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "ReaderFeed")
+    private let logger = Logger(category: "ReaderFeed")
 
     let audiobookID: String
     private let blockDAO: EPubBlockDAO

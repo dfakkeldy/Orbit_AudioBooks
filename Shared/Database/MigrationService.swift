@@ -6,7 +6,7 @@ import os.log
 /// and writes it into the SQL database.
 #if os(iOS)
 enum MigrationService {
-    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "Migration")
+    private static let logger = Logger(category: "Migration")
 
     /// Run the migration if needed. Safe to call on every launch.
     /// All writes are wrapped in a single transaction — partial failures roll back.

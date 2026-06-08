@@ -4,7 +4,7 @@ import os.log
 /// Extracts real-time playback event logging from PlayerModel into a dedicated
 /// stateless service. All database writes are delegated through DatabaseService.
 struct PlaybackEventLogger {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "PlaybackEventLogger")
+    private let logger = Logger(category: "PlaybackEventLogger")
 
     // MARK: - Session Logging
 

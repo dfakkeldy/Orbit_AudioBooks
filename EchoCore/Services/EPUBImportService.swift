@@ -14,7 +14,7 @@ import os.log
 /// For V1, the EPUB is expected to be provided as an expanded directory.
 /// ZIP extraction support requires the ZIPFoundation package.
 struct EPUBImportService {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "EPUBImport")
+    private let logger = Logger(category: "EPUBImport")
 
     /// Destination for EPUB asset files.
     let assetStorage: EPUBAssetStorage

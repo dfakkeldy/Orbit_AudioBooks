@@ -14,7 +14,7 @@ enum EPUBAssetError: LocalizedError {
 /// usable by `UIImage(contentsOfFile:)`. Raw EPUB hrefs are never stored
 /// in `timeline_item.image_path` or `epub_block.image_path`.
 struct EPUBAssetStorage {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "EPUBAssets")
+    private let logger = Logger(category: "EPUBAssets")
     private let fileManager = FileManager.default
     let databaseService: DatabaseService?
 

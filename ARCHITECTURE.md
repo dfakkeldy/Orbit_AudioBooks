@@ -285,7 +285,7 @@ WordFrequency.swift
 
 ### EPUB-Audio Alignment (In-App)
 
-> **Note:** The earlier `EchoTranscriptionCLI` tool (Swift CLI + Python/Whisper pipeline) has been **abandoned**. It remains in the `Tools/` directory for reference but is not part of the current user workflow.
+> **Note:** The earlier `EchoTranscriptionCLI` tool (Swift CLI + Python/Whisper pipeline) has been **abandoned and removed**. It is not part of the current user workflow.
 
 Alignment is now performed entirely in-app, without any external tools or API calls:
 

@@ -3,7 +3,7 @@ import os.log
 import ZIPFoundation
 
 enum EPUBAutoImportScanner {
-    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "EPUBAutoImport")
+    private static let logger = Logger(category: "EPUBAutoImport")
 
     /// Scans the given audiobook folder for `.epub` files. When one is found
     /// and no prior EPUB blocks exist in the database, the archive is extracted

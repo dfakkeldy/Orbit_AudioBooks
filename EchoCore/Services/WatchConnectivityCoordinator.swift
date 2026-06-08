@@ -37,6 +37,7 @@ final class WatchConnectivityCoordinator: WatchCommandRoutingFacade {
     func cycleLoopMode() { playerModel?.cycleLoopMode() }
     func setSleepTimer(_ mode: SleepTimerMode) { playerModel?.setSleepTimer(mode) }
     func cancelSleepTimer() { playerModel?.cancelSleepTimer() }
+    func toggleSleepTimer() { playerModel?.toggleSleepTimer() }
     func addBookmarkFromWatchCommand() { playerModel?.addBookmarkFromWatchCommand() }
     func addWatchBookmark(from payload: [String: Any]) { playerModel?.addWatchBookmark(from: payload) }
     func gradeFlashcard(cardID: String, grade: Int) { playerModel?.gradeFlashcard(cardID: cardID, grade: grade) }

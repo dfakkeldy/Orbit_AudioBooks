@@ -10,7 +10,7 @@ import os.log
 struct AlignmentService {
     static let isoFormatter = ISO8601DateFormatter()
 
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "Alignment")
+    private let logger = Logger(category: "Alignment")
     private let anchorDAO: AlignmentAnchorDAO
     private let blockDAO: EPubBlockDAO
     private let timelineDAO: TimelineDAO

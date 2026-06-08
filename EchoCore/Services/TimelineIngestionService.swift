@@ -5,7 +5,7 @@ import os.log
 /// items — extracted from PlayerModel to keep it focused on playback orchestration.
 struct TimelineIngestionService {
 
-    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TimelineIngestion")
+    private static let logger = Logger(category: "TimelineIngestion")
 
     // MARK: - Audiobook & Track persistence
 

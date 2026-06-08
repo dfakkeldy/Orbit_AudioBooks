@@ -43,7 +43,7 @@ final class TimelineFeedViewModel {
     private(set) var loadError: String?
     var showHiddenBlocks = false
 
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TimelineFeedViewModel")
+    private let logger = Logger(category: "TimelineFeedViewModel")
 
     /// The active structural zoom level. Setting this triggers a data reload.
     var scope: TimelineScope = .chapter {

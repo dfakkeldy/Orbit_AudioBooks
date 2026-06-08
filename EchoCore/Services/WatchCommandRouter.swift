@@ -28,12 +28,14 @@ protocol WatchCommandRoutingFacade: AnyObject {
     func cycleLoopMode()
     func setSleepTimer(_ mode: SleepTimerMode)
     func cancelSleepTimer()
+    func toggleSleepTimer()
     func addBookmarkFromWatchCommand()
     func addWatchBookmark(from payload: [String: Any])
     func gradeFlashcard(cardID: String, grade: Int)
     func watchStateContext() -> [String: Any]
 }
 
+@MainActor
 final class WatchCommandRouter {
     private let facade: WatchCommandRoutingFacade
 
@@ -42,104 +44,103 @@ final class WatchCommandRouter {
     }
 
     func route(message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let facade = self.facade
+        let facade = self.facade
 
-            var commandResult: String?
-            if let command = message["command"] as? String {
-                switch command {
-                case "play":
-                    facade.play()
-                case "pause":
-                    facade.pause()
-                case "next":
-                    if facade.skipForwardNavigation() { commandResult = "bookmarkJump" }
-                case "previous":
-                    if facade.skipBackwardNavigation() { commandResult = "bookmarkJump" }
-                case "nextSection":
-                    facade.nextSection()
-                case "previousSection":
-                    facade.previousSectionOrRestart()
-                case "skipBackward":
-                    if facade.skipBackward30() { commandResult = "bookmarkJump" }
-                case "skipForward":
-                    if facade.skipForward30() { commandResult = "bookmarkJump" }
-                case "seek":
-                    if let fraction = message["fraction"] as? Double {
-                        facade.seek(toFraction: fraction)
-                    }
-                case "scrubDelta":
-                    if let delta = message["delta"] as? Double {
-                        let sensitivity = facade.crownScrubSensitivity
-                        let multiplier = sensitivity > 0 ? sensitivity : SettingsManager.Defaults.crownScrubSensitivity
-                        let duration = facade.durationSeconds ?? 0
-                        let target = max(0, min(duration, facade.currentPlaybackTime + (delta * 30.0 * multiplier)))
-                        facade.seek(toSeconds: target)
-                    }
-                case "volumeDelta":
-                    if let delta = message["delta"] as? Double {
-                        let sensitivity = facade.crownVolumeSensitivity
-                        let multiplier = sensitivity > 0 ? sensitivity : SettingsManager.Defaults.crownVolumeSensitivity
-                        let newGain = max(-40, min(9, facade.watchCommandOutputGain + Float(delta * 6 * multiplier)))
-                        facade.setWatchCommandOutputGain(newGain)
-                    }
-                case "toggle":
-                    facade.togglePlayPause()
-                case "toggleLoopMode", "cycleLoopMode":
-                    facade.cycleLoopMode()
-                case "cycleSpeed":
-                    if let newSpeed = message["playbackSpeed"] as? Double {
-                        facade.setSpeed(Float(newSpeed))
-                    } else {
-                        let speeds = SettingsManager.Defaults.speedPresets
-                        let idx = speeds.firstIndex(of: facade.speed) ?? -1
-                        let next = speeds[(idx + 1) % speeds.count]
-                        facade.setSpeed(next)
-                    }
-                case "setSleepTimer":
-                    if let modeString = message["sleepTimerMode"] as? String {
-                        switch modeString {
-                        case "off":
-                            facade.setSleepTimer(.off)
-                        case "endOfChapter":
-                            facade.setSleepTimer(.endOfChapter)
-                        case "minutes":
-                            let minutes = (message["sleepTimerMinutes"] as? Int) ?? 15
-                            facade.setSleepTimer(.minutes(minutes))
-                        default:
-                            break
-                        }
-                    }
-                case "cancelSleepTimer":
-                    facade.cancelSleepTimer()
-                case "addBookmark":
-                    facade.addBookmarkFromWatchCommand()
-                case "addWatchTextBookmark":
-                    facade.addWatchBookmark(from: message)
-                case "addWatchVoiceBookmark":
-                    addWatchVoiceBookmark(from: message)
-                case "gradeFlashcard":
-                    if let cardID = message["cardID"] as? String,
-                       let grade = message["grade"] as? Int {
-                        facade.gradeFlashcard(cardID: cardID, grade: grade)
-                    }
-                case "requestState":
-                    break
-                default:
-                    break
+        var commandResult: String?
+        if let command = message["command"] as? String {
+            switch command {
+            case "play":
+                facade.play()
+            case "pause":
+                facade.pause()
+            case "next":
+                if facade.skipForwardNavigation() { commandResult = "bookmarkJump" }
+            case "previous":
+                if facade.skipBackwardNavigation() { commandResult = "bookmarkJump" }
+            case "nextSection":
+                facade.nextSection()
+            case "previousSection":
+                facade.previousSectionOrRestart()
+            case "skipBackward":
+                if facade.skipBackward30() { commandResult = "bookmarkJump" }
+            case "skipForward":
+                if facade.skipForward30() { commandResult = "bookmarkJump" }
+            case "seek":
+                if let fraction = message["fraction"] as? Double {
+                    facade.seek(toFraction: fraction)
                 }
+            case "scrubDelta":
+                if let delta = message["delta"] as? Double {
+                    let sensitivity = facade.crownScrubSensitivity
+                    let multiplier = sensitivity > 0 ? sensitivity : SettingsManager.Defaults.crownScrubSensitivity
+                    let duration = facade.durationSeconds ?? 0
+                    let target = max(0, min(duration, facade.currentPlaybackTime + (delta * 30.0 * multiplier)))
+                    facade.seek(toSeconds: target)
+                }
+            case "volumeDelta":
+                if let delta = message["delta"] as? Double {
+                    let sensitivity = facade.crownVolumeSensitivity
+                    let multiplier = sensitivity > 0 ? sensitivity : SettingsManager.Defaults.crownVolumeSensitivity
+                    let newGain = max(-40, min(9, facade.watchCommandOutputGain + Float(delta * 6 * multiplier)))
+                    facade.setWatchCommandOutputGain(newGain)
+                }
+            case "toggle":
+                facade.togglePlayPause()
+            case "toggleLoopMode", "cycleLoopMode":
+                facade.cycleLoopMode()
+            case "cycleSpeed":
+                if let newSpeed = message["playbackSpeed"] as? Double {
+                    facade.setSpeed(Float(newSpeed))
+                } else {
+                    let speeds = SettingsManager.Defaults.speedPresets
+                    let idx = speeds.firstIndex(of: facade.speed) ?? -1
+                    let next = speeds[(idx + 1) % speeds.count]
+                    facade.setSpeed(next)
+                }
+            case "setSleepTimer":
+                if let modeString = message["sleepTimerMode"] as? String {
+                    switch modeString {
+                    case "off":
+                        facade.setSleepTimer(.off)
+                    case "endOfChapter":
+                        facade.setSleepTimer(.endOfChapter)
+                    case "minutes":
+                        let minutes = (message["sleepTimerMinutes"] as? Int) ?? 15
+                        facade.setSleepTimer(.minutes(minutes))
+                    default:
+                        break
+                    }
+                }
+            case "cancelSleepTimer":
+                facade.cancelSleepTimer()
+            case "toggleSleepTimer":
+                facade.toggleSleepTimer()
+            case "addBookmark":
+                facade.addBookmarkFromWatchCommand()
+            case "addWatchTextBookmark":
+                facade.addWatchBookmark(from: message)
+            case "addWatchVoiceBookmark":
+                addWatchVoiceBookmark(from: message)
+            case "gradeFlashcard":
+                if let cardID = message["cardID"] as? String,
+                   let grade = message["grade"] as? Int {
+                    facade.gradeFlashcard(cardID: cardID, grade: grade)
+                }
+            case "requestState":
+                break
+            default:
+                break
             }
-
-            var reply = facade.watchStateContext()
-            if let thumbnailData = facade.watchThumbnailData {
-                reply["thumbnailData"] = thumbnailData
-            }
-            if let commandResult {
-                reply["commandResult"] = commandResult
-            }
-            replyHandler?(reply)
         }
+
+        var reply = facade.watchStateContext()
+        if let thumbnailData = facade.watchThumbnailData {
+            reply["thumbnailData"] = thumbnailData
+        }
+        if let commandResult {
+            reply["commandResult"] = commandResult
+        }
+        replyHandler?(reply)
     }
 
     func handleFile(_ file: WCSessionFile) {
@@ -164,9 +165,7 @@ final class WatchCommandRouter {
         var metadata = file.metadata ?? [:]
         metadata["voiceMemoFileName"] = safeFileName
 
-        DispatchQueue.main.async { [weak self] in
-            self?.facade.addWatchBookmark(from: metadata)
-        }
+        self.facade.addWatchBookmark(from: metadata)
     }
 
     private func addWatchVoiceBookmark(from payload: [String: Any]) {

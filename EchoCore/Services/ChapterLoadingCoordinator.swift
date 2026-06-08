@@ -135,7 +135,7 @@ final class ChapterLoadingCoordinator {
                 try ChapterDAO(db: db.writer).deleteAll(for: audiobookID)
                 try ChapterDAO(db: db.writer).insertAll(records, audiobookID: audiobookID)
             } catch {
-                Logger(subsystem: "com.orbitaudiobooks", category: "PlayerModel")
+                Logger(category: "PlayerModel")
                     .error("Failed to persist chapters: \(error.localizedDescription)")
             }
 

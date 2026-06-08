@@ -5,7 +5,7 @@ import os.log
 /// audiobook folder: copying the file (preserving same-folder sources),
 /// clearing stale database blocks, and triggering extraction/parsing.
 enum EPUBImportCoordinator {
-    private static let logger = Logger(subsystem: "com.orbitaudiobooks", category: "EPUBImportCoordinator")
+    private static let logger = Logger(category: "EPUBImportCoordinator")
 
     /// Copies an EPUB file into the audiobook folder (if not already there),
     /// clears previous EPUB blocks from the database, and triggers a fresh

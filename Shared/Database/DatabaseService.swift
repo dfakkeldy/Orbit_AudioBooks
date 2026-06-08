@@ -18,7 +18,7 @@ enum DatabaseError: LocalizedError {
 final class DatabaseService {
     let writer: DatabaseWriter
     let dbPath: String
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "DatabaseService")
+    private let logger = Logger(category: "DatabaseService")
 
     @ObservationIgnored private let migrationFlag = "sql_migration_done"
     @ObservationIgnored private let appGroupIdentifier: String
