@@ -104,6 +104,50 @@ struct WatchCommandRouterTests {
         #expect(facade.gradedFlashcards.first?.grade == 4)
     }
 
+    @Test("queued (background) channel drops stale transport and navigation commands")
+    func queuedChannelIgnoresTimeSensitiveCommands() {
+        let facade = FakeWatchCommandFacade()
+        let router = WatchCommandRouter(facade: facade)
+
+        // These arrive via WCSession.transferUserInfo, a persistent FIFO queue that
+        // can drain minutes later (even on the next launch). By then the intent is
+        // stale, so the router must drop them rather than replay them on the player.
+        let staleCommands = [
+            "play", "pause", "toggle",
+            "next", "previous", "nextSection", "previousSection",
+            "skipForward", "skipBackward",
+            "seek", "scrubDelta", "volumeDelta",
+            "cycleSpeed", "cycleLoopMode",
+            "setSleepTimer", "cancelSleepTimer", "toggleSleepTimer"
+        ]
+        for command in staleCommands {
+            router.route(queuedMessage: ["command": command])
+        }
+
+        #expect(facade.calls.isEmpty)
+    }
+
+    @Test("queued (background) channel still delivers bookmarks and flashcard grades")
+    func queuedChannelDeliversDeferredSafeCommands() {
+        let facade = FakeWatchCommandFacade()
+        let router = WatchCommandRouter(facade: facade)
+
+        router.route(queuedMessage: ["command": "addBookmark"])
+        router.route(queuedMessage: [
+            "command": "addWatchTextBookmark",
+            "bookmarkStorageKey": "book-1"
+        ])
+        router.route(queuedMessage: [
+            "command": "gradeFlashcard",
+            "cardID": "card-9",
+            "grade": 3
+        ])
+
+        #expect(facade.calls.contains("addBookmarkFromWatchCommand"))
+        #expect(facade.calls.contains("addWatchBookmark"))
+        #expect(facade.calls.contains("gradeFlashcard"))
+    }
+
     private func reply(
         from router: WatchCommandRouter,
         message: [String: Any]

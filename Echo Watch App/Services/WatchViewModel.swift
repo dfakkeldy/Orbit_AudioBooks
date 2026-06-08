@@ -590,8 +590,14 @@ class WatchViewModel: NSObject, WCSessionDelegate {
                 self?.playHaptic(Self.isForwardCommand(command) ? .directionUp : .directionDown)
             }
         }, errorHandler: { [weak self] error in
-            self?.logger.error("Error sending command: \(error). Falling back to transferUserInfo.")
-            session.transferUserInfo(message)
+            // Deliberately do NOT fall back to transferUserInfo here. Transport,
+            // navigation and seek commands are only meaningful live. transferUserInfo
+            // persists them in a FIFO queue that drains (even across launches) the next
+            // time the phone is reachable, replaying stale play/pause/seek intent and
+            // fighting the user. sendMessage already wakes a suspended companion app; if
+            // it still fails the correct recovery is to revert the optimistic UI and
+            // re-pull the phone's authoritative state — not to queue a stale command.
+            self?.logger.error("Error sending command \(command): \(error). Reverting optimistic state.")
             self?.rollback()
             self?.requestCurrentState()
         })

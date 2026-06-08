@@ -433,6 +433,9 @@ final class PlayerModel {
         watchSyncManager.onMessage = { [weak self] message, reply in
             self?.watchCommandRouter.route(message: message, replyHandler: reply)
         }
+        watchSyncManager.onQueuedMessage = { [weak self] message in
+            self?.watchCommandRouter.route(queuedMessage: message)
+        }
         watchSyncManager.onReceiveApplicationContext = { [weak self] context in
             self?.watchCommandRouter.route(message: context)
         }

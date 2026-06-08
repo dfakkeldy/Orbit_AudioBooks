@@ -12,8 +12,14 @@ import os.log
 final class WatchSyncManager: NSObject, WCSessionDelegate {
     // MARK: - Callback Closures
 
-    /// Called when a message is received from the Watch. Parameters: message dict, optional reply handler.
+    /// Called when a *live* message is received from the Watch (sendMessage).
+    /// Parameters: message dict, optional reply handler.
     var onMessage: (([String: Any], (([String: Any]) -> Void)?) -> Void)?
+
+    /// Called when a payload arrives via the persistent background queue
+    /// (`transferUserInfo`). Kept separate from `onMessage` because queued payloads
+    /// can be stale — the router applies stricter filtering to them.
+    var onQueuedMessage: (([String: Any]) -> Void)?
 
     /// Called when a file (voice memo) is received from the Watch.
     var onReceiveFile: ((WCSessionFile) -> Void)?
@@ -123,7 +129,7 @@ final class WatchSyncManager: NSObject, WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         Task { @MainActor [weak self] in
-            self?.onMessage?(userInfo, nil)
+            self?.onQueuedMessage?(userInfo)
         }
     }
 

@@ -143,6 +143,29 @@ final class WatchCommandRouter {
         replyHandler?(reply)
     }
 
+    /// Commands that stay meaningful even when delivered late. These carry their
+    /// own context (a bookmark's timestamp, a flashcard's grade) so replaying them
+    /// after a delay still does the right thing. Everything else is transport,
+    /// navigation, seek, speed or sleep-timer state that is only valid "right now".
+    private static let deferredSafeCommands: Set<String> = [
+        "addBookmark", "addWatchTextBookmark", "addWatchVoiceBookmark", "gradeFlashcard"
+    ]
+
+    /// Routes a payload that arrived via the persistent background queue
+    /// (`WCSession.transferUserInfo` → `didReceiveUserInfo`). That queue drains
+    /// FIFO whenever the phone next becomes reachable — possibly minutes later or
+    /// on a subsequent launch — so any time-sensitive command in it is stale and
+    /// would fight the user (phantom play/pause, surprise seeks). Only deferred-safe
+    /// commands are honored here; the rest are dropped. Live commands continue to
+    /// flow through `route(message:replyHandler:)`.
+    func route(queuedMessage message: [String: Any]) {
+        guard let command = message["command"] as? String,
+              Self.deferredSafeCommands.contains(command) else {
+            return
+        }
+        route(message: message)
+    }
+
     func handleFile(_ file: WCSessionFile) {
         guard let command = file.metadata?["command"] as? String, command == "addWatchVoiceBookmark" else {
             return
