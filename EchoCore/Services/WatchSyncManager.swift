@@ -55,21 +55,47 @@ final class WatchSyncManager: NSObject, WCSessionDelegate {
 
     // MARK: - Public API
 
-    /// Pushes the current playback state to the Watch app. Called on every
-    /// state change (play, pause, seek, track change, etc.).
-    func syncToWatch() {
+    /// Distinguishes durable state changes from ephemeral progress ticks.
+    ///
+    /// `.significant` changes (book/track switch, transport, speed, loop, sleep
+    /// timer, settings) are written to `updateApplicationContext` — the durable,
+    /// latest-wins channel the system guarantees to deliver on the watch's next
+    /// activation (and immediately if it is already active). `.progress` ticks
+    /// are ephemeral: the watch interpolates position with its own timer, so
+    /// they are sent live-only and never churn the application context.
+    enum SyncReason {
+        case significant
+        case progress
+    }
+
+    /// Pushes the current playback state to the Watch app.
+    ///
+    /// Significant changes always refresh the durable application context, so the
+    /// watch converges even if the live `sendMessage` is dropped (it is
+    /// best-effort and foreground-only) or the watch app is backgrounded. The
+    /// live send is kept purely as a low-latency optimisation when reachable.
+    func syncToWatch(reason: SyncReason = .significant) {
         let session = WCSession.default
         guard session.activationState == .activated, let context = stateProvider?() else { return }
 
+        // Durable channel: guarantees convergence regardless of reachability or
+        // watch app state. The system coalesces to the most recent context.
+        // Deliberately NOT transferUserInfo — that FIFO queue replays stale
+        // snapshots (the same hazard the watch warns about for commands).
+        if reason == .significant {
+            do {
+                try session.updateApplicationContext(context)
+            } catch {
+                os_log(.error, "updateApplicationContext failed: %{private}@", error.localizedDescription)
+            }
+        }
+
+        // Live channel: low-latency push while the watch app is reachable. If it
+        // is dropped, the application context above still carries the change.
         if session.isReachable {
             session.sendMessage(context, replyHandler: { _ in }) { error in
-                os_log(.error, "Immediate watch sync failed: %{private}@", error.localizedDescription)
-                try? WCSession.default.updateApplicationContext(context)
-                session.transferUserInfo(context)
+                os_log(.error, "Live watch sync dropped (context still carries it): %{private}@", error.localizedDescription)
             }
-        } else {
-            try? session.updateApplicationContext(context)
-            session.transferUserInfo(context)
         }
 
         sendThumbnailIfNeeded()

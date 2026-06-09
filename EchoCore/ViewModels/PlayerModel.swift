@@ -559,7 +559,8 @@ final class PlayerModel {
             self.syncToWatch()
         }
         sleepTimerManager.onTick = { [weak self] in
-            self?.syncToWatch()
+            // Per-second countdown tick — ephemeral, so live-only (see SyncReason).
+            self?.syncToWatch(reason: .progress)
         }
 
         // Wire artwork coordinator dependencies.
@@ -598,7 +599,7 @@ final class PlayerModel {
         progressPresenter.currentSubtitleProvider = { [weak self] in self?.currentSubtitle ?? "" }
         progressPresenter.currentDisplayArtworkProvider = { [weak self] in self?.currentDisplayArtwork }
         progressPresenter.thumbnailImageProvider = { [weak self] in self?.thumbnailImage }
-        progressPresenter.onSyncToWatch = { [weak self] in self?.syncToWatch() }
+        progressPresenter.onSyncToWatch = { [weak self] in self?.syncToWatch(reason: .progress) }
         progressPresenter.onChapterOutOfBounds = { [weak self] in
             self?.chapterLoadingCoordinator.updateCurrentChapterFromPlayerTime()
         }
@@ -777,9 +778,11 @@ final class PlayerModel {
         }
     }
 
-    /// Delegates to `WatchSyncManager.syncToWatch()`.
-    func syncToWatch() {
-        watchSyncManager.syncToWatch()
+    /// Delegates to `WatchSyncManager.syncToWatch(reason:)`. Defaults to
+    /// `.significant`; only high-frequency callers (progress / sleep-timer ticks)
+    /// pass `.progress` to stay live-only and avoid churning the durable context.
+    func syncToWatch(reason: WatchSyncManager.SyncReason = .significant) {
+        watchSyncManager.syncToWatch(reason: reason)
     }
 
     /// Persists the current playback progress and pause timestamp.
