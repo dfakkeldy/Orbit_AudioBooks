@@ -37,12 +37,33 @@ enum DominantColorExtractor {
 
     // MARK: - Public API
 
+    /// Result of a single extraction pass.
+    struct ArtworkPalette {
+        /// Most vivid hue, or nil if none (greyscale / no image).
+        public let rawAccent: Color?
+        /// All vivid hues, ranked by weight (may be empty).
+        public let candidates: [Color]
+        /// 3 colours for the gradient (defaults if no vivid hues).
+        public let background: [Color]
+    }
+
+    private static let backgroundDefaults: [Color] = [.blue, .purple, .indigo]
+
+    /// Single downsample + histogram pass shared by every public entry point.
+    static func extractPalette(from image: UIImage) -> ArtworkPalette {
+        guard let cgImage = image.cgImage,
+              let pixelData = downsampleAndRead(cgImage) else {
+            return ArtworkPalette(rawAccent: nil, candidates: [], background: backgroundDefaults)
+        }
+        let vivid = rankedVividColors(pixelData: pixelData)
+        let background = vivid.isEmpty ? backgroundDefaults : pad(vivid, to: 3)
+        return ArtworkPalette(rawAccent: vivid.first, candidates: vivid, background: background)
+    }
+
     /// Returns the best accent colour from `image`, or `nil` if no suitable
     /// vivid region could be found (e.g. pure greyscale artwork).
     static func extract(from image: UIImage) -> Color? {
-        guard let cgImage = image.cgImage else { return nil }
-        guard let pixelData = downsampleAndRead(cgImage) else { return nil }
-        return analyse(pixelData: pixelData)
+        extractPalette(from: image).rawAccent
     }
 
     // MARK: - Downsampling
@@ -77,7 +98,9 @@ enum DominantColorExtractor {
         var lightnessSum: Float = 0
     }
 
-    private static func analyse(pixelData: [UInt8]) -> Color? {
+    /// Returns the vivid colours found in `pixelData`, ranked by weight.
+    /// Empty when the artwork has no colour vivid enough to serve as a tint.
+    private static func rankedVividColors(pixelData: [UInt8]) -> [Color] {
         var histogram = [BucketStats](repeating: BucketStats(), count: hueBuckets)
         let centre = sampleSize / 2
         let maxDistance = Float(sqrt(Double(centre * centre + centre * centre)))
@@ -113,105 +136,38 @@ enum DominantColorExtractor {
             histogram[bucket].lightnessSum += l * weight
         }
 
-        // Find the bucket with the most weighted votes.
-        guard let best = histogram.max(by: { $0.weight < $1.weight }),
-              best.weight > 0 else { return nil }
+        let sorted = histogram.enumerated()
+            .filter { $0.element.weight > 0 }
+            .sorted { $0.element.weight > $1.element.weight }
 
-        let avgSaturation = best.saturationSum / best.weight
-        let avgLightness = best.lightnessSum / best.weight
+        return sorted.map { entry in
+            let stats = entry.element
+            let avgSaturation = stats.saturationSum / stats.weight
+            let avgLightness = stats.lightnessSum / stats.weight
+            let finalS = max(avgSaturation, saturationFloor)
+            let finalL = min(max(avgLightness, lightnessTargetMin), lightnessTargetMax)
+            let finalH = Float(entry.offset) / Float(hueBuckets)
+            let (cr, cg, cb) = hslToRGB(h: finalH, s: finalS, l: finalL)
+            return Color(red: Double(cr), green: Double(cg), blue: Double(cb))
+        }
+    }
 
-        // Boost saturation so the accent pops.
-        let finalS = max(avgSaturation, saturationFloor)
-        // Nudge lightness into a readable UI range.
-        let finalL = min(max(avgLightness, lightnessTargetMin), lightnessTargetMax)
-
-        // Reconstruct the hue from the bucket index.
-        let finalH = Float(histogram.firstIndex(where: { $0.weight == best.weight }) ?? 0) / Float(hueBuckets)
-
-        let (cr, cg, cb) = hslToRGB(h: finalH, s: finalS, l: finalL)
-        return Color(red: Double(cr), green: Double(cg), blue: Double(cb))
+    /// Pads `colors` up to `count` by repeating the dominant one.
+    private static func pad(_ colors: [Color], to count: Int) -> [Color] {
+        guard let first = colors.first else { return [] }
+        var out = colors
+        while out.count < count { out.append(first) }
+        return Array(out.prefix(count))
     }
 
     /// Returns the top `count` dominant colors from `image`, or default colors if none can be extracted.
     static func extractColors(from image: UIImage, count: Int = 3) -> [Color] {
-        guard let cgImage = image.cgImage else {
-            return [Color.blue, Color.purple, Color.indigo]
+        guard let cgImage = image.cgImage,
+              let pixelData = downsampleAndRead(cgImage) else {
+            return backgroundDefaults
         }
-        guard let pixelData = downsampleAndRead(cgImage) else {
-            return [Color.blue, Color.purple, Color.indigo]
-        }
-        return analyseMultiple(pixelData: pixelData, count: count)
-    }
-
-    private static func analyseMultiple(pixelData: [UInt8], count: Int) -> [Color] {
-        var histogram = [BucketStats](repeating: BucketStats(), count: hueBuckets)
-        let centre = sampleSize / 2
-        let maxDistance = Float(sqrt(Double(centre * centre + centre * centre)))
-
-        let pixelCount = sampleSize * sampleSize
-        for i in 0..<pixelCount {
-            let offset = i * 4
-            let r = Float(pixelData[offset])     / 255.0
-            let g = Float(pixelData[offset + 1]) / 255.0
-            let b = Float(pixelData[offset + 2]) / 255.0
-
-            let (h, s, l) = rgbToHSL(r: r, g: g, b: b)
-
-            // Skip neutrals
-            guard l > minLightness && l < maxLightness else { continue }
-            guard s > minSaturation else { continue }
-
-            let saturationWeight = s * s
-            let x = Float(i % sampleSize)
-            let y = Float(i / sampleSize)
-            let dx = x - Float(centre)
-            let dy = y - Float(centre)
-            let distance = sqrt(dx * dx + dy * dy)
-            let centreWeight = 1.0 - (distance / maxDistance) * 0.4
-
-            let weight = saturationWeight * centreWeight
-
-            let bucket = min(Int(h * Float(hueBuckets)), hueBuckets - 1)
-            histogram[bucket].weight += weight
-            histogram[bucket].saturationSum += s * weight
-            histogram[bucket].lightnessSum += l * weight
-        }
-
-        // Get non-zero buckets sorted by weight descending
-        let sortedBuckets = histogram.enumerated()
-            .filter { $0.element.weight > 0 }
-            .sorted(by: { $0.element.weight > $1.element.weight })
-
-        if sortedBuckets.isEmpty {
-            return [Color.blue, Color.purple, Color.indigo]
-        }
-
-        var results: [Color] = []
-        for i in 0..<min(count, sortedBuckets.count) {
-            let index = sortedBuckets[i].offset
-            let stats = sortedBuckets[i].element
-
-            let avgSaturation = stats.saturationSum / stats.weight
-            let avgLightness = stats.lightnessSum / stats.weight
-
-            let finalS = max(avgSaturation, saturationFloor)
-            let finalL = min(max(avgLightness, lightnessTargetMin), lightnessTargetMax)
-            let finalH = Float(index) / Float(hueBuckets)
-
-            let (cr, cg, cb) = hslToRGB(h: finalH, s: finalS, l: finalL)
-            results.append(Color(red: Double(cr), green: Double(cg), blue: Double(cb)))
-        }
-
-        // Pad with slightly shifted/opacity variations if fewer than count
-        while results.count < count {
-            if let first = results.first {
-                results.append(first.opacity(0.6))
-            } else {
-                results.append(Color.accentColor)
-            }
-        }
-
-        return results
+        let vivid = rankedVividColors(pixelData: pixelData)
+        return vivid.isEmpty ? backgroundDefaults : pad(vivid, to: count)
     }
 
 
