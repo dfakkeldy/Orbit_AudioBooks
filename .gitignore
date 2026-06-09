@@ -4,6 +4,10 @@
 .LSOverride
 Icon?
 ._*
+
+# --- Superpowers brainstorm artifacts ---
+.superpowers/
+
 #Fastlane api
 fastlane/api_key.json
 # --- Xcode: User-specific ---
