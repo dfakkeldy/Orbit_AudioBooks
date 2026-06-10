@@ -14,7 +14,7 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 
 **Legend:** ✅ done · 🔶 partial · 🔲 open
 
-### ✅ Done (25)
+### ✅ Done (26)
 
 - **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
 - **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
@@ -26,10 +26,9 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 - **§8.1** AutoAlignmentProgressView reads `@Observable` directly, no Timer (`1f6c93f`) · **§8.3** app-icon completion `@MainActor` hop (`706ab56`).
 - **§9.2** unified snippet players (`2f51268`) · **§9.4** removed `AudiobookPlayerUIArchitect` scaffold + `add_architect.rb` · **§9.7** named JPEG / watch-message-key constants (`7d1e6bc`).
 - **§3.3** Task cancellation — `ContinuousAlignmentService` cancels in-flight work (`2f51268`); ReaderTab `.onDisappear` cancels `autoAlignmentTask`; `TimelineService` load-window Tasks gated by generation counter (`e45685c`).
+- **§9.3** macOS dedup — Shared alignment utilities extracted to `Shared/TextAlignmentUtilities.swift`; `MacGlobalAlignmentService` delegates tokenize/score/formatTime to shared free functions; all five macOS Logger sites use `Logger(category:)` instead of hardcoded subsystem (`87bd4a8`).
 
 ### 🔶 Partial
-
-- **§9.3** macOS dedup — target builds again, but `Mac*` services (`MacEPUBParser.swift`, etc.) still duplicate `Shared/`/`EchoCore/` logic; move the shared logic into `Shared/` to finish.
 
 ### 🔲 Open — remaining work
 
@@ -306,10 +305,8 @@ See **§3.2** — the same 23 synchronous DAO sites are the codebase's largest j
 - **Severity:** Medium
 
 ### 9.3 macOS target reimplements iOS EPUB parsing and alignment
-- **Locations:** `Echo macOS/Services/MacEPUBParser.swift` (also hardcodes the logger subsystem at `:10` instead of `Logger(category:)`), `Echo macOS/Services/MacGlobalAlignmentService.swift` vs `Shared/EPUBXMLParsing.swift` + `EchoCore/Services/EPUBImportService.swift` / `AutoAlignmentService.swift`
-- **What:** Mac-prefixed services duplicate parsing/alignment logic that already lives in `Shared/` and `EchoCore/`.
-- **Why:** The duplication is why the macOS target rotted unnoticed (§5.1) — shared logic would have kept it compiling.
-- **Action:** If the macOS target is revived, move the shared logic into `Shared/` (or an EchoKit package) and delete the Mac copies; if parked, delete the target's Services/ wholesale.
+- **Status:** ✅ **FIXED 2026-06-10.** Pure alignment utility functions (`tokenizeForAlignment`, `jaccardScore`, `formatTimeHMS`) extracted to `Shared/TextAlignmentUtilities.swift`. `MacGlobalAlignmentService` delegates tokenize/score/formatTime to the shared free functions, eliminating private copies. All five hardcoded `Logger(subsystem:)` sites in the macOS target replaced with `Logger(category:)`. `MacEPUBParser` already used `parseXHTML`/`parseOPF`/`parseContainerXML` from `Shared/EPUBXMLParsing.swift` — its thin wrappers add platform-appropriate file I/O.
+- **Locations:** `Echo macOS/Services/MacEPUBParser.swift`, `Echo macOS/Services/MacGlobalAlignmentService.swift` vs `Shared/TextAlignmentUtilities.swift` + `Shared/EPUBXMLParsing.swift`
 - **Severity:** Medium
 
 ### 9.4 `AudiobookPlayerUIArchitect` design scaffold ships in the app target
