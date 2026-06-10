@@ -33,7 +33,6 @@ final class TimelineService {
 
     @ObservationIgnored private var pushForwardTimer: Timer?
     private let pushForwardInterval: TimeInterval = 60
-    private let pushForwardQueue = DispatchQueue(label: "com.orbitaudiobooks.timeline.pushforward")
 
     // MARK: - "Now" timer
 
@@ -172,11 +171,13 @@ final class TimelineService {
     private func pushForwardUncompletedItems() {
         guard let db else { return }
         let now = Date()
-        pushForwardQueue.async { [weak self] in
+        Task { [weak self] in
             guard let self else { return }
             do {
-                let dao = RealTimeEventDAO(db: db.writer)
-                try dao.pushForwardUncompleted(before: now, to: now)
+                try await db.writer.write { db in
+                    let dao = RealTimeEventDAO(db: db)
+                    try dao.pushForwardUncompleted(before: now, to: now)
+                }
             } catch {
                 self.logger.error("Push-forward failed: \(error.localizedDescription)")
             }
