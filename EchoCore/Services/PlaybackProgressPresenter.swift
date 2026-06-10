@@ -85,7 +85,7 @@ final class PlaybackProgressPresenter {
         }
 
         let elapsed = audioEngine.currentTime
-        let speed = Double(speedProvider?() ?? 1.0)
+        let speed = max(0.1, Double(speedProvider?() ?? 1.0))  // Clamp to avoid Inf/NaN in remaining labels
 
         // Multi-M4B: book-level progress (overrides chapter-level fraction below).
         if state.isMultiM4B, state.totalBookDuration > 0 {

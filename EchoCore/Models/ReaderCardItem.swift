@@ -51,4 +51,4 @@ extension ReaderCardItem: Hashable {
     }
 }
 
-extension ReaderCardItem: @unchecked Sendable {}
+extension ReaderCardItem: Sendable {}

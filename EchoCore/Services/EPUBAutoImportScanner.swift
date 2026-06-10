@@ -35,11 +35,9 @@ enum EPUBAutoImportScanner {
         // SecurityScopeManager only covers that file — not its parent directory.
         // Start a temporary scope on the parent so we can enumerate siblings.
         let needsParentScope = !folderIsDirectory
-        if needsParentScope {
-            _ = targetURL.startAccessingSecurityScopedResource()
-        }
+        let didStartParentScope = needsParentScope && targetURL.startAccessingSecurityScopedResource()
         defer {
-            if needsParentScope {
+            if didStartParentScope {
                 targetURL.stopAccessingSecurityScopedResource()
             }
         }
