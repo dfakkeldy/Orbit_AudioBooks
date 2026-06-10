@@ -14,7 +14,7 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 
 **Legend:** ✅ done · 🔶 partial · 🔲 open
 
-### ✅ Done (26)
+### ✅ Done (27)
 
 - **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
 - **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
@@ -27,12 +27,12 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 - **§9.2** unified snippet players (`2f51268`) · **§9.4** removed `AudiobookPlayerUIArchitect` scaffold + `add_architect.rb` · **§9.7** named JPEG / watch-message-key constants (`7d1e6bc`).
 - **§3.3** Task cancellation — `ContinuousAlignmentService` cancels in-flight work (`2f51268`); ReaderTab `.onDisappear` cancels `autoAlignmentTask`; `TimelineService` load-window Tasks gated by generation counter (`e45685c`).
 - **§9.3** macOS dedup — Shared alignment utilities extracted to `Shared/TextAlignmentUtilities.swift`; `MacGlobalAlignmentService` delegates tokenize/score/formatTime to shared free functions; all five macOS Logger sites use `Logger(category:)` instead of hardcoded subsystem (`87bd4a8`).
+- **§3.5** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (was only 2); consistent implicit isolation across all configurations (`e30c0a9`).
 
 ### 🔶 Partial
 
 ### 🔲 Open — remaining work
 
-- **§3.5** Unify `SWIFT_DEFAULT_ACTOR_ISOLATION` across all 5 targets (still set on only 2) — do this before any Swift 6 language-mode bump.
 - **§5.3** App-group `UserDefaults` read-modify-write races — switch to per-book keys or move durable state to GRDB.
 - **§6.3** Split the shared watch/widget entitlements into per-target, least-privilege files.
 - **§8.2** Move ReaderTab workflow `@State` into a view model; restore `private` on what remains.
@@ -102,10 +102,8 @@ Top items, in priority order:
 - **Severity:** Medium
 
 ### 3.5 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` drift across targets
-- **Location:** `Echo.xcodeproj/project.pbxproj:998`, `:1040` (Echo iOS), `:1178`, `:1217` (Echo Watch App) — set; widget (`:779-831`), Echo macOS (`:695-762`), and all test targets — unset
-- **What:** Only the iOS app and watch app default unannotated types to `@MainActor`; the widget, macOS app, and tests default to `nonisolated`.
-- **Why:** Files in `Shared/` (e.g. `AppGroupDefaults.swift`) compile with *different implicit isolation per target*, which hides races in the nonisolated targets and will produce divergent errors during Swift 6 migration.
-- **Action:** Set the flag uniformly on all five targets (or deliberately on none and annotate explicitly); do it before attempting the Swift 6 language-mode bump.
+- **Status:** ✅ **FIXED 2026-06-10.** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (all Debug + Release configurations). Previously only the iOS and Watch App targets had it; widget, macOS, and all 4 test targets defaulted to nonisolated. Shared/ files now compile with consistent implicit isolation across every target.
+- **Location:** `Echo.xcodeproj/project.pbxproj` (8 targets × 2 configurations = 16 occurrences)
 - **Severity:** Medium
 
 ### 3.6 Unnecessary `@unchecked Sendable` on `ReaderCardItem`
