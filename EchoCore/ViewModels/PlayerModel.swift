@@ -208,12 +208,14 @@ final class PlayerModel {
         if version != cachedPaletteVersion || cachedPalette == nil {
             if let image = currentDisplayArtwork ?? thumbnailImage {
                 cachedPalette = DominantColorExtractor.extractPalette(from: image)
+                cachedPaletteVersion = version  // Only cache on successful image lookup
             } else {
-                cachedPalette = DominantColorExtractor.ArtworkPalette(
+                // Return empty palette WITHOUT caching the version,
+                // so next access will retry extraction when artwork is available.
+                return DominantColorExtractor.ArtworkPalette(
                     rawAccent: nil, candidates: [], background: []
                 )
             }
-            cachedPaletteVersion = version
         }
         return cachedPalette!
     }
