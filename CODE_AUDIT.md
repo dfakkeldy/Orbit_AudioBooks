@@ -14,7 +14,7 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 
 **Legend:** ✅ done · 🔶 partial · 🔲 open
 
-### ✅ Done (24)
+### ✅ Done (25)
 
 - **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
 - **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
@@ -25,10 +25,10 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 - **§6.2** XML external-entity hardening (`c82e44b`) · **§7.2** watch marquee now paused (`TimelineView(.animation(minimumInterval:paused:))`, code-verified) · **§7.3** cache watch artwork JPEG by version (`d84f554`).
 - **§8.1** AutoAlignmentProgressView reads `@Observable` directly, no Timer (`1f6c93f`) · **§8.3** app-icon completion `@MainActor` hop (`706ab56`).
 - **§9.2** unified snippet players (`2f51268`) · **§9.4** removed `AudiobookPlayerUIArchitect` scaffold + `add_architect.rb` · **§9.7** named JPEG / watch-message-key constants (`7d1e6bc`).
+- **§3.3** Task cancellation — `ContinuousAlignmentService` cancels in-flight work (`2f51268`); ReaderTab `.onDisappear` cancels `autoAlignmentTask`; `TimelineService` load-window Tasks gated by generation counter (`e45685c`).
 
 ### 🔶 Partial
 
-- **§3.3** Task cancellation — `ContinuousAlignmentService` now cancels in-flight work (`2f51268`); **still open:** ReaderTab view-teardown cancel + the `TimelineService` load-window Tasks.
 - **§9.3** macOS dedup — target builds again, but `Mac*` services (`MacEPUBParser.swift`, etc.) still duplicate `Shared/`/`EchoCore/` logic; move the shared logic into `Shared/` to finish.
 
 ### 🔲 Open — remaining work
@@ -91,11 +91,8 @@ Top items, in priority order:
 - **Severity:** High
 
 ### 3.3 Unstructured `Task {}` without cancellation tracking
-- **Partial fix 2026-06-09:** the `WhisperSession.swift:54-62`/`:73-79` unload Tasks are now tracked as `pendingUnload` inside `ModelRetainBox` (see §3.1). The remaining sites below are unchanged.
-- **Location:** `EchoCore/Services/ContinuousAlignmentService.swift:97-109` (verified — `stop()` cannot cancel an in-flight transcription); `EchoCore/Services/TimelineService.swift:79`, `:101`, `:123`; `EchoCore/Views/ReaderTab.swift:27` (cancel is wired to the UI button at `:293` but not to view teardown)
-- **What:** Fire-and-forget Tasks are spawned without being stored, so teardown paths (`stop()`, view dismissal, book switch) cannot cancel them.
-- **Why:** In-flight WhisperKit transcription continues after `stop()`, wasting CPU/battery and potentially inserting an alignment anchor after the user cancelled; the load-window Tasks can stack on rapid scrolling.
-- **Action:** Adopt a store-and-cancel convention (`private var task: Task<…>?`, cancel on replace and in teardown) or scope work with `withTaskCancellationHandler`; for ReaderTab decide explicitly whether background-continuation after dismissal is intended and document it.
+- **Status:** ✅ **FIXED 2026-06-10.** `ContinuousAlignmentService` stores `transcriptionTask` and cancels in `stop()` (`2f51268`); `WhisperSession` / `ModelRetainBox` tracks its unload Task as `pendingUnload` (see §3.1); `ReaderTab` cancels `autoAlignmentTask` in `.onDisappear`; `TimelineService` load-window Tasks (`loadEarlier`, `loadLater`, `loadCurrentWindow`) are gated by a `loadGeneration` counter so stale results are dropped when a newer load supersedes them (`e45685c`).
+- **Location:** `EchoCore/Services/ContinuousAlignmentService.swift:97-109`; `EchoCore/Services/TimelineService.swift:79`, `:101`, `:123`; `EchoCore/Views/ReaderTab.swift:27`
 - **Severity:** Medium
 
 ### 3.4 `@MainActor` service hops to a private queue for DB work
