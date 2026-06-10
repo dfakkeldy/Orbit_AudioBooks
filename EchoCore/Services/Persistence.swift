@@ -172,7 +172,7 @@ struct Persistence {
     func saveBookmark(url: URL) {
         do {
             let data = try url.bookmarkData(
-                options: [.minimalBookmark],
+                options: [],  // Full security-scoped bookmark survives app relaunch
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
