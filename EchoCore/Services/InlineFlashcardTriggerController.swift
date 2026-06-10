@@ -7,6 +7,7 @@ import os.log
 /// PlayerModel owns the active card (`activeInlineCard`) and handles audio
 /// pause/resume; this controller handles the pure logic of when to fire
 /// and how to grade.
+@MainActor
 final class InlineFlashcardTriggerController {
 
     // MARK: - Trigger state
@@ -15,6 +16,8 @@ final class InlineFlashcardTriggerController {
     var cachedTrackFlashcards: [Flashcard] = []
     /// Key used to invalidate the flashcard cache on track switch.
     var cachedTrackFlashcardKey: String = ""
+    /// Whether a flashcard cache load is in flight for the current track.
+    var isLoadingFlashcards = false
     /// Set of already-triggered flashcard IDs to prevent re-firing on seek/loop.
     var triggeredFlashcardIDs: Set<String> = []
     /// Player time at which the last flashcard trigger fired, for deduplication.
@@ -29,6 +32,39 @@ final class InlineFlashcardTriggerController {
     var isPlayingProvider: (() -> Bool)?
     var isManualSeekingProvider: (() -> Bool)?
     var loopModeProvider: (() -> LoopMode)?
+
+    // MARK: - Async cache warm
+
+    /// Loads flashcard cache asynchronously via GRDB async read to avoid
+    /// blocking the main thread during playback ticks.
+    func loadFlashcards(for trackKey: String) {
+        guard !isLoadingFlashcards else { return }
+        isLoadingFlashcards = true
+        let db = databaseServiceProvider?()
+        Task { [weak self] in
+            guard let self else { return }
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.isLoadingFlashcards = false
+                }
+            }
+            do {
+                let cards = try await db?.writer.read { db in
+                    try FlashcardDAO(db: db).flashcards(for: trackKey)
+                } ?? []
+                await MainActor.run { [weak self] in
+                    self?.cachedTrackFlashcards = cards
+                    self?.cachedTrackFlashcardKey = trackKey
+                }
+            } catch {
+                Logger(category: "FlashcardTrigger").error("Failed to load flashcards for \(trackKey): \(error.localizedDescription)")
+                await MainActor.run { [weak self] in
+                    self?.cachedTrackFlashcards = []
+                    self?.cachedTrackFlashcardKey = trackKey
+                }
+            }
+        }
+    }
 
     // MARK: - Trigger detection
 
@@ -49,14 +85,10 @@ final class InlineFlashcardTriggerController {
         let toleranceAfter: Double = 0.75
 
         let trackKey = trackKeyProvider?() ?? ""
-        if cachedTrackFlashcardKey != trackKey, let db = databaseServiceProvider?() {
-            do {
-                cachedTrackFlashcards = try FlashcardDAO(db: db.writer).flashcards(for: trackKey)
-            } catch {
-                os_log(.error, "Failed to load flashcards for track %{public}@: %{public}@", trackKey, error.localizedDescription)
-                cachedTrackFlashcards = []
-            }
-            cachedTrackFlashcardKey = trackKey
+        if cachedTrackFlashcardKey != trackKey {
+            // Trigger async cache warm; skip flashcard check until loaded.
+            loadFlashcards(for: trackKey)
+            return nil
         }
         let cards = cachedTrackFlashcards
 
@@ -87,13 +119,19 @@ final class InlineFlashcardTriggerController {
 
     // MARK: - Grading & dismissal
 
-    /// Grades the given flashcard in the database.
+    /// Grades the given flashcard in the database via async write to avoid
+    /// blocking the main thread.
     func gradeCard(_ grade: Int, cardID: String) {
         guard let db = databaseServiceProvider?() else { return }
-        do {
-            try FlashcardDAO(db: db.writer).grade(cardID: cardID, grade: grade)
-        } catch {
-            os_log(.error, "Failed to grade flashcard %{public}@: %{public}@", cardID, error.localizedDescription)
+        Task { [weak self] in
+            guard self != nil else { return }
+            do {
+                try await db.writer.write { db in
+                    try FlashcardDAO(db: db).grade(cardID: cardID, grade: grade)
+                }
+            } catch {
+                Logger(category: "FlashcardTrigger").error("Failed to grade flashcard \(cardID): \(error.localizedDescription)")
+            }
         }
     }
 
