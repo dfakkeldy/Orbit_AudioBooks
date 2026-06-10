@@ -462,6 +462,7 @@ struct EditBookmarkView: View {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Delete image")
                         .accessibilityAddTraits(.isButton)
                             .accessibilityLabel(Text("Remove picture bookmark image"))
                         }
@@ -494,7 +495,7 @@ struct EditBookmarkView: View {
                                     .font(.title2)
                             }
                             .buttonStyle(.plain)
-                        .accessibilityAddTraits(.isButton)
+                            .accessibilityLabel(isPreviewPlaying ? "Stop preview" : "Preview voice memo")
                             Button(role: .destructive) {
                                 stopPreview()
                                 let probe = Bookmark(timestamp: 0, voiceMemoFileName: name)
@@ -506,7 +507,7 @@ struct EditBookmarkView: View {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.plain)
-                        .accessibilityAddTraits(.isButton)
+                            .accessibilityLabel("Delete voice memo")
                         }
                     } else {
                         if recorder.isRecording {
