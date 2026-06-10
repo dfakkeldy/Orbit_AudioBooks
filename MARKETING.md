@@ -48,6 +48,7 @@ The website carries everything that needs room to breathe:
 - **Learn (`learn.html`)** — "Getting the Most Out of Echo": every feature explained alongside the memory science that makes it work. This doubles as shareable evergreen content — it earns links and Reddit posts on its own ("why taking a photo helps you remember an audiobook").
 - **Manual (`manual.html`)** — the complete user manual. Reference depth; also a sales tool for feature-evaluators.
 - **Devlog (`devlog.html`)** — weekly build summaries from the actual commit history. Build-in-public artifact and press kit in one.
+- **Beta (`beta.html`)** — the TestFlight funnel: how to join, how to send useful feedback, six structured test plans, known limitations, beta privacy. Every "join the beta" CTA on the site lands here; when the public TestFlight link exists, it goes at the top of this page (one URL to update).
 - **Privacy (`privacy.html`)** — short, absolute, plain language. Privacy is a feature.
 
 ### App Store listing — the *what*, in 10 seconds
@@ -64,7 +65,7 @@ The website carries everything that needs room to breathe:
 
 | Channel | Play | Notes |
 |---|---|---|
-| **TestFlight public link** | Beta funnel from all channels | Put the link everywhere; beta testers become reviewers |
+| **TestFlight public link** | Beta funnel from all channels | All CTAs route through `beta.html` (tester guide + test plans); beta copy is version-controlled in `fastlane/testflight/` and ships with `fastlane beta`; beta testers become launch-day reviewers |
 | **Show HN / Hacker News** | "Show HN: I deliver mail; I built an audiobook player that helps you remember books" | Open source + story + on-device ML = HN catnip. Link repo, not landing page |
 | **Reddit** | Value-first posts, never ads | r/audiobooks (DRM-free workflow), r/ADHD + r/AuDHD (the science guide, asked-for-advice tone), r/Anki ("audio-first SRS"), r/iOSProgramming + r/SwiftUI (devlog/how-it's-built), r/libation + r/audible (mp3/m4b workflow) |
 | **Apple editorial pitch** | App Store "Behind the App" / accessibility stories | Apple actively features accessibility-first indie apps; pitch via App Store Connect promotional request around launch + Global Accessibility Awareness Day (May) |

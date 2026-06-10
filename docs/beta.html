@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join the Echo Beta — TestFlight Tester Guide</title>
+    <meta name="description" content="How to join the Echo beta on TestFlight, send feedback that helps, and run structured test plans — plus known limitations and beta privacy notes.">
+    <meta property="og:title" content="Join the Echo Beta">
+    <meta property="og:description" content="Test the audiobook player that helps you remember — and help shape it. TestFlight guide, test plans, and feedback how-to.">
+    <meta property="og:image" content="https://dfakkeldy.github.io/Echo/assets/icon.png">
+    <meta property="og:url" content="https://dfakkeldy.github.io/Echo/beta.html">
+    <meta property="og:type" content="article">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/png" href="assets/icon.png">
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+        <div class="logo-container">
+            <a href="index.html">
+                <img src="assets/icon.png" alt="Echo app icon — an infinity symbol in silver and gold">
+                <span class="logo-text">Echo <span class="infinity">∞</span></span>
+            </a>
+        </div>
+        <nav class="site-nav" aria-label="Main">
+            <a href="index.html">Home</a>
+            <a href="learn.html">Learn</a>
+            <a href="manual.html">Manual</a>
+            <a href="devlog.html">Devlog</a>
+            <a class="nav-cta" href="https://github.com/dfakkeldy/Echo" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </nav>
+    </header>
+
+    <main id="main">
+        <div class="page-hero">
+            <p class="section-label">TestFlight</p>
+            <h1>Join the Echo Beta</h1>
+            <p>
+                Echo is built by one person around a full-time mail route — every tester genuinely moves the project.
+                This page covers how the beta works, how to send feedback that actually helps, and structured test
+                plans if you want to hunt bugs on purpose.
+            </p>
+            <p><strong>The short version:</strong> use Echo like you really listen — commute, chores, workouts, bedtime — and tell us the moment something feels wrong.</p>
+            <div class="hero-ctas" style="justify-content: flex-start; margin-top: 1.5rem;">
+                <a href="https://github.com/dfakkeldy/Echo/issues" class="cta-button" target="_blank" rel="noopener noreferrer">Request an Invite</a>
+                <a href="https://github.com/dfakkeldy/Echo/issues" class="cta-button secondary" target="_blank" rel="noopener noreferrer">Report a Bug</a>
+            </div>
+            <!-- When the public TestFlight link exists, point the primary CTA at it:
+                 https://testflight.apple.com/join/XXXXXXXX -->
+        </div>
+
+        <div class="docs-layout">
+            <aside class="docs-toc" aria-label="Table of contents">
+                <h2>On this page</h2>
+                <ol>
+                    <li><a href="#join">1 · Joining the beta</a></li>
+                    <li><a href="#feedback">2 · Sending feedback</a></li>
+                    <li><a href="#plans">3 · Test plans</a></li>
+                    <li><a href="#known">4 · Known limitations</a></li>
+                    <li><a href="#privacy">5 · Beta privacy</a></li>
+                </ol>
+            </aside>
+
+            <article class="prose">
+                <h2 id="join"><span class="sec-num">01</span>Joining the beta</h2>
+                <ol>
+                    <li>Install <strong>TestFlight</strong> (Apple's free beta app) from the App Store.</li>
+                    <li>Open your Echo invite link on the device — it opens in TestFlight.</li>
+                    <li>Tap <strong>Accept</strong>, then <strong>Install</strong>. Echo appears on your home screen like any app, with an orange dot in TestFlight marking it as a beta.</li>
+                </ol>
+                <p>Don't have an invite yet? <a href="https://github.com/dfakkeldy/Echo/issues" target="_blank" rel="noopener noreferrer">Request access via GitHub Issues</a> — include the device you'd test on.</p>
+                <p><strong>Requirements:</strong> a recent iPhone (on-device alignment uses the Neural Engine, so newer hardware aligns faster). Apple Watch and Mac are optional but very welcome test surfaces — the watch app installs automatically from the iPhone's Watch app.</p>
+                <p><strong>Updates:</strong> TestFlight notifies you when a new build lands; each build's <em>What to Test</em> notes tell you where to aim. Beta builds expire after 90 days; updating resets the clock.</p>
+                <div class="tip-note">
+                    <span class="label">Your data</span>
+                    <p>Beta data carries forward to future builds — but it's a beta, so keep your source audiobook files backed up. (You should anyway; Echo never modifies them.)</p>
+                </div>
+
+                <h2 id="feedback"><span class="sec-num">02</span>Sending feedback that helps</h2>
+                <h3>The fastest way: TestFlight screenshots</h3>
+                <p>See something wrong? <strong>Take a screenshot right then.</strong> Tap the screenshot preview → <strong>Share</strong> → <strong>Send Beta Feedback</strong>. Your note arrives with the build number, device model, and iOS version attached automatically — that's half the diagnosis done.</p>
+                <h3>Crashes</h3>
+                <p>If Echo crashes, TestFlight offers to send the crash report with a comment box. Please add one sentence about what you were doing — a crash log with <em>"happened when I tapped Auto-Align on a 40-hour book"</em> is worth ten without.</p>
+                <h3>Trackable bugs &amp; ideas</h3>
+                <p>For anything you want tracked (or to check whether it's known): <a href="https://github.com/dfakkeldy/Echo/issues" target="_blank" rel="noopener noreferrer">github.com/dfakkeldy/Echo/issues</a>. The developer reads every one.</p>
+                <h3>Reporting alignment problems (special instructions)</h3>
+                <p>Alignment bugs are the most valuable reports and need the most context. Include:</p>
+                <ul>
+                    <li><strong>Book title + narrator</strong> (different narrations behave differently)</li>
+                    <li><strong>Where the ePub/PDF came from</strong> — store, edition, year if known (editions drift; that's often the whole bug)</li>
+                    <li><strong>What the audio is</strong> — single M4B, folder of MP3s, LibriVox, Libation export…</li>
+                    <li><strong>Where it went wrong</strong> — chapter, and roughly what the text said vs. what was playing</li>
+                    <li>Whether <strong>Auto-Align</strong> had run, and whether you'd placed <strong>manual anchors</strong></li>
+                </ul>
+                <blockquote>"Book X aligned perfectly except chapter 7 drifted ~30s after an ad-libbed intro; ePub is the 2nd edition from Kobo; audio is a Libation M4B" — that's a <em>perfect</em> report.</blockquote>
+
+                <h2 id="plans"><span class="sec-num">03</span>Structured test plans</h2>
+                <p>Pick whichever matches your life. Each is 10–20 minutes of intentional testing.</p>
+
+                <h3>Plan A — The Commute Run <em>(Smart Rewind &amp; interruptions)</em></h3>
+                <ol>
+                    <li>Start a book, then live your interrupted life: pause for seconds, minutes, an hour.</li>
+                    <li>Each resume: did Smart Rewind back up a sensible amount? Ever dump you somewhere confusing?</li>
+                    <li>Mid-sentence, unplug headphones / disconnect Bluetooth. Echo should pause — never blast the speaker.</li>
+                    <li>Take a phone call. Afterward, does Echo resume if it was playing — and stay paused if you'd paused?</li>
+                </ol>
+
+                <h3>Plan B — The Alignment Gauntlet <em>(EPUB + auto-align)</em></h3>
+                <ol>
+                    <li>Put an ePub in the audiobook's folder; confirm Echo imports it automatically.</li>
+                    <li>Run <strong>Auto-Align Chapters</strong> and watch the tiers run (plug in for long books — the first run also downloads the ~40&nbsp;MB speech model).</li>
+                    <li>Spot-check five chapters: tap a paragraph — does audio land on those words, or close?</li>
+                    <li>Find the worst spot and fix it: long-press → <strong>Align to Now</strong>. Does surrounding text snap into place?</li>
+                    <li>Search a distinctive phrase; tap the result. Text and audio should jump together.</li>
+                </ol>
+
+                <h3>Plan C — The Study Session <em>(bookmarks, flashcards, review)</em></h3>
+                <ol>
+                    <li>While listening, make three bookmarks: one plain, one with a <strong>voice memo</strong>, one with a <strong>photo</strong>.</li>
+                    <li>Re-listen across them: does the memo play inline? Does the artwork switch to your photo and back?</li>
+                    <li>Promote a bookmark to a <strong>flashcard</strong> (front as a question; attach the audio snippet).</li>
+                    <li>Tomorrow, when the review notification arrives: Daily Review on the phone — then a session on the <strong>watch</strong>, hands-free.</li>
+                    <li>Grade honestly; check the stats module updates (due / reviewed today / total).</li>
+                </ol>
+
+                <h3>Plan D — The Library Stress Test <em>(formats &amp; playlist)</em></h3>
+                <ol>
+                    <li>Load your messiest book: multi-file M4B, a 100-file LibriVox folder, weird filenames.</li>
+                    <li>Check the chapter list: grouping sensible? Sections under chapters where expected?</li>
+                    <li>Drag-reorder a few tracks; dim one (e.g., a disclaimer track) and confirm playback skips it.</li>
+                    <li>iCloud users: try a book <em>without</em> "Keep Downloaded" on cellular — how does Echo cope? Then enable it and compare.</li>
+                </ol>
+
+                <h3>Plan E — The Wrist-Only Day <em>(watch remote)</em></h3>
+                <ol>
+                    <li>From the phone, design your button layout (fill multiple pages; leave one empty — it should hide).</li>
+                    <li>Drive a full session from the watch only: play, skip, sections, loop, speed, sleep timer, a voice-memo bookmark.</li>
+                    <li>Set the Digital Crown to scrubbing; check the deadzone (brushing it shouldn't jump position).</li>
+                    <li>Leave the watch off-wrist overnight; raise it next morning: right book, right position, no phantom commands?</li>
+                    <li>Run a <strong>Pomodoro</strong>: set 25 minutes, lower your wrist, confirm the alarm is unmissable.</li>
+                </ol>
+
+                <h3>Plan F — The Accessibility Pass</h3>
+                <ol>
+                    <li>Crank Dynamic Type to a large size: anything truncated, overlapping, unreadable?</li>
+                    <li>Switch the reader font to <strong>OpenDyslexic</strong>, then <strong>Lexend</strong>; adjust size and spacing.</li>
+                    <li>VoiceOver users: a pass over player and reader — every control labeled and operable?</li>
+                    <li>Enable Reduce Motion: anything still animating that shouldn't?</li>
+                </ol>
+
+                <h2 id="known"><span class="sec-num">04</span>Known limitations (current beta)</h2>
+                <p>These are known — no need to report them, though opinions are welcome:</p>
+                <ul>
+                    <li><strong>First auto-align is heavy.</strong> Model download (~40&nbsp;MB) + Neural Engine work; phones run warm on long books. Plug in.</li>
+                    <li><strong>CarPlay is minimal</strong> — browse + transport only; richer templates are on the roadmap.</li>
+                    <li><strong>iCloud sync covers alignment anchors only</strong> so far; bookmark/flashcard/position sync is roadmap work.</li>
+                    <li><strong>Edition drift is real.</strong> Auto-align gets close; some books need two or three manual anchors. Expected — but tell us about books that need <em>lots</em>.</li>
+                    <li><strong>Watch review sessions</strong> can briefly show stale state if the phone app was killed mid-review; relaunching the phone app reconverges.</li>
+                </ul>
+
+                <h2 id="privacy"><span class="sec-num">05</span>Privacy during the beta</h2>
+                <p>Echo's promise is unchanged in beta: <strong>no analytics, no tracking, no servers, alignment fully on-device.</strong></p>
+                <p>One thing TestFlight itself adds: Apple's beta system shares <strong>crash reports</strong> and <strong>the feedback you choose to send</strong> with the developer, along with device/OS/build info. That's TestFlight's standard mechanism — it's how your reports reach us — not telemetry inside Echo. Full policy: <a href="privacy.html">privacy.html</a>.</p>
+
+                <p style="margin-top: 2.5rem;"><em>Thank you for testing. Every report makes the player better for the next interrupted listener.</em> — Dan</p>
+            </article>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-links">
+            <a href="beta.html">Beta</a>
+            <a href="learn.html">Learn</a>
+            <a href="manual.html">Manual</a>
+            <a href="devlog.html">Devlog</a>
+            <a href="privacy.html">Privacy</a>
+            <a href="https://github.com/dfakkeldy/Echo" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://github.com/dfakkeldy/Echo/issues" target="_blank" rel="noopener noreferrer">Support</a>
+        </div>
+        <p>&copy; 2026 Echo. Open source under the MIT License.</p>
+        <p class="footer-fineprint">This site is set in OpenDyslexic, hosts its own fonts, runs no scripts, and sets no cookies.</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,29 @@
+Echo turns your DRM-free audiobooks into a study tool: chapter looping, smart rewind, voice memo and photo bookmarks, a synced ePub/PDF reader with on-device auto-alignment, an Anki-style flashcard system (SM-2), and an Apple Watch remote you design yourself — up to 25 buttons across 5 pages, plus hands-free flashcard review and a Pomodoro timer on your wrist.
+
+WHAT BETA MEANS
+
+You're testing real, in-development software. Most things work well day-to-day (the developer uses Echo on a mail route every workday), but you will find rough edges — that's the point. Your books and data stay on your device, and it's wise to keep source files backed up as with any beta.
+
+WHAT ECHO NEEDS FROM YOU
+
+• Use it like you actually listen — commute, chores, workouts, bedtime. Real-life interruption is exactly what Echo is built for, so don't baby it.
+• When something feels wrong, send feedback right then: take a screenshot, tap Share, and choose "Send Beta Feedback" — it arrives with your device and build info attached.
+• For alignment issues, include the book title, narrator, and where the ePub/PDF came from (edition matters — narrators ad-lib and editions drift).
+• Trackable bugs and feature ideas: github.com/dfakkeldy/Echo/issues
+
+GOOD FIRST TESTS
+
+1. Load a folder of MP3s or an M4B from Files/iCloud and listen through a few interruptions — does Smart Rewind put you back in context every time?
+2. Add the matching ePub and run Auto-Align Chapters; then read along and tap a paragraph to jump the audio.
+3. Make a bookmark with a voice memo and one with a photo — does your photo take over the player artwork when you pass it again?
+4. Create a flashcard from a bookmark and do a Daily Review on your phone, then on your watch.
+5. Design your watch button layout from the phone and drive a whole listening session from your wrist.
+
+PRIVACY IN THE BETA
+
+Echo itself contains no analytics, no tracking, and no servers — in beta exactly as in release. TestFlight (Apple's beta system) does share crash reports and the feedback you choose to send with the developer; that's TestFlight's standard behavior, not Echo's. Full policy: dfakkeldy.github.io/Echo/privacy.html
+
+Echo is open source (MIT): github.com/dfakkeldy/Echo
+Tester guide with full test plans: dfakkeldy.github.io/Echo/beta.html
+
+Thank you for helping build the audiobook player that helps you remember. — Dan

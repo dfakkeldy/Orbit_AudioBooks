@@ -99,10 +99,16 @@ platform :ios do
 
     # ── Upload to TestFlight ─────────────────────────
     # This will automatically pick up and upload both the iOS (.ipa) and macOS (.pkg/.ipa) binaries found in the build directory
+    # TestFlight copy lives in version-controlled files (paths relative to fastlane/):
+    #   testflight/what_to_test.txt          → per-build "What to Test" (≤4000 chars)
+    #   testflight/beta_app_description.txt  → Test Information description (≤4000 chars)
     upload_to_testflight(
       api_key: @api_key,
       skip_waiting_for_build_processing: false,
-      notify_external_testers: false
+      notify_external_testers: false,
+      changelog: File.read("testflight/what_to_test.txt"),
+      beta_app_description: File.read("testflight/beta_app_description.txt")
+      # TODO: set beta_app_feedback_email once a dedicated support address exists
     )
   end
 
