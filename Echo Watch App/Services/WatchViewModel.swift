@@ -585,7 +585,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
 
         let session = WCSession.default
         guard session.activationState == .activated else { return }
-        session.sendMessage(["command": "requestState"], replyHandler: { [weak self] reply in
+        session.sendMessage([WatchMessageKey.command: "requestState"], replyHandler: { [weak self] reply in
             self?.applyState(reply)
         }, errorHandler: { [weak self] error in
             self?.logger.error("Error requesting state: \(error)")
@@ -611,7 +611,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
             return false
         }
 
-        var message: [String: Any] = ["command": command]
+        var message: [String: Any] = [WatchMessageKey.command: command]
         if let params = params {
             for (key, value) in params {
                 message[key] = value
@@ -809,7 +809,7 @@ class WatchViewModel: NSObject, WCSessionDelegate {
         }
 
         var payload: [String: Any] = [
-            "command": command,
+            WatchMessageKey.command: command,
             "bookmarkID": UUID().uuidString,
             "bookmarkStorageKey": bookmarkStorageKey,
             "timestamp": max(0, currentTime),

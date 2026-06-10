@@ -691,7 +691,7 @@ struct EditBookmarkView: View {
                 }
             }
 
-            let jpegData = resizedJPEGData(from: image, maxDimension: 1600, compressionQuality: 0.84)
+            let jpegData = resizedJPEGData(from: image, maxDimension: ImageEncoding.bookmarkMaxDimension, compressionQuality: ImageEncoding.bookmarkJPEGQuality)
             try jpegData.write(to: url, options: .atomic)
             await MainActor.run {
                 bookmarkImageFileName = fileName

@@ -133,7 +133,7 @@ struct ArtworkCache {
         let watchImage = watchRenderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: watchSize))
         }
-        let data = watchImage.jpegData(compressionQuality: 0.75)
+        let data = watchImage.jpegData(compressionQuality: ImageEncoding.watchTransferJPEGQuality)
         if let data, let version {
             cachedWatchJPEG = (version, data)
         }
