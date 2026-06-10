@@ -10,11 +10,11 @@ Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally veri
 
 ## Remediation progress
 
-_Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status reflects commits on this branch; the numbered findings below are unchanged and remain the reference for each fix. These are **code-complete, not yet device-tested** — verify on device before merging._
+_Updated 2026-06-10 on branch `feat/code-audit-remaining`. All 34 findings now resolved — 26 in PR #25 (`feat/code-audit-remediation`) + 8 in this branch. Code-complete; the rebrand (§9.5) requires App Store Connect provisioning profile updates before device testing._
 
 **Legend:** ✅ done · 🔶 partial · 🔲 open
 
-### ✅ Done (28)
+### ✅ Done (34)
 
 - **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
 - **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
@@ -29,16 +29,14 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 - **§9.3** macOS dedup — Shared alignment utilities extracted to `Shared/TextAlignmentUtilities.swift`; `MacGlobalAlignmentService` delegates tokenize/score/formatTime to shared free functions; all five macOS Logger sites use `Logger(category:)` instead of hardcoded subsystem (`87bd4a8`).
 - **§3.5** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (was only 2); consistent implicit isolation across all configurations (`e30c0a9`).
 - **§5.3** UserDefaults persistence refactored to per-book keys with one-time legacy migration; eliminates unbounded dictionary growth and cross-process write conflicts (`4622b6e`).
+- **§6.3** Split shared `Echo.entitlements` into per-target files — watch app and widget each have their own least-privilege entitlements (`4662fcf`).
+- **§8.2** ReaderTab alignment-workflow `@State` moved into `ReaderFeedViewModel` — `autoAlignmentTask`, presentation flags, and error state now owned by the ViewModel (`0014dbd`).
+- **§8.4** Accessibility labels added to icon-only buttons in Bookmarks view — delete-image, preview-toggle, and delete-voice-memo (`4798ac7`).
+- **§9.5** Full rebrand: all `com.orbit*` bundle IDs, app groups, iCloud containers, Keychain service, Logger subsystem, IAP product ID, notification identifier, URL scheme (`orbitaudio://`→`echoaudio://`), playlist manifest (`.orbitplaylist.json`→`.echoplaylist.json`), database file, and widget display name migrated to `com.echo.*` domain (`0f568aa`).
 
-### 🔶 Partial
+### ⏸ Deferred
 
-### 🔲 Open — remaining work
-
-- **§6.3** Split the shared watch/widget entitlements into per-target, least-privilege files.
-- **§8.2** Move ReaderTab workflow `@State` into a view model; restore `private` on what remains.
-- **§8.4** Finish the icon-only-button accessibility-label sweep (Bookmarks, PlaylistView, ReaderTab toolbars).
-- **§9.5** Rebrand identifiers — 18 `com.orbit*` IDs remain. This is a **decision, not an oversight**: migrate to an Echo domain pre-release, or freeze and document. Cheapest to settle before first public release.
-- **§9.6** Oversized files (>600 LOC) — refactor when next touched; don't big-bang.
+- **§9.6** Oversized files (>600 LOC) — refactor when next touched; not a blocking issue for v1.0.
 
 ---
 
