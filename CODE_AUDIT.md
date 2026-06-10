@@ -2,9 +2,44 @@
 
 Generated 2026-06-09. Scope: ~35,300 LOC across 295 Swift files in targets **Echo (iOS)**, **Echo Watch App**, **Echo WidgetExtension** (watchOS), **Echo macOS**, plus `Shared/` and `Tools/`. Excluded: `build/`, `vendor/`, `scratch/` (audited only as an artifact), `docs/`, `fastlane/`, `Tools/OrbitTranscriptionCLI/.build/` (untracked SPM leftovers), asset catalogs.
 
-Compiler ground truth: a forced full rebuild of the **Echo scheme (iOS app + embedded watch app + widget) produced zero source warnings** in Swift 5 language mode with Approachable Concurrency. The **Echo macOS scheme fails to build** (see §5.1). The previous audit (2026-05-31, 55 findings) was fully remediated; 163 Swift files changed since, and this audit weights that delta (auto-alignment, watch sync/Pomodoro, colour-accent pipeline, EPUB import).
+Compiler ground truth (at audit time): a forced full rebuild of the **Echo scheme (iOS app + embedded watch app + widget) produced zero source warnings** in Swift 5 language mode with Approachable Concurrency. The **Echo macOS scheme failed to build** — now fixed on the remediation branch (see §5.1). The previous audit (2026-05-31, 55 findings) was fully remediated; 163 Swift files changed since, and this audit weights that delta (auto-alignment, watch sync/Pomodoro, colour-accent pipeline, EPUB import).
 
-Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally verified by opening the cited lines; several agent-reported claims were demoted or dropped after verification (see §12). No code changes were made.
+Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally verified by opening the cited lines; several agent-reported claims were demoted or dropped after verification (see §12). The audit pass itself made no code changes — remediation followed on `feat/code-audit-remediation`; see **Remediation progress** below for what is done and what remains.
+
+---
+
+## Remediation progress
+
+_Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status reflects commits on this branch; the numbered findings below are unchanged and remain the reference for each fix. These are **code-complete, not yet device-tested** — verify on device before merging._
+
+**Legend:** ✅ done · 🔶 partial · 🔲 open
+
+### ✅ Done (24)
+
+- **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
+- **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
+- **§5.1 [Critical]** macOS target revived — WhisperKit linked, orphaned CLI script phase removed, app-group entitlement added (`307c236`, `ba1f439`).
+- **§3.2 [High]** hot-path GRDB reads → async (`ef40c2d`) · **§3.4** TimelineService queue → GRDB async write (`44ec744`) · **§3.6** dropped `@unchecked Sendable` on `ReaderCardItem` (`b8106ee`).
+- **§4.1** AudioRingBuffer `OSAtomic` → `Synchronization.Atomic` (`b4324ca`) · **§4.2** async `AudioEngine.seek` (`c3f5432`).
+- **§5.2** full security-scoped bookmark options (`84916e7`) · **§5.4** artwork palette cache poison (`c82e44b`) · **§5.5 / §5.6 / §5.7** speed-divide / CarPlay unwrap / unbalanced security scope (`b8106ee`) · **§5.8** watch context key-set DEBUG assertion (`3204b69`).
+- **§6.2** XML external-entity hardening (`c82e44b`) · **§7.2** watch marquee now paused (`TimelineView(.animation(minimumInterval:paused:))`, code-verified) · **§7.3** cache watch artwork JPEG by version (`d84f554`).
+- **§8.1** AutoAlignmentProgressView reads `@Observable` directly, no Timer (`1f6c93f`) · **§8.3** app-icon completion `@MainActor` hop (`706ab56`).
+- **§9.2** unified snippet players (`2f51268`) · **§9.4** removed `AudiobookPlayerUIArchitect` scaffold + `add_architect.rb` · **§9.7** named JPEG / watch-message-key constants (`7d1e6bc`).
+
+### 🔶 Partial
+
+- **§3.3** Task cancellation — `ContinuousAlignmentService` now cancels in-flight work (`2f51268`); **still open:** ReaderTab view-teardown cancel + the `TimelineService` load-window Tasks.
+- **§9.3** macOS dedup — target builds again, but `Mac*` services (`MacEPUBParser.swift`, etc.) still duplicate `Shared/`/`EchoCore/` logic; move the shared logic into `Shared/` to finish.
+
+### 🔲 Open — remaining work
+
+- **§3.5** Unify `SWIFT_DEFAULT_ACTOR_ISOLATION` across all 5 targets (still set on only 2) — do this before any Swift 6 language-mode bump.
+- **§5.3** App-group `UserDefaults` read-modify-write races — switch to per-book keys or move durable state to GRDB.
+- **§6.3** Split the shared watch/widget entitlements into per-target, least-privilege files.
+- **§8.2** Move ReaderTab workflow `@State` into a view model; restore `private` on what remains.
+- **§8.4** Finish the icon-only-button accessibility-label sweep (Bookmarks, PlaylistView, ReaderTab toolbars).
+- **§9.5** Rebrand identifiers — 18 `com.orbit*` IDs remain. This is a **decision, not an oversight**: migrate to an Echo domain pre-release, or freeze and document. Cheapest to settle before first public release.
+- **§9.6** Oversized files (>600 LOC) — refactor when next touched; don't big-bang.
 
 ---
 
@@ -118,6 +153,7 @@ Top items, in priority order:
 ## 5. Bugs / logic errors
 
 ### 5.1 The Echo macOS target does not build (two root causes)
+- **Status:** ✅ **FIXED 2026-06-09** (`307c236`, `ba1f439`). Revived the target: linked WhisperKit to Echo macOS, removed the orphaned "Build and Copy OrbitTranscriptionCLI" shell phase, and added the `group.com.orbitaudiobooks` app-group entitlement. Remaining cleanup tracked under §9.3 (move the duplicated `Mac*` logic into `Shared/`).
 - **Location:** (a) `Echo macOS/Services/MacGlobalAlignmentService.swift:4` — `import WhisperKit` while the WhisperKit product is linked only to the iOS target (`Echo.xcodeproj/project.pbxproj:220`, sole Frameworks entry); (b) `Echo.xcodeproj/project.pbxproj:577-601` — "Build and Copy OrbitTranscriptionCLI" shell phase owned by the macOS target (`:303`), `alwaysOutOfDate = 1`, `set -euo pipefail`, runs `swift build` against `Tools/OrbitTranscriptionCLI/`, a package deleted from git in commit `751e89c` (only untracked `.build/` remains on disk; a fresh clone has nothing)
 - **What:** `xcodebuild -scheme "Echo macOS"` fails at compile ("Unable to resolve module dependency: 'WhisperKit'"); even after fixing that, the unguarded script phase fails every build.
 - **Why:** The macOS product is entirely dead on main; CI or a fresh contributor cannot build it. Related: `Echo macOS/Views/MacPlayerModel.swift` uses `AppGroupDefaults` but `Echo macOS/Echo_macOS.entitlements` lacks the `group.com.orbitaudiobooks` entitlement, so even a fixed build hits the `assertionFailure` guard in `Shared/AppGroupDefaults.swift:11-13`.

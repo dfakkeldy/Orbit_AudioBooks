@@ -393,7 +393,7 @@ struct EditBookmarkView: View {
     #endif
 
     @State private var recorder = VoiceMemoRecorder()
-    @State private var previewPlayer: AudioSnippetPlayer? = nil
+    @State private var previewPlayer: SnippetPlayer? = nil
     @State private var isPreviewPlaying: Bool = false
     /// Tracks whether the main audiobook player was playing when we started
     /// the voice memo preview, so we can optionally resume it afterwards.
@@ -691,7 +691,7 @@ struct EditBookmarkView: View {
                 }
             }
 
-            let jpegData = resizedJPEGData(from: image, maxDimension: 1600, compressionQuality: 0.84)
+            let jpegData = resizedJPEGData(from: image, maxDimension: ImageEncoding.bookmarkMaxDimension, compressionQuality: ImageEncoding.bookmarkJPEGQuality)
             try jpegData.write(to: url, options: .atomic)
             await MainActor.run {
                 bookmarkImageFileName = fileName
@@ -749,7 +749,7 @@ struct EditBookmarkView: View {
             didPauseMainPlayerForPreview = false
         }
 
-        previewPlayer = AudioSnippetPlayer()
+        previewPlayer = SnippetPlayer()
         previewPlayer?.play(url: url, volume: voiceMemoGain(for: url)) {
             stopPreview()
         }

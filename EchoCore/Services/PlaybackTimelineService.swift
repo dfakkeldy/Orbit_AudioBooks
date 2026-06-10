@@ -44,23 +44,25 @@ final class PlaybackTimelineService {
     // MARK: - Data loading
 
     private func loadContent() {
-        Task {
-            do {
-                let sections = try loadChapterSections()
-                await MainActor.run { self.chapterSections = sections }
-            } catch {
-                logger.error("Failed to load playlist timeline: \(error.localizedDescription)")
-            }
+        do {
+            let sections = try loadChapterSections()
+            chapterSections = sections
+        } catch {
+            logger.error("Failed to load playlist timeline: \(error.localizedDescription)")
         }
     }
 
     /// Builds hierarchical chapter sections by partitioning timeline cards
     /// by chapter time ranges. Pure relative-time — no calendar involvement.
+    /// DAOs manage their own GRDB read transactions internally.
     private func loadChapterSections() throws -> [ChapterSection] {
         guard let db, let audiobookID = currentAudiobookID else { return [] }
-        let items = try TimelineDAO(db: db.writer).items(for: audiobookID)
+        let dbWriter = db.writer
+        let timelineDAO = TimelineDAO(db: dbWriter)
+        let chapterDAO = ChapterDAO(db: dbWriter)
+        let items = try timelineDAO.items(for: audiobookID)
+        let chapterRecords = try chapterDAO.chapters(for: audiobookID)
         let cards = items.map { ContentCard(from: $0) }
-        let chapterRecords = try ChapterDAO(db: db.writer).chapters(for: audiobookID)
         let totalDuration = chapterRecords.map(\.endSeconds).max() ?? 0
 
         guard !chapterRecords.isEmpty else {

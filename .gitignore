@@ -20,6 +20,7 @@ xcuserdata/
 
 # --- Xcode: Build artifacts ---
 build/
+build.log
 DerivedData/
 *.hmap
 *.ipa

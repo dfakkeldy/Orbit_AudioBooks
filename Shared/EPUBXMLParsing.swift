@@ -48,6 +48,7 @@ final class ContainerXMLParser: NSObject, XMLParserDelegate {
 
     func parse(_ data: Data) {
         let parser = XMLParser(data: data)
+        parser.shouldResolveExternalEntities = false  // Trust boundary: parsing untrusted EPUB input
         parser.delegate = self
         parser.parse()
     }
@@ -132,6 +133,7 @@ final class TOCParserDelegate: NSObject, XMLParserDelegate {
 
     func parse(_ data: Data) {
         let parser = XMLParser(data: data)
+        parser.shouldResolveExternalEntities = false  // Trust boundary: parsing untrusted EPUB input
         parser.delegate = self
         parser.parse()
     }
@@ -216,6 +218,7 @@ final class XHTMLBlockDelegate: NSObject, XMLParserDelegate {
 
     func parse(_ data: Data) {
         let parser = XMLParser(data: data)
+        parser.shouldResolveExternalEntities = false  // Trust boundary: parsing untrusted EPUB input
         parser.delegate = self
         currentHTML = ""
         currentText = ""

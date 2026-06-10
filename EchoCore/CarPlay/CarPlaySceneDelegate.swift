@@ -41,8 +41,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         sections.append(CPListSection(items: [nowPlayingItem], header: "Now Playing", sectionIndexTitle: nil))
 
         // ── Chapters ──
-        if model?.isMultiM4B == true, !model!.aggregatedChapters.isEmpty {
-            let chapterItems = model!.aggregatedChapters.map { chapter -> CPListItem in
+        if let model, model.isMultiM4B, !model.aggregatedChapters.isEmpty {
+            let chapterItems = model.aggregatedChapters.map { chapter -> CPListItem in
                 let item = CPListItem(text: chapter.chapterTitle,
                                       detailText: "\(chapter.bookTitle) · \(NowPlayingController.formatTime(chapter.endSeconds - chapter.startSeconds))")
                 item.handler = { [weak model] _, completion in

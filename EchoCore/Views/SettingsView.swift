@@ -1,6 +1,7 @@
 import SwiftUI
 import StoreKit
 import UniformTypeIdentifiers
+import os.log
 
 struct SettingsView: View {
     @Environment(PlayerModel.self) private var model
@@ -312,9 +313,11 @@ private struct AppIconSelectionView: View {
         guard UIApplication.shared.supportsAlternateIcons else { return }
         UIApplication.shared.setAlternateIconName(iconName) { error in
             if let error = error {
-                print("Failed to change app icon: \(error.localizedDescription)")
+                Logger(category: "Settings").error("Failed to change app icon: \(error.localizedDescription)")
             } else {
-                currentIcon = iconName
+                Task { @MainActor in
+                    self.currentIcon = iconName
+                }
             }
         }
     }

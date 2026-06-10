@@ -47,7 +47,7 @@ final class WatchCommandRouter {
         let facade = self.facade
 
         var commandResult: String?
-        if let command = message["command"] as? String {
+        if let command = message[WatchMessageKey.command] as? String {
             switch command {
             case "play":
                 facade.play()
@@ -159,7 +159,7 @@ final class WatchCommandRouter {
     /// commands are honored here; the rest are dropped. Live commands continue to
     /// flow through `route(message:replyHandler:)`.
     func route(queuedMessage message: [String: Any]) {
-        guard let command = message["command"] as? String,
+        guard let command = message[WatchMessageKey.command] as? String,
               Self.deferredSafeCommands.contains(command) else {
             return
         }
@@ -167,7 +167,7 @@ final class WatchCommandRouter {
     }
 
     func handleFile(_ file: WCSessionFile) {
-        guard let command = file.metadata?["command"] as? String, command == "addWatchVoiceBookmark" else {
+        guard let command = file.metadata?[WatchMessageKey.command] as? String, command == "addWatchVoiceBookmark" else {
             return
         }
 

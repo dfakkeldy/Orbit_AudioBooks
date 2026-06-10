@@ -183,6 +183,38 @@ final class AudioEngine {
         completion?(true)
     }
 
+    /// Async overload of seek(to:) — returns true on success.
+    /// Callers no longer need to wrap in DispatchQueue.main.async.
+    func seek(to targetSeconds: Double) async -> Bool {
+        guard let playerNode, let audioFile, engine != nil else { return false }
+
+        let sampleRate = audioFile.processingFormat.sampleRate
+        let totalFrames = audioFile.length
+        let clampedTime = max(0, min(targetSeconds, Double(totalFrames) / sampleRate))
+        let startFrame = AVAudioFramePosition(clampedTime * sampleRate)
+        let framesToPlay = AVAudioFrameCount(totalFrames - startFrame)
+
+        guard framesToPlay > 0 else { return false }
+
+        let wasPlaying = isPlaying
+        isPlaying = false
+        stopTimeTimer()
+        seekGeneration += 1
+        playerNode.stop()
+        seekOffset = clampedTime
+        currentTime = clampedTime
+
+        scheduleSegment(file: audioFile, from: startFrame, frames: framesToPlay)
+
+        if wasPlaying {
+            startEngineIfNeeded()
+            playerNode.play()
+            isPlaying = true
+            startTimeTimer()
+        }
+        return true
+    }
+
     func setSpeed(_ newSpeed: Float) {
         speed = newSpeed
         timePitchNode?.rate = newSpeed
