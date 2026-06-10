@@ -213,7 +213,7 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
             if let memo = bookmark.voiceMemoFileName {
                 output += "- [Voice Memo](\(memo))\n"
             }
-            output += "[Play in App](orbitaudio://play?time=\(bookmark.timestamp))\n\n"
+            output += "[Play in App](echoaudio://play?time=\(bookmark.timestamp))\n\n"
         }
         return output
     }
@@ -462,6 +462,7 @@ struct EditBookmarkView: View {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Delete image")
                         .accessibilityAddTraits(.isButton)
                             .accessibilityLabel(Text("Remove picture bookmark image"))
                         }
@@ -494,7 +495,7 @@ struct EditBookmarkView: View {
                                     .font(.title2)
                             }
                             .buttonStyle(.plain)
-                        .accessibilityAddTraits(.isButton)
+                            .accessibilityLabel(isPreviewPlaying ? "Stop preview" : "Preview voice memo")
                             Button(role: .destructive) {
                                 stopPreview()
                                 let probe = Bookmark(timestamp: 0, voiceMemoFileName: name)
@@ -506,7 +507,7 @@ struct EditBookmarkView: View {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.plain)
-                        .accessibilityAddTraits(.isButton)
+                            .accessibilityLabel("Delete voice memo")
                         }
                     } else {
                         if recorder.isRecording {

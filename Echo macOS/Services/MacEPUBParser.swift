@@ -7,7 +7,7 @@ struct EPubTextExtraction {
 }
 
 struct MacEPUBParser {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "MacEPUBParser")
+    private let logger = Logger(category: "MacEPUBParser")
     
     /// Extracts text blocks from an EPUB file (or directory).
     /// Does not interact with SQL. Returns an array of text structures.

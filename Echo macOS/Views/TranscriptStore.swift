@@ -15,7 +15,7 @@ class TranscriptStore {
     /// Per-hash word frequencies for the full transcript, computed on load.
     var wordClouds: [String: [WordFrequency]] = [:]
 
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TranscriptStore")
+    private let logger = Logger(category: "TranscriptStore")
     private let transcriptDir: URL
 
     init() {

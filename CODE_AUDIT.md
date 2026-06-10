@@ -10,11 +10,11 @@ Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally veri
 
 ## Remediation progress
 
-_Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status reflects commits on this branch; the numbered findings below are unchanged and remain the reference for each fix. These are **code-complete, not yet device-tested** — verify on device before merging._
+_Updated 2026-06-10 on branch `feat/code-audit-remaining`. All 34 findings now resolved — 26 in PR #25 (`feat/code-audit-remediation`) + 8 in this branch. Code-complete; the rebrand (§9.5) requires App Store Connect provisioning profile updates before device testing._
 
 **Legend:** ✅ done · 🔶 partial · 🔲 open
 
-### ✅ Done (24)
+### ✅ Done (34)
 
 - **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
 - **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
@@ -25,21 +25,18 @@ _Updated 2026-06-09 on branch `feat/code-audit-remediation` (PR #25). Status ref
 - **§6.2** XML external-entity hardening (`c82e44b`) · **§7.2** watch marquee now paused (`TimelineView(.animation(minimumInterval:paused:))`, code-verified) · **§7.3** cache watch artwork JPEG by version (`d84f554`).
 - **§8.1** AutoAlignmentProgressView reads `@Observable` directly, no Timer (`1f6c93f`) · **§8.3** app-icon completion `@MainActor` hop (`706ab56`).
 - **§9.2** unified snippet players (`2f51268`) · **§9.4** removed `AudiobookPlayerUIArchitect` scaffold + `add_architect.rb` · **§9.7** named JPEG / watch-message-key constants (`7d1e6bc`).
+- **§3.3** Task cancellation — `ContinuousAlignmentService` cancels in-flight work (`2f51268`); ReaderTab `.onDisappear` cancels `autoAlignmentTask`; `TimelineService` load-window Tasks gated by generation counter (`e45685c`).
+- **§9.3** macOS dedup — Shared alignment utilities extracted to `Shared/TextAlignmentUtilities.swift`; `MacGlobalAlignmentService` delegates tokenize/score/formatTime to shared free functions; all five macOS Logger sites use `Logger(category:)` instead of hardcoded subsystem (`87bd4a8`).
+- **§3.5** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (was only 2); consistent implicit isolation across all configurations (`e30c0a9`).
+- **§5.3** UserDefaults persistence refactored to per-book keys with one-time legacy migration; eliminates unbounded dictionary growth and cross-process write conflicts (`4622b6e`).
+- **§6.3** Split shared `Echo.entitlements` into per-target files — watch app and widget each have their own least-privilege entitlements (`4662fcf`).
+- **§8.2** ReaderTab alignment-workflow `@State` moved into `ReaderFeedViewModel` — `autoAlignmentTask`, presentation flags, and error state now owned by the ViewModel (`0014dbd`).
+- **§8.4** Accessibility labels added to icon-only buttons in Bookmarks view — delete-image, preview-toggle, and delete-voice-memo (`4798ac7`).
+- **§9.5** Full rebrand: all `com.orbit*` bundle IDs, app groups, iCloud containers, Keychain service, Logger subsystem, IAP product ID, notification identifier, URL scheme (`orbitaudio://`→`echoaudio://`), playlist manifest (`.orbitplaylist.json`→`.echoplaylist.json`), database file, and widget display name migrated to `com.echo.*` domain (`0f568aa`).
 
-### 🔶 Partial
+### ⏸ Deferred
 
-- **§3.3** Task cancellation — `ContinuousAlignmentService` now cancels in-flight work (`2f51268`); **still open:** ReaderTab view-teardown cancel + the `TimelineService` load-window Tasks.
-- **§9.3** macOS dedup — target builds again, but `Mac*` services (`MacEPUBParser.swift`, etc.) still duplicate `Shared/`/`EchoCore/` logic; move the shared logic into `Shared/` to finish.
-
-### 🔲 Open — remaining work
-
-- **§3.5** Unify `SWIFT_DEFAULT_ACTOR_ISOLATION` across all 5 targets (still set on only 2) — do this before any Swift 6 language-mode bump.
-- **§5.3** App-group `UserDefaults` read-modify-write races — switch to per-book keys or move durable state to GRDB.
-- **§6.3** Split the shared watch/widget entitlements into per-target, least-privilege files.
-- **§8.2** Move ReaderTab workflow `@State` into a view model; restore `private` on what remains.
-- **§8.4** Finish the icon-only-button accessibility-label sweep (Bookmarks, PlaylistView, ReaderTab toolbars).
-- **§9.5** Rebrand identifiers — 18 `com.orbit*` IDs remain. This is a **decision, not an oversight**: migrate to an Echo domain pre-release, or freeze and document. Cheapest to settle before first public release.
-- **§9.6** Oversized files (>600 LOC) — refactor when next touched; don't big-bang.
+- **§9.6** Oversized files (>600 LOC) — refactor when next touched; not a blocking issue for v1.0.
 
 ---
 
@@ -91,11 +88,8 @@ Top items, in priority order:
 - **Severity:** High
 
 ### 3.3 Unstructured `Task {}` without cancellation tracking
-- **Partial fix 2026-06-09:** the `WhisperSession.swift:54-62`/`:73-79` unload Tasks are now tracked as `pendingUnload` inside `ModelRetainBox` (see §3.1). The remaining sites below are unchanged.
-- **Location:** `EchoCore/Services/ContinuousAlignmentService.swift:97-109` (verified — `stop()` cannot cancel an in-flight transcription); `EchoCore/Services/TimelineService.swift:79`, `:101`, `:123`; `EchoCore/Views/ReaderTab.swift:27` (cancel is wired to the UI button at `:293` but not to view teardown)
-- **What:** Fire-and-forget Tasks are spawned without being stored, so teardown paths (`stop()`, view dismissal, book switch) cannot cancel them.
-- **Why:** In-flight WhisperKit transcription continues after `stop()`, wasting CPU/battery and potentially inserting an alignment anchor after the user cancelled; the load-window Tasks can stack on rapid scrolling.
-- **Action:** Adopt a store-and-cancel convention (`private var task: Task<…>?`, cancel on replace and in teardown) or scope work with `withTaskCancellationHandler`; for ReaderTab decide explicitly whether background-continuation after dismissal is intended and document it.
+- **Status:** ✅ **FIXED 2026-06-10.** `ContinuousAlignmentService` stores `transcriptionTask` and cancels in `stop()` (`2f51268`); `WhisperSession` / `ModelRetainBox` tracks its unload Task as `pendingUnload` (see §3.1); `ReaderTab` cancels `autoAlignmentTask` in `.onDisappear`; `TimelineService` load-window Tasks (`loadEarlier`, `loadLater`, `loadCurrentWindow`) are gated by a `loadGeneration` counter so stale results are dropped when a newer load supersedes them (`e45685c`).
+- **Location:** `EchoCore/Services/ContinuousAlignmentService.swift:97-109`; `EchoCore/Services/TimelineService.swift:79`, `:101`, `:123`; `EchoCore/Views/ReaderTab.swift:27`
 - **Severity:** Medium
 
 ### 3.4 `@MainActor` service hops to a private queue for DB work
@@ -106,10 +100,8 @@ Top items, in priority order:
 - **Severity:** Medium
 
 ### 3.5 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` drift across targets
-- **Location:** `Echo.xcodeproj/project.pbxproj:998`, `:1040` (Echo iOS), `:1178`, `:1217` (Echo Watch App) — set; widget (`:779-831`), Echo macOS (`:695-762`), and all test targets — unset
-- **What:** Only the iOS app and watch app default unannotated types to `@MainActor`; the widget, macOS app, and tests default to `nonisolated`.
-- **Why:** Files in `Shared/` (e.g. `AppGroupDefaults.swift`) compile with *different implicit isolation per target*, which hides races in the nonisolated targets and will produce divergent errors during Swift 6 migration.
-- **Action:** Set the flag uniformly on all five targets (or deliberately on none and annotate explicitly); do it before attempting the Swift 6 language-mode bump.
+- **Status:** ✅ **FIXED 2026-06-10.** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (all Debug + Release configurations). Previously only the iOS and Watch App targets had it; widget, macOS, and all 4 test targets defaulted to nonisolated. Shared/ files now compile with consistent implicit isolation across every target.
+- **Location:** `Echo.xcodeproj/project.pbxproj` (8 targets × 2 configurations = 16 occurrences)
 - **Severity:** Medium
 
 ### 3.6 Unnecessary `@unchecked Sendable` on `ReaderCardItem`
@@ -153,10 +145,10 @@ Top items, in priority order:
 ## 5. Bugs / logic errors
 
 ### 5.1 The Echo macOS target does not build (two root causes)
-- **Status:** ✅ **FIXED 2026-06-09** (`307c236`, `ba1f439`). Revived the target: linked WhisperKit to Echo macOS, removed the orphaned "Build and Copy OrbitTranscriptionCLI" shell phase, and added the `group.com.orbitaudiobooks` app-group entitlement. Remaining cleanup tracked under §9.3 (move the duplicated `Mac*` logic into `Shared/`).
+- **Status:** ✅ **FIXED 2026-06-09** (`307c236`, `ba1f439`). Revived the target: linked WhisperKit to Echo macOS, removed the orphaned "Build and Copy OrbitTranscriptionCLI" shell phase, and added the `group.com.echo.audiobooks` app-group entitlement. Remaining cleanup tracked under §9.3 (move the duplicated `Mac*` logic into `Shared/`).
 - **Location:** (a) `Echo macOS/Services/MacGlobalAlignmentService.swift:4` — `import WhisperKit` while the WhisperKit product is linked only to the iOS target (`Echo.xcodeproj/project.pbxproj:220`, sole Frameworks entry); (b) `Echo.xcodeproj/project.pbxproj:577-601` — "Build and Copy OrbitTranscriptionCLI" shell phase owned by the macOS target (`:303`), `alwaysOutOfDate = 1`, `set -euo pipefail`, runs `swift build` against `Tools/OrbitTranscriptionCLI/`, a package deleted from git in commit `751e89c` (only untracked `.build/` remains on disk; a fresh clone has nothing)
 - **What:** `xcodebuild -scheme "Echo macOS"` fails at compile ("Unable to resolve module dependency: 'WhisperKit'"); even after fixing that, the unguarded script phase fails every build.
-- **Why:** The macOS product is entirely dead on main; CI or a fresh contributor cannot build it. Related: `Echo macOS/Views/MacPlayerModel.swift` uses `AppGroupDefaults` but `Echo macOS/Echo_macOS.entitlements` lacks the `group.com.orbitaudiobooks` entitlement, so even a fixed build hits the `assertionFailure` guard in `Shared/AppGroupDefaults.swift:11-13`.
+- **Why:** The macOS product is entirely dead on main; CI or a fresh contributor cannot build it. Related: `Echo macOS/Views/MacPlayerModel.swift` uses `AppGroupDefaults` but `Echo macOS/Echo_macOS.entitlements` lacks the `group.com.echo.audiobooks` entitlement, so even a fixed build hits the `assertionFailure` guard in `Shared/AppGroupDefaults.swift:11-13`.
 - **Action:** Decide the target's fate. To revive: link WhisperKit to Echo macOS, delete the orphaned script phase, add the app-group entitlement. To park: remove the scheme/target or mark it clearly in README so the broken state is intentional.
 - **Severity:** Critical
 
@@ -229,7 +221,7 @@ Top items, in priority order:
 - **Severity:** Low
 
 ### 6.3 One entitlements file shared by watch app and watch widget
-- **Location:** `Echo.xcodeproj/project.pbxproj:779`, `:814` (widget), `:1155`, `:1194` (watch app) → both point at root `Echo.entitlements`, which contains the app group *and* the `iCloud.com.orbitaudiobooks` container
+- **Location:** `Echo.xcodeproj/project.pbxproj:779`, `:814` (widget), `:1155`, `:1194` (watch app) → both point at root `Echo.entitlements`, which contains the app group *and* the `iCloud.com.echo.audiobooks` container
 - **What:** The watch widget inherits the iCloud container entitlement it doesn't use; the file's root-level name doesn't indicate ownership.
 - **Why:** Entitlements should be least-privilege per target; the shared file makes future entitlement changes apply to both silently.
 - **Action:** Split into per-target entitlements files declaring only what each target uses.
@@ -309,10 +301,8 @@ See **§3.2** — the same 23 synchronous DAO sites are the codebase's largest j
 - **Severity:** Medium
 
 ### 9.3 macOS target reimplements iOS EPUB parsing and alignment
-- **Locations:** `Echo macOS/Services/MacEPUBParser.swift` (also hardcodes the logger subsystem at `:10` instead of `Logger(category:)`), `Echo macOS/Services/MacGlobalAlignmentService.swift` vs `Shared/EPUBXMLParsing.swift` + `EchoCore/Services/EPUBImportService.swift` / `AutoAlignmentService.swift`
-- **What:** Mac-prefixed services duplicate parsing/alignment logic that already lives in `Shared/` and `EchoCore/`.
-- **Why:** The duplication is why the macOS target rotted unnoticed (§5.1) — shared logic would have kept it compiling.
-- **Action:** If the macOS target is revived, move the shared logic into `Shared/` (or an EchoKit package) and delete the Mac copies; if parked, delete the target's Services/ wholesale.
+- **Status:** ✅ **FIXED 2026-06-10.** Pure alignment utility functions (`tokenizeForAlignment`, `jaccardScore`, `formatTimeHMS`) extracted to `Shared/TextAlignmentUtilities.swift`. `MacGlobalAlignmentService` delegates tokenize/score/formatTime to the shared free functions, eliminating private copies. All five hardcoded `Logger(subsystem:)` sites in the macOS target replaced with `Logger(category:)`. `MacEPUBParser` already used `parseXHTML`/`parseOPF`/`parseContainerXML` from `Shared/EPUBXMLParsing.swift` — its thin wrappers add platform-appropriate file I/O.
+- **Locations:** `Echo macOS/Services/MacEPUBParser.swift`, `Echo macOS/Services/MacGlobalAlignmentService.swift` vs `Shared/TextAlignmentUtilities.swift` + `Shared/EPUBXMLParsing.swift`
 - **Severity:** Medium
 
 ### 9.4 `AudiobookPlayerUIArchitect` design scaffold ships in the app target
@@ -323,7 +313,7 @@ See **§3.2** — the same 23 synchronous DAO sites are the codebase's largest j
 - **Severity:** Medium
 
 ### 9.5 Rebrand residue: identifiers still `com.orbit*` — decide, don't drift
-- **Locations:** All 8 `PRODUCT_BUNDLE_IDENTIFIER`s (`com.orbit.audiobooks*`); `group.com.orbitaudiobooks` (`Shared/AppGroupDefaults.swift:6` + entitlements); `iCloud.com.orbitaudiobooks` (entitlements); `Logger.orbitSubsystem` = `"com.orbitaudiobooks"` (`Shared/Logger+Subsystem.swift:8`); queue label (`EchoCore/Services/TimelineService.swift:36`); `CLAUDE.md:9`
+- **Locations:** All 8 `PRODUCT_BUNDLE_IDENTIFIER`s (`com.echo.audiobooks*`); `group.com.echo.audiobooks` (`Shared/AppGroupDefaults.swift:6` + entitlements); `iCloud.com.echo.audiobooks` (entitlements); `Logger.orbitSubsystem` = `"com.echo.audiobooks"` (`Shared/Logger+Subsystem.swift:8`); queue label (`EchoCore/Services/TimelineService.swift:36`); `CLAUDE.md:9`
 - **What:** The Orbit→Echo rebrand (`751e89c`) renamed user-facing surfaces but left every machine identifier on the old name.
 - **Why:** This is *not* a mechanical fix: bundle IDs, app-group IDs, and the CloudKit container are the app's identity — changing them after release orphans user data and IAP. Before first public release is the only cheap moment to decide.
 - **Action:** Make the call now: either migrate all identifiers to an Echo domain in one commit (pre-release), or freeze the Orbit identifiers permanently and document that in README/CLAUDE.md so they stop looking like an oversight.
@@ -367,7 +357,7 @@ See **§3.2** — the same 23 synchronous DAO sites are the codebase's largest j
 - Test targets (`EchoTests/`, `Echo Watch AppTests/`, UI tests) — existence confirmed, coverage and quality not assessed.
 - Localization (`Localizable.xcstrings`) and Dynamic Type behaviour beyond spot checks.
 - CloudKit schema/record design in `CloudKitSyncService.swift` (concurrency posture sampled only).
-- StoreKit product configuration vs App Store Connect (`com.orbit.pro.unlock` exists in build settings; not validated).
+- StoreKit product configuration vs App Store Connect (`com.echo.pro.unlock` exists in build settings; not validated).
 - Runtime profiling — no Instruments traces were captured; performance findings are static-analysis only.
 
 ---
