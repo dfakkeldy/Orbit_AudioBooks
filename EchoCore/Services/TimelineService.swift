@@ -25,6 +25,10 @@ final class TimelineService {
     private(set) var isViewingMode: Bool = true
     private(set) var now: Date = Date()
 
+    // MARK: - Load generation (prevents stale results from stacking)
+
+    private var loadGeneration = 0
+
     // MARK: - Dependencies
 
     private var hasDatabase: Bool { db != nil }
@@ -75,11 +79,14 @@ final class TimelineService {
     func loadEarlier() {
         guard !isLoadingEarlier else { return }
         isLoadingEarlier = true
+        loadGeneration += 1
+        let gen = loadGeneration
         Task {
             defer { isLoadingEarlier = false }
             let extendedStart = viewportStart.addingTimeInterval(-viewportSpan)
             do {
                 let events = try loadEvents(in: extendedStart...viewportStart)
+                guard gen == loadGeneration else { return }
                 let newGroups = groupEvents(events)
                 await MainActor.run {
                     var merged = newGroups + self.groups
@@ -97,11 +104,14 @@ final class TimelineService {
     func loadLater() {
         guard !isLoadingLater else { return }
         isLoadingLater = true
+        loadGeneration += 1
+        let gen = loadGeneration
         Task {
             defer { isLoadingLater = false }
             let extendedEnd = viewportEnd.addingTimeInterval(viewportSpan)
             do {
                 let events = try loadEvents(in: viewportEnd...extendedEnd)
+                guard gen == loadGeneration else { return }
                 let newGroups = groupEvents(events)
                 await MainActor.run {
                     var merged = self.groups + newGroups
@@ -119,9 +129,12 @@ final class TimelineService {
     // MARK: - Private data loading
 
     private func loadCurrentWindow(force: Bool = false) {
+        loadGeneration += 1
+        let gen = loadGeneration
         Task {
             do {
                 let events = try loadEvents(in: viewportStart...viewportEnd)
+                guard gen == loadGeneration else { return }
                 let newGroups = groupEvents(events)
                 await MainActor.run {
                     self.groups = newGroups
