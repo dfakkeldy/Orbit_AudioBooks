@@ -76,8 +76,8 @@ enum WatchStateContextBuilder {
         context["isPlaying"] = s.isPlaying
         context["progressFraction"] = s.progressFraction
         context["currentTime"] = s.currentPlaybackTime
-        context["bookmarkStorageKey"] = s.bookmarkStorageKey
-        context["folderKey"] = s.folderKey
+        context["bookmarkStorageKey"] = s.bookmarkStorageKey ?? ""
+        context["folderKey"] = s.folderKey ?? ""
         if let trackId = s.currentTrackId {
             context["trackId"] = trackId
         }
