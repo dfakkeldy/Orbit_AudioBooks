@@ -40,7 +40,16 @@ Where it appears, scaled to the surface:
 
 ## 2. What goes where
 
-### Website (dfakkeldy.github.io/Echo) — the *why*
+### Two web surfaces
+
+Echo has two sites with distinct jobs:
+
+- **kinnokilabs.com** (+ kinnokilabs.ca) — the *company* site and canonical product pages. App Store `marketing_url` → `/apps/echo`; `support_url` → `/echo-help` (real FAQs + email contact). Echo docs live at `/echo-learn`, `/echo-manual`, `/echo-devlog`, `/echo-beta`. Built with Swift Publish; `make publish` in `~/Developer/KinNoKiLabsSite` regenerates, commits, and pushes — Cloudflare Pages deploys on push.
+- **dfakkeldy.github.io/Echo** — the *project* site for the open-source audience (GitHub Pages from `main:/docs`). Same content suite, OpenDyslexic-branded design. Linked from the README; the natural landing for Show HN / r/iOSProgramming traffic.
+
+Content changes should land on both; kinnokilabs.com is the one App Store users see.
+
+### Website content — the *why*
 
 The website carries everything that needs room to breathe:
 
