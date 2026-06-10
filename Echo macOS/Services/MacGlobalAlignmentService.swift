@@ -20,7 +20,7 @@ public struct TransTokenRecord: Codable, FetchableRecord, PersistableRecord {
 @MainActor
 @Observable
 public class MacGlobalAlignmentService {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "MacGlobalAlignmentService")
+    private let logger = Logger(category: "MacGlobalAlignmentService")
     
     public var isAligning: Bool = false
     public var alignmentProgress: Double = 0
@@ -80,7 +80,7 @@ public class MacGlobalAlignmentService {
         var tokenSequenceIndex = 0
         
         while let (pcmBuffer, chunkStartTime) = try await extractor.readNextChunk(durationInSeconds: chunkDuration) {
-            alignmentStatus = "Transcribing \(formatTime(chunkStartTime)) / \(formatTime(totalDuration))..."
+            alignmentStatus = "Transcribing \(formatTimeHMS(chunkStartTime)) / \(formatTimeHMS(totalDuration))..."
             alignmentProgress = (chunkStartTime / totalDuration) * 0.5 // Transcription is 50% of total progress
             
             let capture = try await transcribeChunk(pcmBuffer)
@@ -219,38 +219,27 @@ public class MacGlobalAlignmentService {
     
     // MARK: - Utils
     
-    private func formatTime(_ time: TimeInterval) -> String {
-        let h = Int(time) / 3600
-        let m = (Int(time) % 3600) / 60
-        let s = Int(time) % 60
-        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
-        return String(format: "%02d:%02d", m, s)
-    }
-    
+    /// Delegates to `Shared/TextAlignmentUtilities.swift` so both the macOS and
+    /// iOS alignment paths use one source of truth.
     private func tokenize(_ text: String) -> [String] {
-        return text.lowercased()
-            .components(separatedBy: CharacterSet.letters.inverted)
-            .filter { $0.count >= 2 }
+        tokenizeForAlignment(text)
     }
-    
+
     private func findBestMatch(blockTokens: [String], in transcriptWindow: [TransTokenRecord]) -> (windowStart: Int, confidence: Double)? {
         guard !blockTokens.isEmpty, !transcriptWindow.isEmpty else { return nil }
+
+        let transcriptWords = transcriptWindow.map { $0.word }
+        let blockSet = Set(blockTokens)
+        let windowSize = blockTokens.count
+        let stride = max(1, windowSize / 3)
 
         var bestScore: Double = 0
         var bestStart: Int = 0
 
-        // Precompute word array once so we don't allocate a new [String] per window.
-        let transcriptWords = transcriptWindow.map { $0.word }
-        // Precompute the block token set once — blockTokens is constant across the loop.
-        let blockSet = Set(blockTokens)
-
-        let windowSize = blockTokens.count
-        let stride = max(1, windowSize / 3)
-
         var start = 0
         while start < transcriptWords.count {
             let end = min(transcriptWords.count, start + windowSize)
-            let s = score(blockSet: blockSet, candidateSlice: transcriptWords[start..<end])
+            let s = jaccardScore(blockSet: blockSet, candidateSlice: transcriptWords[start..<end])
             if s > bestScore {
                 bestScore = s
                 bestStart = start
@@ -263,17 +252,5 @@ public class MacGlobalAlignmentService {
             return (bestStart, bestScore)
         }
         return nil
-    }
-
-    /// Jaccard word-overlap score using a precomputed block token set and a
-    /// transcript slice.  The slice is converted to a Set on demand so we
-    /// don't allocate intermediate arrays.
-    private func score(blockSet: Set<String>, candidateSlice: ArraySlice<String>) -> Double {
-        let transSet = Set(candidateSlice)
-        let intersection = blockSet.intersection(transSet).count
-        let union = blockSet.union(transSet).count
-
-        guard union > 0 else { return 0 }
-        return Double(intersection) / Double(union)
     }
 }

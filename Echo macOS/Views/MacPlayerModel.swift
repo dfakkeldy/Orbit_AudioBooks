@@ -387,7 +387,7 @@ final class MacPlayerModel {
                 try data.write(to: sidecar, options: .atomic)
             } catch {
 #if DEBUG
-                let logger = Logger(subsystem: "com.orbitaudiobooks", category: "MacPlayerModel")
+                let logger = Logger(category: "MacPlayerModel")
                 logger.error("Bookmark sidecar write failed at \(sidecar.lastPathComponent): \(error.localizedDescription)")
 #endif
             }

@@ -102,7 +102,7 @@ private enum TranscriptionCLIEvent: Codable {
 @MainActor
 @Observable
 class TranscriptionManager {
-    private let logger = Logger(subsystem: "com.orbitaudiobooks", category: "TranscriptionManager")
+    private let logger = Logger(category: "TranscriptionManager")
     var progress: Double = 0
     var isTranscribing: Bool = false
     var status: String = ""
