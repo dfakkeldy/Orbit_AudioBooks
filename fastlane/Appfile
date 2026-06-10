@@ -1,6 +1,8 @@
 app_identifier("com.orbit.audiobooks") # Your main bundle ID
+# TODO(Echo rebrand): Update bundle IDs to com.echo.audiobooks when Phase 8 rebrand ships
 
-apple_id("dfakkeldy@gmail.com") # Your Apple ID email
+apple_id("") # Set via FASTLANE_USER env var or fill in your Apple ID
+# TODO: Remove apple_id from version control — use FASTLANE_USER env var instead
 
 team_id("8AXNA5B37R") # Put your real Team ID here
 
@@ -12,4 +14,5 @@ for_lane :beta do
     "com.orbit.audiobooks.watchkitapp.widget",
     "com.orbit.audiobooks.macos"
   ])
+  # TODO(Echo rebrand): Update to com.echo.audiobooks equivalents
 end

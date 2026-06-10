@@ -1,6 +1,8 @@
 fastlane documentation
 ----
 
+> **⚠️ Echo rebrand note:** Bundle IDs currently use `com.orbit.audiobooks.*` to match the Xcode project. These will be migrated to `com.echo.audiobooks.*` during the Phase 8 rebrand. See `ROADMAP.md` for details.
+
 # Installation
 
 Make sure you have the latest version of the Xcode command line tools installed:

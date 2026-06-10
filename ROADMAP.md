@@ -1,6 +1,6 @@
 # Echo: Audiobook Study Player — Roadmap
 
-<!-- Last updated: 2026-05-30 (Phases 1-3 complete, Phase 4 90%, Phase 5 complete, Phase 6 core complete, Phase 8 reorganized with study workflow P0 items) -->
+<!-- Last updated: 2026-06-09 (Phases 1-3 complete, Phase 4 90%, Phase 5 complete, Phase 6 core complete, Phase 7 not started, Phase 8 partially started — rebrand docs done, Accent Contrast Safety done, Watch Connectivity hardened, Now Playing redesign done) -->
 
 ---
 
@@ -236,9 +236,9 @@ Priority items for the Echo rebrand and study-player positioning, plus stretch g
 - [ ] **Interactive onboarding tutorial** — first-launch walkthrough demonstrating the core study workflow: load audiobook → add EPUB → search → align a paragraph → create bookmark → create flashcard. A 4-step interactive guide that teaches the mental model. The Read tab should always be visible (not hidden behind `hasEPUB`), showing an educational empty state: "Add an EPUB alongside your audiobook to unlock searchable text, alignment, and flashcards."
 - [ ] **Reader toolbar speed controls** — add speed adjustment (at minimum) and loop mode to the reader-specific bottom toolbar. Studying means variable playback speed — slowing down for dense passages, speeding up through familiar material. Requiring a tab switch to change speed breaks the study flow.
 - [ ] **Alignment as achievement, not chore** — show "% aligned" progress per chapter and per book. Celebrate when a chapter is fully aligned. After creating an anchor, offer contextual actions: "Create flashcard from this passage?" / "Add bookmark with this text?" Anchors are study waypoints — the UI should treat them that way.
-- [ ] **Replace inline flashcard popups with mark-later model** — remove `InlineFlashcardTriggerController` auto-popovers that interrupt playback. Replace with: tag passages during listening → review tagged passages and create flashcards in a dedicated session later. Listening should be immersive; flashcard creation should be intentional and separate.
-- [ ] **iCloud sync for study state** — sync bookmarks, alignment anchors, flashcards, and playback position across devices via CloudKit (leveraging the existing GRDB database layer). This is the single biggest infrastructure gap blocking the multi-device study workflow. A user who aligns 200 paragraphs on iPhone should see those anchors on iPad and Mac.
-- [ ] **Ship the Echo rebrand** — update app display name, bundle identifiers, App Store Connect metadata, screenshots, and marketing site. The name "Echo" reflects the core value: your spoken words echoing back as searchable, referenceable knowledge. Screenshots must demonstrate the study workflow within 10 seconds (search → align → bookmark → flashcard).
+- [ ] **Replace inline flashcard popups with mark-later model** — remove `InlineFlashcardTriggerController` auto-popovers that interrupt playback. Replace with: tag passages during listening → review tagged passages and create flashcards in a dedicated session later. Listening should be immersive; flashcard creation should be intentional and separate. (The trigger controller logic was hardened in Phase 1/4; this item is about UX redesign, not code health.)
+- [~] **iCloud sync for study state** — sync bookmarks, alignment anchors, flashcards, and playback position across devices via CloudKit (leveraging the existing GRDB database layer). This is the single biggest infrastructure gap blocking the multi-device study workflow. A user who aligns 200 paragraphs on iPhone should see those anchors on iPad and Mac. **Progress:** `CloudKitSyncService` infrastructure in place with deterministic SHA-256 record names and `NSNumber`-based predicates. Sync currently covers alignment anchors. Full bookmark/flashcard/position sync still needed.
+- [~] **Ship the Echo rebrand** — update app display name, bundle identifiers, App Store Connect metadata, screenshots, and marketing site. The name "Echo" reflects the core value: your spoken words echoing back as searchable, referenceable knowledge. Screenshots must demonstrate the study workflow within 10 seconds (search → align → bookmark → flashcard). **Progress:** Documentation (README, ARCHITECTURE, CHANGELOG) uses Echo branding. Xcode project bundle IDs and Fastlane still use `com.orbit.*` — migration requires coordinated App Store Connect changes.
 
 ### 8.2 — Polish & Stretch Goals
 
@@ -264,8 +264,18 @@ Priority items for the Echo rebrand and study-player positioning, plus stretch g
 | 3 | UI Polish & Accessibility | ✅ Complete |
 | 4 | Spaced Repetition System | ✅ 4.1–4.2 complete; 4.3 1/3 (2 deferred) |
 | 5 | EPUB Viewing | ✅ Complete (dedicated Reader tab + Timeline integration) |
-| 6 | EPUB Manual Alignment | ✅ Core complete (6/8 items); 2 deferred |
+| 6 | EPUB Manual Alignment | ✅ Core complete (6/8 items); 2 deferred (anchor import/export, word-count alignment hints) |
 | 7 | Testing & CI | ~7 items remaining |
-| 8 | Study Workflow & Polish | ~17 items remaining (6 P0, 11 stretch) |
+| 8 | Study Workflow & Polish | ~17 items remaining (6 P0, 11 stretch); Accent Contrast Safety ✅, Now Playing redesign ✅, Watch Connectivity hardened ✅, Pomodoro timer ✅, CloudKit sync infrastructure in place |
 
-**Completed: 5/8 phases (+ Phase 6 core) | Remaining: ~26 items (6 study workflow, ~20 from Phase 7 & 8)**
+**Completed: 5/8 phases (+ Phase 6 core, substantial Phase 8 foundations) | Remaining: ~26 items**
+
+### June 2026 Highlights (since last update)
+
+- **Accent Contrast Safety Pipeline** — `ColorMetrics` (WCAG/CIELAB), `AccentSafetyNet` (A→B→C rescue ladder), `extractPalette` (shared histogram pass), artwork-derived accent color with legibility guarantees
+- **Now Playing UI Redesign** — `UnifiedTopHeader`, `UnifiedBottomDock`, full-bleed artwork split layout, adaptive theming
+- **Watch Connectivity Hardened** — Durable application context for significant state, transport commands never ride background queue, stale `userInfo` handling, timer suspension cap
+- **Pomodoro Timer** — Hours support, multi-wheel picker, thicker progress indicator, dynamic formatting, persistent alarm
+- **Watch Enhancements** — Fullscreen cover art viewer, configurable date overlay
+- **Swift Concurrency Modernized** — `MainActor.assumeIsolated` across 9 service files, `nonisolated(unsafe)` annotations, `@preconcurrency import AVFoundation` project-wide
+- **Bug Fixes** — Pause on output device disconnect, progress save before track change, EPUB auto-import security scope, security scope URL reuse, TokenDTW gap-cost initialization

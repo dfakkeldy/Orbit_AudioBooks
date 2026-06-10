@@ -8,7 +8,7 @@ help: ## List available targets
 
 docs: ## Generate DocC documentation
 	xcodebuild docbuild \
-		-scheme "Echo: Audiobook Study Player" \
+		-scheme "Echo" \
 		-destination 'generic/platform=iOS' \
 		DOCC_HOSTING_BASE_PATH="/echo"
 	@echo "Documentation successfully built in derived data."

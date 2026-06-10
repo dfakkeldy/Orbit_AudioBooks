@@ -1,572 +1,351 @@
-# Orbit Audiobooks Code Audit
+# Echo: Audiobook Study Player — Code Audit
 
-Generated 2026-05-31. Scope: ~27,631 LOC across 218 Swift files targeting iOS 26.4, macOS 26.3, watchOS. `Tools/`, `build/`, `vendor/`, `.build/`, `checkouts/`, `SourcePackages/` excluded.
+Generated 2026-06-09. Scope: ~35,300 LOC across 295 Swift files in targets **Echo (iOS)**, **Echo Watch App**, **Echo WidgetExtension** (watchOS), **Echo macOS**, plus `Shared/` and `Tools/`. Excluded: `build/`, `vendor/`, `scratch/` (audited only as an artifact), `docs/`, `fastlane/`, `Tools/OrbitTranscriptionCLI/.build/` (untracked SPM leftovers), asset catalogs.
 
-**Resolution status: ALL 55 FINDINGS FIXED** — 2026-05-31. 52 files modified, 20 new files created. See [Resolution Summary](#resolution-summary) below for a detailed breakdown.
+Compiler ground truth: a forced full rebuild of the **Echo scheme (iOS app + embedded watch app + widget) produced zero source warnings** in Swift 5 language mode with Approachable Concurrency. The **Echo macOS scheme fails to build** (see §5.1). The previous audit (2026-05-31, 55 findings) was fully remediated; 163 Swift files changed since, and this audit weights that delta (auto-alignment, watch sync/Pomodoro, colour-accent pipeline, EPUB import).
 
-Findings cite `path/to/file.swift:LINE` so you can jump to them in Xcode. Each item has a recommended action; ~~no code changes were made.~~
-
----
-
-## Resolution Summary
-
-All findings have been addressed. Key changes:
-
-- **Critical (4/4):** SHA-256 CloudKit IDs, `guard let` AVAudioFormat, `fatalError` → graceful fallback, sliding-window string allocation optimization
-- **Quick Wins (5/5):** `print()` → `Logger` (11 sites), shared Logger subsystem, cached `CharacterSet`, static `ISO8601DateFormatter`, CloudKit record type constant
-- **Concurrency (15/15):** `DispatchQueue.main.async` → `MainActor.run` / `Task { @MainActor in }` (50+ sites), `@MainActor` on 5 classes, cancellation checks in detached tasks, stored Task handles, `MainActor.assumeIsolated` in deinit, redundant `withCheckedContinuation` wrapping removed (6 sites), MPRemoteCommandCenter modernized
-- **API Modernity (7/7):** Async audio permissions, `FormatStyle` migration, `@Observable` on 4 macOS classes, modern URL APIs (`URL.documentsDirectory`, `.appending(path:)`)
-- **Bugs (13/13):** `NSPredicate` precision fix, sync `Process` → async + path-traversal validation, EPUB race condition → UUID temp dirs, force-unwrap guards, empty catch blocks → `logger.error`, retain cycle → `[weak self]`, timer re-entry guard, `folderURL` passed directly, sidecar error logging
-- **Security (4/4):** EPUB `.completeFileProtection`, security-scoped bookmarks → Keychain with legacy migration, CloudKit environment documented, CloudKit auth documented + `WhisperSession` guard
-- **Performance (7/7):** Shared block-time estimation helper (de-duplicated Tier 1 & Tier 3), O(N) timeline scan replaces O(N log N) sort, async `Data(contentsOf:)` offloading, cached `Set` + short-circuit in text matcher, `WhisperSession` shared model manager, MacAlignment array precomputation, migration flag → App Group `UserDefaults`
-- **SwiftUI (5/5):** `.foregroundColor` → `.foregroundStyle` (30+ sites), strong `[self]` → `[weak self]`, `AnimationDurations` enum, manual `Binding` → `@State` + `onChange`, file size reductions
-- **Duplication (9/9):** EPUB XML parser → `Shared/EPUBXMLParsing.swift` (~190 lines removed per platform), `FileLocations` enum applied to 10 sites, magic constants → `Config` enums, `TimelineFeedCollectionView` 1825→627 lines (11 cell files extracted to `Cells/`), `PlayerModel` 1295→1103 lines (`PlayerModel+Bookmarks.swift`), `ReaderTab` 901→576 lines (`ReaderTab+Alignment.swift`), `WhisperSession` shared model manager, `AudioSnippetPlayer` utility
-
-**New infrastructure:** `Logger+Subsystem`, `FileLocations`, `EPUBXMLParsing`, `AnimationDurations`, `KeychainStore`, `WhisperSession`, `AudioSnippetPlayer`, `PlayerModel+Bookmarks`, `ReaderTab+Alignment`, 11 extracted cell files in `Views/Cells/`.
+Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally verified by opening the cited lines; several agent-reported claims were demoted or dropped after verification (see §12). No code changes were made.
 
 ---
 
 ## 1. Executive summary
 
-1. **[Critical] AVAudioFormat Force-Unwrap Crashes on Unsupported Hardware** — §5.5 — `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:47`
-2. **[Critical] fatalError on DatabaseService / App Group Failure Kills App at Launch** — §5.6 — `OrbitAudioBooks/Orbit_AudioBooksApp.swift:32` & `Shared/Database/DatabaseService.swift:18`
-3. **[Critical] HashValue Unstable CloudKit Record Identity** — §5.1 — `OrbitAudioBooks/Services/CloudKitSyncService.swift:39`
-4. **[Critical] Expensive String Allocation in Sliding Window** — §7.1 — `OrbitAudioBooks/Services/AutoAlignmentTextMatcher.swift:147-148`
-5. **[High] Redundant Continuation Wrapping Already-Async WhisperKit Calls** — §3.10 — 6 sites across AutoAlignmentService, ContinuousAlignmentService, MacGlobalAlignmentService
-6. **[High] Five Empty catch Blocks Silently Swallow Errors in ReaderTab** — §5.8 — `OrbitAudioBooks/Views/ReaderTab.swift:349,359,369,379,596`
-7. **[High] CloudKit Public Database: Development Environment in All Builds** — §6.3 — Entitlements files for iOS & macOS
-8. **[High] Synchronous Process Blocking on macOS EPUB Parse** — §5.3 — `Orbit Audiobooks macOS/Services/MacEPUBParser.swift:26`
-9. **[High] EPUB XML Parser Duplication Across iOS and macOS** — §9.5 — `MacEPUBParser.swift` and `EPUBImportService.swift`
-10. **[High] WatchViewModel Missing @MainActor Despite Extensive State Mutation** — §3.9 — `Orbit Audiobooks Watch App/Services/WatchViewModel.swift:20-497`
+Top items, in priority order:
+
+1. **[Critical] The Echo macOS target does not build — two independent root causes** — §5.1 — `Echo macOS/Services/MacGlobalAlignmentService.swift:4` + `Echo.xcodeproj/project.pbxproj:577-601`.
+2. **[High] Zip-slip path traversal in EPUB extraction** — §6.1 — `EchoCore/Services/EPUBAutoImportScanner.swift:314-321`. A malicious EPUB can write outside its destination directory (inside the sandbox), including over the app's own data.
+3. **[High] `WhisperSession.forceUnload()` race guard is self-defeating** — §3.1 — `EchoCore/Services/WhisperSession.swift:70-80`. The generation snapshot is taken *inside* the unload Task, so the guard always passes and can unload a freshly re-acquired model.
+4. **[High] Synchronous GRDB work on the main actor (23 call sites)** — §3.2 — `DAO(db: db.writer)` pattern across `EchoCore/Services/`.
+5. **[Medium] Security-scoped bookmark saved with `.minimalBookmark`** — §5.2 — `EchoCore/Services/Persistence.swift:172-178`. May not survive relaunch as a security-scoped grant.
+6. **[Medium] `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` on only 2 of 5 targets** — §3.5 — same `Shared/` source compiles with different implicit isolation per target.
+7. **[Medium] Rebrand residue is a decision, not a cleanup** — §9.5 — bundle IDs, app-group/iCloud container IDs, logger subsystem all still `com.orbit*`; changing them breaks app/CloudKit identity, so decide deliberately before first release.
+8. **[Medium] Progress view polls `@Observable` state on a 0.3 s timer** — §8.1 — `EchoCore/Views/AutoAlignmentProgressView.swift:132-157`.
+9. **[Medium] Watch marquee runs `TimelineView(.animation)` at frame rate whenever the title overflows** — §7.2 — `Echo Watch App/Views/PlayerPage.swift:911-947`.
+10. **[Medium] Two parallel audio snippet players** — §9.2 — `SnippetPlayer.swift` vs `AudioSnippetPlayer.swift`.
 
 ---
 
 ## 2. Quick wins (≤30 min each)
 
-### 2.1 Replace print() Calls with Logger
-- **Location:** `OrbitAudioBooks/Views/Bookmarks.swift:766`, `OrbitAudioBooks/Views/PlaylistView.swift:267`, `OrbitAudioBooks/Views/ReaderTab.swift:618`, `OrbitAudioBooks/Services/MockMediaProvider.swift:15,22`, `OrbitAudioBooks/Services/BookmarkArtworkCoordinator.swift:105`, `Orbit Audiobooks Watch App/Views/Bookmarks.swift:97`, `Orbit Audiobooks Watch App/Services/WatchViewModel.swift:273,514,554,716`
-- **What:** 11 `print()` calls across 7 files are not gated by `#if DEBUG`. The rest of the codebase consistently uses `Logger` / `os_log`.
-- **Why:** These are the only debug-output paths not going through unified logging, making them an inconsistency and pollution in production console output.
-- **Action:** Replace with `logger.error("...")` using a Logger instance, or wrap in `#if DEBUG`.
-- **Severity:** Low
-
-### 2.2 Add Shared Logger Subsystem Constant
-- **Location:** 20+ files across the project
-- **What:** Every Logger declaration repeats `Logger(subsystem: "com.orbitaudiobooks", category: "...")` with a hardcoded subsystem string.
-- **Why:** A typo in any single logger's subsystem makes its logs invisible under expected filter patterns.
-- **Action:** Define `extension Logger { static let subsystem = "com.orbitaudiobooks" }` and reference it everywhere.
-- **Severity:** Low
-
-### 2.3 Cache CharacterSet.letters.inverted as Static Property
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentTextMatcher.swift:162`
-- **What:** `CharacterSet.letters.inverted` is created dynamically inside `tokens(in:)`, called thousands of times per alignment run.
-- **Why:** Each call allocates and inverts a CharacterSet. In tight matching loops, this creates unnecessary memory pressure.
-- **Action:** Store as `private static let nonLetters = CharacterSet.letters.inverted` and reference the static.
-- **Severity:** Medium
-
-### 2.4 Use Static ISO8601DateFormatter Throughout
-- **Location:** `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:198`, `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:139,175,188`, `OrbitAudioBooks/Views/ReaderTab.swift:581`, `Shared/Database/DAOs/EPubBlockDAO.swift:97,110,125,179`
-- **What:** `ISO8601DateFormatter()` is instantiated per-call instead of using a shared instance.
-- **Why:** Formatter creation is relatively expensive (locale setup, pattern parsing). Already fixed in `AlignmentService.swift:11` — extend the pattern.
-- **Action:** Use `AlignmentService.isoFormatter` (already defined) or define a shared static in each file.
-- **Severity:** Medium
-
-### 2.5 Extract CloudKit Record Type String to Named Constant
-- **Location:** `OrbitAudioBooks/Services/CloudKitSyncService.swift:40,65`
-- **What:** `CKRecord(recordType: "SharedAlignment", ...)` and `CKQuery(recordType: "SharedAlignment", ...)` use a literal string.
-- **Why:** If the record type is renamed, both locations must be updated independently.
-- **Action:** Define `static let sharedAlignmentRecordType = "SharedAlignment"`.
-- **Severity:** Low
+- **Fix user-visible display-name typo "Audiobookk"** — `Echo.xcodeproj/project.pbxproj:709` and `:751` (`INFOPLIST_KEY_CFBundleDisplayName` for Echo macOS, Debug + Release).
+- **Replace the only bare `print()` with `Logger`** — `EchoCore/Views/SettingsView.swift:315` (app-icon change failure path). See also §8.3.
+- **Delete the empty rebrand leftover directories** — `OrbitAudioBooks/` (assets only) and `Orbit Audiobooks macOS/` (empty). Zero references in `project.pbxproj` (verified).
+- **Untrack `scratch/`** — `scratch/NowPlayingTab_before.swift`, `scratch/NowPlayingTab_after.swift`, and 4 icon SVGs are git-tracked design leftovers; move anything worth keeping into `docs/` and gitignore the rest.
+- **Delete untracked tool leftovers** — `Tools/OrbitTranscriptionCLI/` (only `.build/` + `Package.resolved` remain; package was deleted from git) and `Tools/__pycache__/`. Add `build.log` to `.gitignore` explicitly.
+- **Extract the `"TranscriptDidUpdate"` notification name literal** — `Echo macOS/Views/TranscriptStore.swift:29`, `Echo macOS/Views/TranscriptionManager.swift:184`, `:255` → one `Notification.Name` constant.
+- **Move model enums out of Services/** — `EchoCore/Services/LoopMode.swift`, `EchoCore/Services/SleepTimerMode.swift` → `EchoCore/Models/`.
+- **Fix stale CLAUDE.md project context** — `CLAUDE.md:9` still describes the "SwiftUI CLI" in `Tools/`, which was deleted in the rebrand commit (`751e89c`).
 
 ---
 
 ## 3. Concurrency
 
-### 3.1 Old-style GCD in AudioEngine
-- **Location:** `OrbitAudioBooks/Services/AudioEngine.swift:350-357`
-- **What:** Uses `DispatchQueue.main.async` inside the `scheduleSegment` completion handler.
-- **Why:** Project rules forbid GCD in favor of modern Swift concurrency.
-- **Action:** Replace with `MainActor.run { }` (non-async variant for synchronous callbacks).
+### 3.1 `WhisperSession.forceUnload()` captures its generation snapshot too late
+- **Status:** ✅ **FIXED 2026-06-09** (TDD). The reference-counted lifecycle was extracted into `EchoCore/Services/ModelRetainBox.swift` (`@MainActor`, generic, injected load/unload closures); both `release()` and `forceUnload()` now call one `scheduleUnload(ifGenerationEquals:)` helper that takes the snapshot as a synchronously-evaluated **argument**, making late capture impossible by construction. `WhisperSession` is now a thin adapter over the box. Regression test: `EchoTests/ModelRetainBoxTests.swift::forceUnloadDoesNotEvictAModelReacquiredBeforeTheUnloadRuns` (watched RED against the original bug, now GREEN). The box also tracks its `pendingUnload` task, which resolves the WhisperSession half of §3.3.
+- **Location:** `EchoCore/Services/WhisperSession.swift:70-80` (compare the correct pattern in `release()`, `:49-66`)
+- **What:** `release()` snapshots `generation` *before* spawning the unload Task; `forceUnload()` reads `capturedGeneration` *inside* the Task body, so the guard compares `generation` to itself and always passes.
+- **Why:** The documented protection ("don't nil out a freshly-loaded model") is dead code in `forceUnload()`. Sequence: `forceUnload()` → `acquire()` (book switched, model reloads) → stale Task runs → unloads and nils the model a live caller just received. Cancel-then-restart alignment is the stated use case for `forceUnload()`, so this is user-reachable.
+- **Action:** Hoist the `let capturedGeneration = generation` line outside the `Task` closure, mirroring `release()`. Consider one shared `scheduleUnload(after:)` helper so the pattern exists once.
 - **Severity:** High
 
-### 3.2 Old-style GCD in BookmarkStore
-- **Location:** `OrbitAudioBooks/Services/BookmarkStore.swift:258-258`
-- **What:** Uses `DispatchQueue.main.async` in `scheduleFile` completion.
-- **Why:** Violates project concurrency conventions.
-- **Action:** Replace with `MainActor.run { }`.
+### 3.2 Synchronous GRDB reads/writes on the main actor
+- **Location:** 23 sites matching `DAO(db: db.writer)` under `EchoCore/Services/` — hot examples: `InlineFlashcardTriggerController.swift` (runs during playback ticks), `PlayerTimelinePersistenceService.swift`, `ChapterLoadingCoordinator.swift`, `TimelineIngestionService.swift`, `EPUBAutoImportScanner.swift`, `PDFImportCoordinator.swift`
+- **What:** `@MainActor` services construct DAOs over `db.writer` and execute queries synchronously on the main thread.
+- **Why:** GRDB serializes internally so this is safe, but it blocks the main thread for the duration of each query; EPUB transcript tables hold thousands of block rows per book, so worst-case reads can produce visible jank — and under a future Swift 6 / DatabaseActor migration each site needs touching anyway.
+- **Action:** Profile the per-tick and per-gesture paths first (Instruments → Time Profiler, main thread); convert hot paths to GRDB's async `read`/`write` or `ValueObservation`. One-shot loads at import time can stay synchronous.
 - **Severity:** High
 
-### 3.3 Old-style GCD in PlaybackController (12 sites)
-- **Location:** `OrbitAudioBooks/Services/PlaybackController.swift:151,302,316,468,488,528,638,670,683,771,824,845`
-- **What:** Extensive use of `DispatchQueue.main.async` to dispatch state updates from coordinator callbacks.
-- **Why:** Violates project concurrency conventions. The class is `@Observable` but lacks `@MainActor`.
-- **Action:** Annotate class as `@MainActor`, replace dispatches with `MainActor.run { }` where the callback is from a non-main queue.
-- **Severity:** High
-
-### 3.4 Old-style GCD in WatchSyncManager
-- **Location:** `OrbitAudioBooks/Services/WatchSyncManager.swift:95-131`
-- **What:** `DispatchQueue.main.async` inside WCSession delegate methods.
-- **Why:** WCSession callbacks arrive on background queues; the dispatch is correct but should use modern concurrency.
-- **Action:** Replace with `Task { @MainActor in }`.
-- **Severity:** High
-
-### 3.5 Old-style GCD in WatchViewModel
-- **Location:** `Orbit Audiobooks Watch App/Services/WatchViewModel.swift:145-348`
-- **What:** Uses `DispatchQueue.main.async` and `DispatchQueue.main.asyncAfter` for state updates.
-- **Why:** Violates project concurrency conventions.
-- **Action:** Annotate class as `@MainActor`, replace with `Task { @MainActor in }` and `Task.sleep(for:)`.
-- **Severity:** High
-
-### 3.6 Uncancelled Detached Tasks in SilenceDetection
-- **Location:** `OrbitAudioBooks/Services/SilenceDetectionService.swift:22-90`
-- **What:** `Task.detached` containing a heavy frame-processing loop without cancellation checks.
-- **Why:** Uncancelled detached tasks consume background CPU if the overarching task is cancelled.
-- **Action:** Insert `try Task.checkCancellation()` within the main processing loop, or use `Task { }.value` instead of `.detached`.
-- **Severity:** High
-
-### 3.7 Uncancelled Detached Tasks in SilenceAnalyzer
-- **Location:** `OrbitAudioBooks/Utilities/SilenceAnalyzer.swift:65-144`
-- **What:** `Task.detached` for synchronous AVAssetReader reading loops without cancellation checks.
-- **Why:** Fails to respect structured concurrency cancellation.
-- **Action:** Add `try Task.checkCancellation()` into the `copyNextSampleBuffer` loop.
-- **Severity:** High
-
-### 3.8 Missing @MainActor on @Observable Classes
-- **Location:** `OrbitAudioBooks/ViewModels/PlayerModel.swift:14`, `OrbitAudioBooks/Services/PlaybackController.swift`, `OrbitAudioBooks/Services/SnippetPlayer.swift:6`
-- **What:** Classes marked `@Observable` but lacking `@MainActor` annotation. `SnippetPlayer` is not annotated at all and uses manual `DispatchQueue.main.async`.
-- **Why:** Without `@MainActor`, the compiler cannot enforce main-thread isolation on `@Observable` property access, risking runtime data-race assertions.
-- **Action:** Add `@MainActor` to `PlayerModel`, `PlaybackController`, and `SnippetPlayer` class signatures.
-- **Severity:** High
-
-### 3.9 WatchViewModel Missing @MainActor with Manual Main-Dispatch Wrapper
-- **Location:** `Orbit Audiobooks Watch App/Services/WatchViewModel.swift:20-497`
-- **What:** `WatchViewModel` uses `@Observable` but is NOT `@MainActor`. Its `applyState(_:)` wraps its entire body in `DispatchQueue.main.async` because it is called from WCSessionDelegate callbacks on background queues.
-- **Why:** An `@Observable` class with no actor annotation is implicitly `nonisolated`. If a future refactoring forgets the manual dispatch, a data-race assertion is likely. This is the most concurrency-unsafe class in the project.
-- **Action:** Annotate as `@MainActor`. Wrap WCSession callbacks with `await MainActor.run { }` at the call site.
-- **Severity:** High
-
-### 3.10 Redundant withCheckedContinuation Wrapping Already-Async WhisperKit Calls (6 sites)
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentService.swift:890-951` (loadWhisperModel, transcribe), `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:103-153` (loadModelIfNeeded, transcribe), `Orbit Audiobooks macOS/Services/MacGlobalAlignmentService.swift:191-238` (loadModelIfNeeded, transcribeChunk)
-- **What:** Every WhisperKit interaction: outer `async` method → `withCheckedThrowingContinuation` → `whisperQueue.async` → inner `Task` → `await wk.transcribe()`. This wraps already-async APIs in a continuation + DispatchQueue detour.
-- **Why:** Creates two unnecessary thread hops and a continuation per call. The `whisperQueue` dispatch is vestigial from before WhisperKit provided async APIs. Six call sites carry this pattern.
-- **Action:** Remove the `whisperQueue` dispatch and `withCheckedContinuation` entirely. Call `await wk.transcribe(...)` directly from the async function. If model loading must stay off the main actor, use `await Task.detached { ... }.value`.
-- **Severity:** High
-
-### 3.11 Fire-and-Forget Tasks Without Cancellation Handles (~12 sites)
-- **Location:** `OrbitAudioBooks/ViewModels/TimelineFeedViewModel.swift:53,150,220,233,245,257,269,281,483`, `OrbitAudioBooks/Services/PlayerLoadingCoordinator.swift:295`, `OrbitAudioBooks/Services/StoreManager.swift:18,21`
-- **What:** Unstructured `Task { ... }` created without storing the Task handle. These are fire-and-forget — cannot be cancelled or awaited.
-- **Why:** A view that disappears cannot cancel its outstanding work, which may later execute on deallocated objects.
-- **Action:** Store the Task in a property (`var pendingTask: Task<Void, Never>?`) and call `pendingTask?.cancel()` from `disappear` / `deinit`.
+### 3.3 Unstructured `Task {}` without cancellation tracking
+- **Partial fix 2026-06-09:** the `WhisperSession.swift:54-62`/`:73-79` unload Tasks are now tracked as `pendingUnload` inside `ModelRetainBox` (see §3.1). The remaining sites below are unchanged.
+- **Location:** `EchoCore/Services/ContinuousAlignmentService.swift:97-109` (verified — `stop()` cannot cancel an in-flight transcription); `EchoCore/Services/TimelineService.swift:79`, `:101`, `:123`; `EchoCore/Views/ReaderTab.swift:27` (cancel is wired to the UI button at `:293` but not to view teardown)
+- **What:** Fire-and-forget Tasks are spawned without being stored, so teardown paths (`stop()`, view dismissal, book switch) cannot cancel them.
+- **Why:** In-flight WhisperKit transcription continues after `stop()`, wasting CPU/battery and potentially inserting an alignment anchor after the user cancelled; the load-window Tasks can stack on rapid scrolling.
+- **Action:** Adopt a store-and-cancel convention (`private var task: Task<…>?`, cancel on replace and in teardown) or scope work with `withTaskCancellationHandler`; for ReaderTab decide explicitly whether background-continuation after dismissal is intended and document it.
 - **Severity:** Medium
 
-### 3.12 PlayerModel deinit Creates Unstructured Task
-- **Location:** `OrbitAudioBooks/ViewModels/PlayerModel.swift:664-676`
-- **What:** `deinit` captures `localEngine` and `localBookmarkStore` then creates `Task { @MainActor in ... }` for cleanup — fire-and-forget with no cancellation.
-- **Why:** The task may outlive deallocation if suspended. If main-actor-congested, engine nodes may already be released.
-- **Action:** Use `MainActor.assumeIsolated { ... }` (already used in `AudioEngine.deinit`) to synchronously tear down.
+### 3.4 `@MainActor` service hops to a private queue for DB work
+- **Location:** `EchoCore/Services/TimelineService.swift:36` (queue declaration), `:172-184` (`pushForwardUncompletedItems`)
+- **What:** A `@MainActor` class dispatches onto `pushForwardQueue` capturing `self` and `db.writer`.
+- **Why:** Functionally safe today (GRDB locks internally; `Logger` is thread-safe), but capturing MainActor-isolated `self` in a plain queue closure is exactly what Swift 6 strict mode rejects — this is the codebase's main Swift-6-migration exemplar.
+- **Action:** Replace the queue with GRDB's own async write API (`try await db.writer.write { … }`) so isolation is compiler-checked; drop `pushForwardQueue`.
 - **Severity:** Medium
 
-### 3.13 Static Weak PlayerModel Singleton Bypasses SwiftUI Environment
-- **Location:** `OrbitAudioBooks/Orbit_AudioBooksApp.swift:19`
-- **What:** `static weak var playerModel: PlayerModel?` as backdoor for CarPlay and non-SwiftUI contexts.
-- **Why:** Static weak reference bypasses SwiftUI environment, creates hidden global dependency. Access from non-@MainActor contexts risks data-race assertions. Weak semantics mean it can silently become nil.
-- **Action:** Pass `PlayerModel` via proper dependency injection to `CarPlaySceneDelegate`; remove the `static weak var`.
+### 3.5 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` drift across targets
+- **Location:** `Echo.xcodeproj/project.pbxproj:998`, `:1040` (Echo iOS), `:1178`, `:1217` (Echo Watch App) — set; widget (`:779-831`), Echo macOS (`:695-762`), and all test targets — unset
+- **What:** Only the iOS app and watch app default unannotated types to `@MainActor`; the widget, macOS app, and tests default to `nonisolated`.
+- **Why:** Files in `Shared/` (e.g. `AppGroupDefaults.swift`) compile with *different implicit isolation per target*, which hides races in the nonisolated targets and will produce divergent errors during Swift 6 migration.
+- **Action:** Set the flag uniformly on all five targets (or deliberately on none and annotate explicitly); do it before attempting the Swift 6 language-mode bump.
 - **Severity:** Medium
 
-### 3.14 Widespread Timer.scheduledTimer Instead of Async Loops (5+ sites)
-- **Location:** `OrbitAudioBooks/Services/AudioEngine.swift:198-220,391-398`, `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:57`, `OrbitAudioBooks/Services/TimelineService.swift:164-170`, `Orbit Audiobooks Watch App/Services/WatchViewModel.swift:156`
-- **What:** `Timer.scheduledTimer` with `[weak self]` closures wrapping work in `Task { @MainActor }` or `DispatchQueue.main.async`.
-- **Why:** Timer callbacks have no cancellation propagation or Swift concurrency integration. Schedule/unschedule is fragile and risks retain cycles.
-- **Action:** Migrate to `Task { while !Task.isCancelled { ...; try await Task.sleep(for: .seconds(n)) } }` for periodic work.
+### 3.6 Unnecessary `@unchecked Sendable` on `ReaderCardItem`
+- **Location:** `EchoCore/Models/ReaderCardItem.swift:54`; payload type `Shared/Database/EPubBlockRecord.swift:6`
+- **What:** `ReaderCardItem` is marked `@unchecked Sendable` even though `EPubBlockRecord` already declares plain `Sendable` (it's a value-type GRDB record).
+- **Why:** `@unchecked` opts out of compiler verification for a conformance the compiler could verify — it will silently mask a future non-Sendable member.
+- **Action:** Replace with a plain `Sendable` conformance; if it doesn't compile, the error identifies the actual unsafe member to fix.
 - **Severity:** Low
 
-### 3.15 MPRemoteCommandCenter Handlers Use DispatchQueue.main.async
-- **Location:** `OrbitAudioBooks/Services/NowPlayingController.swift:48-82` (8 sites)
-- **What:** `MPRemoteCommand.addTarget` closures dispatch to `DispatchQueue.main.async`.
-- **Why:** While `addTarget` has no async variant, using `Task { @MainActor in }` integrates with Swift concurrency.
-- **Action:** Replace with `Task { @MainActor in play() }`. Store returned tokens for clean unregistration.
-- **Severity:** Low
+**Verified clean:** `AudioRingBuffer` is a correctly designed lock-free SPSC buffer (no locks/allocations on the producer side; release/acquire barriers present); `WCSessionDelegate` handlers consistently hop to `@MainActor`; `XMLParser` delegates run synchronously on the calling thread (no cross-thread access); no `nonisolated(unsafe)` anywhere.
 
 ---
 
 ## 4. API modernity
 
-### 4.1 Closure-based Audio Permissions
-- **Location:** `Orbit Audiobooks Watch App/Views/PlayerPage.swift:777` & `OrbitAudioBooks/Views/Bookmarks.swift:590`
-- **What:** Uses closure-based `AVAudioApplication.requestRecordPermission`.
-- **Why:** Project rules require preferring `async/await` APIs.
-- **Action:** Update to `let granted = await AVAudioApplication.requestRecordPermission()`.
-- **Severity:** High
-
-### 4.2 Legacy DateFormatter Usage
-- **Location:** `OrbitAudioBooks/Models/TimelineScope.swift:71` (and others)
-- **What:** Uses `DateFormatter` legacy subclasses.
-- **Why:** Rules prohibit legacy `Formatter` subclasses in favor of modern `FormatStyle` APIs.
-- **Action:** Replace with `Date().formatted(...)`.
+### 4.1 Deprecated `OSAtomicAdd32Barrier` in the audio ring buffer
+- **Location:** `EchoCore/Services/AudioRingBuffer.swift:59`, `:68`, `:83`, `:89`
+- **What:** Producer/consumer index publication uses `OSAtomic*` functions, deprecated since iOS 10.
+- **Why:** Deprecated-and-flagged API; taking `&head` of a stored property for atomic ops also relies on pointer-stability assumptions Swift doesn't formally guarantee.
+- **Action:** Migrate to the `Synchronization` framework's `Atomic<Int32>` (available at the 26.x deployment targets) with `.releasing`/`.acquiring` orderings; semantics map one-to-one onto the existing barriers.
 - **Severity:** Medium
 
-### 4.3 Legacy ISO8601DateFormatter Usage
-- **Location:** `Shared/Database/DAOs/EPubBlockDAO.swift:97` & `OrbitAudioBooks/Services/AutoAlignmentService.swift:221`
-- **What:** Uses `ISO8601DateFormatter()` instead of `.iso8601` format styles.
-- **Why:** Rules prohibit legacy `Formatter` subclasses.
-- **Action:** Replace with `Date().formatted(.iso8601)` or `Date.ISO8601FormatStyle`.
+### 4.2 Completion-handler seek API bridged with 12 manual main-queue hops
+- **Location:** `EchoCore/Services/AudioEngine.swift:150-183` (`seek(to:completion:)`); call sites `EchoCore/Services/PlaybackController.swift:160`, `:317`, `:333`, `:489`, `:509`, `:549`, `:661`, `:693`, `:706`, `:794`, `:847`, `:868`
+- **What:** `AudioEngine.seek` takes a completion closure; every `PlaybackController` caller wraps its body in `DispatchQueue.main.async`.
+- **Why:** The hops are correct today but unverifiable by the compiler, and each one defers state updates (`isManualSeeking = false`) by a runloop tick whether or not that delay is intentional.
+- **Action:** Give `AudioEngine` an `async` seek (and play/pause where applicable); `@MainActor` callers then resume on the right executor automatically and the 12 hops disappear.
 - **Severity:** Medium
 
-### 4.4 C-Style Formatting
-- **Location:** `OrbitAudioBooks/Views/BottomToolbarView.swift:92,114` (and others)
-- **What:** Uses C-style formatting such as `String(format: "%.1f", speed)`.
-- **Why:** C-style formatting is forbidden; Swift-native `FormatStyle` must be used.
-- **Action:** Migrate to `.formatted(.number.precision(...))`.
-- **Severity:** Medium
-
-### 4.5 Legacy ObservableObject on macOS (4 classes)
-- **Location:** `Orbit Audiobooks macOS/Views/MacPlayerModel.swift:35`, `Orbit Audiobooks macOS/Services/MacGlobalAlignmentService.swift:22`, `Orbit Audiobooks macOS/Views/TranscriptionManager.swift:104`, `Orbit Audiobooks macOS/Views/TranscriptStore.swift:12`
-- **What:** Four macOS classes still use `ObservableObject` conformance with `@Published` properties.
-- **Why:** `@Observable` (macOS 14+) provides per-member granularity and eliminates `objectWillChange` overhead. macOS 26.3 target well exceeds the minimum.
-- **Action:** Migrate to `@Observable` macro. Remove `import Combine` where no longer needed.
-- **Severity:** High
-
-### 4.6 Legacy FileManager URL Construction
-- **Location:** `OrbitAudioBooks/Services/MockMediaProvider.swift:9` (and others)
-- **What:** Retrieves documents directory via `FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)`.
-- **Why:** Project rules require modern Foundation APIs.
-- **Action:** Replace with `URL.documentsDirectory`.
+### 4.3 View-layer `Timer.scheduledTimer` where structured equivalents fit
+- **Location:** `EchoCore/Views/AutoAlignmentProgressView.swift:142` (see §8.1), `EchoCore/Views/ManualAlignmentSheet.swift:95`, `:103`, `Echo Watch App/Views/PlayerPage.swift:816`, `Echo Watch App/Views/ContentView.swift:216`
+- **What:** Views drive repeating work with Timer + `Task { @MainActor … }` shims.
+- **Why:** Lifecycle is manual (invalidate-on-disappear discipline) where `.task(id:)` with an async sleep loop is self-cancelling.
+- **Action:** Prefer `.task(id:)`/`Task.sleep` loops in views; keep Timer only where runloop-mode behaviour is actually wanted.
 - **Severity:** Low
 
-### 4.7 Legacy URL Path Appending
-- **Location:** `Orbit Audiobooks macOS/Services/MacEPUBParser.swift` (and others)
-- **What:** Uses `.appendingPathComponent()` to build URLs.
-- **Why:** Project rules require modern `appending(path:)` API.
-- **Action:** Migrate `.appendingPathComponent(_:)` to `.appending(path:)`.
-- **Severity:** Low
+**Verified clean:** No deprecated SwiftUI API usage found (one-arg `.animation`, `NavigationView`, `UIScreen.main` — all absent); `@Observable` migration is complete (zero `ObservableObject`/`@StateObject`); no stale `#available` guards below the 26.x targets.
 
 ---
 
 ## 5. Bugs / logic errors
 
-### 5.1 HashValue Unstable CloudKit Record Identity
-- **Location:** `OrbitAudioBooks/Services/CloudKitSyncService.swift:39`
-- **What:** Uses `title.hashValue` and `author.hashValue` to generate a CloudKit `recordID`.
-- **Why:** Swift's `hashValue` is seeded randomly per launch and differs between executions/devices. This prevents fetching previous records and causes duplicate uploads. Existing records created on one device won't be found for updating on another.
-- **Action:** Use a stable deterministic hash (SHA-256 of title+author+duration) or base64-encode the composite string with URL-safe sanitization.
+### 5.1 The Echo macOS target does not build (two root causes)
+- **Location:** (a) `Echo macOS/Services/MacGlobalAlignmentService.swift:4` — `import WhisperKit` while the WhisperKit product is linked only to the iOS target (`Echo.xcodeproj/project.pbxproj:220`, sole Frameworks entry); (b) `Echo.xcodeproj/project.pbxproj:577-601` — "Build and Copy OrbitTranscriptionCLI" shell phase owned by the macOS target (`:303`), `alwaysOutOfDate = 1`, `set -euo pipefail`, runs `swift build` against `Tools/OrbitTranscriptionCLI/`, a package deleted from git in commit `751e89c` (only untracked `.build/` remains on disk; a fresh clone has nothing)
+- **What:** `xcodebuild -scheme "Echo macOS"` fails at compile ("Unable to resolve module dependency: 'WhisperKit'"); even after fixing that, the unguarded script phase fails every build.
+- **Why:** The macOS product is entirely dead on main; CI or a fresh contributor cannot build it. Related: `Echo macOS/Views/MacPlayerModel.swift` uses `AppGroupDefaults` but `Echo macOS/Echo_macOS.entitlements` lacks the `group.com.orbitaudiobooks` entitlement, so even a fixed build hits the `assertionFailure` guard in `Shared/AppGroupDefaults.swift:11-13`.
+- **Action:** Decide the target's fate. To revive: link WhisperKit to Echo macOS, delete the orphaned script phase, add the app-group entitlement. To park: remove the scheme/target or mark it clearly in README so the broken state is intentional.
 - **Severity:** Critical
 
-### 5.2 Predicate Floating-Point Precision Loss
-- **Location:** `OrbitAudioBooks/Services/CloudKitSyncService.swift:64`
-- **What:** `NSPredicate(format: "audioDuration == %f", duration)` stringifies a 64-bit `Double`.
-- **Why:** Formatting with `%f` truncates precision, causing exact-match CloudKit queries to fail due to sub-millisecond differences between devices.
-- **Action:** Use `%@` and wrap the double in `NSNumber(value: duration)`, or use a tolerance-based comparison.
-- **Severity:** High
-
-### 5.3 Synchronous Process Blocking on macOS EPUB Parse
-- **Location:** `Orbit Audiobooks macOS/Services/MacEPUBParser.swift:26`
-- **What:** `process.waitUntilExit()` is called on the executing thread for `/usr/bin/unzip`.
-- **Why:** Blocking synchronously to wait for a shell process halts the calling thread, potentially causing beachballs/hangs.
-- **Action:** Use `Process.terminationHandler` asynchronously or wrap in a structured concurrency continuation.
-- **Severity:** High
-
-### 5.4 EPUB Extraction Race Condition
-- **Location:** `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:241-244`
-- **What:** Checks `fileExists` and calls `removeItem(at:)` on `destDir` directly before creating the directory.
-- **Why:** Concurrent auto-imports will race to delete and write the same folder, causing extraction crashes.
-- **Action:** Extract to a uniquely named temporary directory and use atomic file moving.
+### 5.2 Security-scoped bookmark created with `.minimalBookmark`
+- **Location:** `EchoCore/Services/Persistence.swift:172-178` (creation); `:191-222` (restore — the stale-refresh path itself is correct)
+- **What:** The folder-access bookmark is created with `options: [.minimalBookmark]`.
+- **Why:** Apple's guidance for security-scoped bookmarks on iOS is to pass empty options; minimal bookmarks store reduced information and may omit the sandbox-extension data needed for `startAccessingSecurityScopedResource()` to succeed after relaunch — i.e. the user's library folder silently becomes inaccessible.
+- **Action:** Create with `[]`, then verify the full cycle on device: pick folder → relaunch → confirm `startAccessing…` returns true. (Keychain storage of the bookmark, lines 168-189, is good practice and unchanged.)
 - **Severity:** Medium
 
-### 5.5 AVAudioFormat Force-Unwrap Crashes on Unsupported Hardware
-- **Location:** `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:47`
-- **What:** `AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Config.sampleRate, channels: 1, interleaved: false)!` force-unwraps a failable initializer.
-- **Why:** 16 kHz mono Float32 is not natively supported on all iOS devices. If `AVAudioFormat` returns nil, the app crashes at runtime — permanently aborting continuous alignment.
-- **Action:** Use `guard let format = AVAudioFormat(...) else { logger.error(...); return }` and log the failure.
-- **Severity:** Critical
-
-### 5.6 fatalError on DatabaseService / App Group Failure
-- **Location:** `OrbitAudioBooks/Orbit_AudioBooksApp.swift:32` & `Shared/Database/DatabaseService.swift:18`
-- **What:** `fatalError("DatabaseService initialization failed: \(error)")` and `fatalError("App Group container not found. Check entitlements.")` — in production code, not behind `#if DEBUG`.
-- **Why:** If the database is corrupted, disk full, or entitlements misconfigured, the app crashes at launch with no user-facing error or recovery path. Users lose all data.
-- **Action:** Replace with graceful fallback — show an alert, use in-memory database, or present an error state in the UI.
-- **Severity:** Critical
-
-### 5.7 Force-Unwraps in ChapterGroupingService (Guarded but Fragile)
-- **Location:** `OrbitAudioBooks/Services/ChapterGroupingService.swift:61-62`
-- **What:** `groupAtoms.first!.startSeconds` and `groupAtoms.last!.endSeconds` are force-unwrapped inside `flushGroup()`.
-- **Why:** While guarded by `guard !groupAtoms.isEmpty else { return }` at line 55, the force-unwraps are not compiler-checked. Future refactoring could move them outside the guard and cause a nil crash.
-- **Action:** Use `guard let first = groupAtoms.first, let last = groupAtoms.last else { return }` inside `flushGroup()`.
-- **Severity:** High
-
-### 5.8 Five Empty catch Blocks Silently Swallow Errors in ReaderTab
-- **Location:** `OrbitAudioBooks/Views/ReaderTab.swift:349,359,369,379,596`
-- **What:** Five `catch {}` blocks discard alignment service and database errors silently. Operations include `anchorChapterEnd()`, `hideBlock()`, `unhideBlock()`, `hideChapter()`, and a SQL query for bookmark creation.
-- **Why:** Users performing alignment operations never see error feedback. If the database write fails, the timeline silently desyncs from the EPUB without diagnostic.
-- **Action:** Log each error via `logger.error(...)`; consider showing an on-screen error alert for interactive operations.
-- **Severity:** High
-
-### 5.9 Strong [self] Capture Creates Retain Cycle in Bookmark Preview
-- **Location:** `OrbitAudioBooks/Views/Bookmarks.swift:757`
-- **What:** `playerNode.scheduleFile(audioFile, at: nil) { [self] in ... self.stopPreview() }` uses strong `[self]`.
-- **Why:** Creates a retain cycle (self → previewPlayerNode → scheduleFile completion → self). If the view is dismissed before playback completes, the view stays alive until the audio finishes.
-- **Action:** Use `[weak self]` and `guard let self else { return }` for safety.
+### 5.3 App-group UserDefaults read-modify-write without coordination
+- **Location:** `EchoCore/Services/Persistence.swift:33`, `:51`, `:69`, `:121`, `:149` (whole-dictionary RMW per save); cross-process writers in `Echo Widget/Models/AppIntent.swift:13`, `:50`
+- **What:** Progress/speed/loop-mode are stored as one dictionary per key; every save reads the whole dictionary, mutates one entry, and writes it back, while the watch-widget process writes the same suite.
+- **Why:** Concurrent writes lose updates (last-writer-wins on the whole dictionary); the dictionaries also grow unboundedly (one entry per book ever played).
+- **Action:** Store one defaults key per book (`progress_<id>`) so writes don't collide, or move durable state into GRDB and keep only the widget-display snapshot in the suite.
 - **Severity:** Medium
 
-### 5.10 macOS Unzip via Process: No Path-Traversal Validation
-- **Location:** `Orbit Audiobooks macOS/Services/MacEPUBParser.swift:22-27`
-- **What:** `Process()` executing `/usr/bin/unzip` without validating that extracted paths stay within the temp directory.
-- **Why:** A maliciously crafted EPUB could extract files outside the intended temp directory via path traversal in zip entries, potentially overwriting user files.
-- **Action:** Validate each extracted path: `destination.standardized.path.hasPrefix(tempDir.standardized.path)`.
-- **Severity:** High
-
-### 5.11 EPUB Import Reconstructs folderURL from audiobookID String
-- **Location:** `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:150`
-- **What:** `let folderURL = URL(string: audiobookID) ?? URL(fileURLWithPath: audiobookID)` reconstructs a URL from `audiobookID` (derived from `folderURL.absoluteString`).
-- **Why:** If `audiobookID` contains characters invalid in a URL (unlikely from `absoluteString` but possible through the import chain), the fallback creates a path-based URL with unexpected components.
-- **Action:** Pass the original `folderURL` through the function call chain instead of reconstructing from a string.
-- **Severity:** High
-
-### 5.12 Silent Error Swallowing for Sidecar JSON
-- **Location:** `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:125-126`
-- **What:** `try? Data(contentsOf:)` and `try? JSONDecoder().decode(...)` discard error information.
-- **Why:** Malformed JSON silently fails, leaving no debug context.
-- **Action:** Use explicit `do-catch` blocks to log decoding errors.
+### 5.4 Failed artwork load poisons the palette cache for that artwork version
+- **Location:** `EchoCore/ViewModels/PlayerModel.swift:206-219`
+- **What:** When `currentDisplayArtwork ?? thumbnailImage` is nil, an empty palette is cached under the current artwork version; the empty result is then served until the version changes.
+- **Why:** If artwork later becomes loadable without a version bump (e.g. file restored, race at load), accent colouring stays disabled for the session.
+- **Action:** Cache only successful extractions; on nil image return the empty palette without recording the version.
 - **Severity:** Low
 
-### 5.13 ContinuousAlignmentService Timer Fires Before Previous Transcription Completes
-- **Location:** `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:57-59`
-- **What:** A repeating 15-second Timer fires `processBufferedAudio()` with no guard preventing re-entry before the previous Task finishes.
-- **Why:** If transcription takes > 15 seconds, overlapping Tasks process the same ring buffer, potentially reading stale data or inserting duplicate anchors.
-- **Action:** Add `guard !isProcessing else { return }` at the top of `processBufferedAudio()`.
-- **Severity:** Medium
+### 5.5 Time-remaining labels divide by unvalidated speed
+- **Location:** `EchoCore/Services/PlaybackProgressPresenter.swift:88`, `:100-101`
+- **What:** `speed` comes from `speedProvider?() ?? 1.0` and divides elapsed/remaining time with no zero/finite guard.
+- **Why:** A zero speed yields `Inf` (not a crash — but "-inf" rendered into the progress label); cheap to make impossible.
+- **Action:** Clamp speed to a sane minimum (e.g. `max(0.1, …)`) at the read site.
+- **Severity:** Low
+
+### 5.6 Force-unwrap style in CarPlay chapter list
+- **Location:** `EchoCore/CarPlay/CarPlaySceneDelegate.swift:44-45`
+- **What:** `model?.isMultiM4B == true, !model!.aggregatedChapters.isEmpty` — the `!` is safe today because `model` is a local `let` bound at `:35`, but the pattern invites a crash if the binding ever becomes a property.
+- **Why:** Fragile under refactoring; trivially expressible safely.
+- **Action:** Rebind with `if let model, model.isMultiM4B, !model.aggregatedChapters.isEmpty`.
+- **Severity:** Low
+
+### 5.7 Unbalanced `stopAccessingSecurityScopedResource` in the auto-import scanner
+- **Location:** `EchoCore/Services/EPUBAutoImportScanner.swift:38-45` (compare the correct `didStart` pattern at `EchoCore/Services/Persistence.swift:273-274`)
+- **What:** The `startAccessing…` result is discarded and the `defer` calls `stopAccessing…` unconditionally, so a failed start still gets a stop.
+- **Why:** Apple requires start/stop calls to balance; an unmatched stop can over-release another holder's sandbox extension on the same URL.
+- **Action:** Capture the Bool and stop only when start succeeded (the codebase already does this correctly elsewhere).
+- **Severity:** Low
+
+### 5.8 `updateApplicationContext` whole-payload semantics deserve a guard rail
+- **Location:** `EchoCore/Services/WatchSyncManager.swift` (context send site, ~`:87`)
+- **What:** Application context replaces the previous dictionary wholesale; any "significant state" key omitted from a send silently reverts to stale on the watch.
+- **Why:** The recent "durable application context" work makes this the watch's source of truth; a future partial-payload send becomes a subtle stale-UI bug.
+- **Action:** Funnel all context sends through one builder that always emits the complete key set (document the invariant there); assert key-set equality in DEBUG.
+- **Severity:** Low
 
 ---
 
 ## 6. Security
 
-### 6.1 Unprotected Plaintext EPUB Extraction
-- **Location:** `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:222-233`
-- **What:** Unzips EPUB contents directly into the `Caches` directory without data protection attributes.
-- **Why:** Extracted HTML files contain full copyrighted book text written to disk unprotected.
-- **Action:** Apply `.completeFileProtection` to the extracted EPUB directory using `FileManager.setAttributes`.
+### 6.1 Zip-slip path traversal in EPUB extraction
+- **Status:** ✅ **FIXED 2026-06-09** (TDD). Added `EPUBAutoImportScanner.safeDestination(for:within:)`, which rejects absolute entry paths and any `..`-traversal that escapes the extraction root (standardize + prefix check), and gated the extraction loop on it so no directory is created or file written until the path is validated. New error case `ScannerError.unsafeEntryPath`. Regression tests: `EchoTests/EPUBExtractionPathSafetyTests.swift` (parameterized over `../escape.txt`, `../../etc/passwd`, `OEBPS/../../escape.txt`, absolute paths, plus legitimate and in-root-`..` cases).
+- **Location:** `EchoCore/Services/EPUBAutoImportScanner.swift:314-321`
+- **What:** Manual entry iteration extracts to `destDir.appendingPathComponent(entry.path)` with no validation; ZIPFoundation's traversal protection applies to `unzipItem(at:to:)`, not to manual `extract(_:to:)`.
+- **Why:** A malicious EPUB (books are routinely downloaded from arbitrary sources) containing `../`-prefixed entry paths writes outside `destDir` — within the sandbox that still reaches the GRDB database and imported library, i.e. data corruption/loss.
+- **Action:** Standardize each destination URL and require its path to keep `destDir` as a prefix before extracting (also reject absolute entry paths); or switch to `unzipItem`.
+- **Severity:** High
+
+### 6.2 XML parser hardening for untrusted EPUB content
+- **Location:** `Shared/EPUBXMLParsing.swift:50`, `:82`, `:134`, `:218`
+- **What:** Parsers rely on `XMLParser`'s default `shouldResolveExternalEntities == false` rather than setting it explicitly.
+- **Why:** The default is safe today (this audit verified the property is never enabled), but the files parse fully untrusted input; an explicit `false` plus a comment documents the trust boundary and survives future refactors.
+- **Action:** Set `shouldResolveExternalEntities = false` at all four construction sites.
 - **Severity:** Low
 
-### 6.2 UserDefaults Stores Sensible User Data Instead of Keychain
-- **Location:** `OrbitAudioBooks/Services/Persistence.swift:1-232`
-- **What:** `UserDefaults.standard` stores security-scoped bookmark data (binary plist), bookmarks (JSON), progress, speed, loop mode, and track ordering.
-- **Why:** UserDefaults is unencrypted plain text on disk. On a jailbroken device or via iCloud backup, bookmarks containing private notes and audio memo metadata are exposed. Security-scoped bookmark data grants file-system access to user-selected files.
-- **Action:** Store security-scoped bookmark data and bookmark notes in Keychain. For remaining data (progress, speed), at minimum set protection class, but ideally move to the App Group's SQLite store.
-- **Severity:** High
+### 6.3 One entitlements file shared by watch app and watch widget
+- **Location:** `Echo.xcodeproj/project.pbxproj:779`, `:814` (widget), `:1155`, `:1194` (watch app) → both point at root `Echo.entitlements`, which contains the app group *and* the `iCloud.com.orbitaudiobooks` container
+- **What:** The watch widget inherits the iCloud container entitlement it doesn't use; the file's root-level name doesn't indicate ownership.
+- **Why:** Entitlements should be least-privilege per target; the shared file makes future entitlement changes apply to both silently.
+- **Action:** Split into per-target entitlements files declaring only what each target uses.
+- **Severity:** Low
 
-### 6.3 CloudKit Container Environment Hardcoded to "Development"
-- **Location:** `OrbitAudioBooks/OrbitAudioBooks.entitlements:18` & `Orbit Audiobooks macOS/Orbit_Audiobooks_macOS.entitlements:13`
-- **What:** `com.apple.developer.icloud-container-environment` is set to `Development` in all entitlements — no `Production` configuration exists.
-- **Why:** Release builds still point to the Development CloudKit container, which has lower quotas, no SLA, and can be reset by developers — losing all user-contributed alignment data. This also violates App Store guidelines for production CloudKit usage.
-- **Action:** Add a Release entitlement file with `Production` environment, or use build settings to select the environment at compile time.
-- **Severity:** High
-
-### 6.4 CloudKit Public Database: No Authentication or Rate Limiting
-- **Location:** `OrbitAudioBooks/Services/CloudKitSyncService.swift:9,48,54`
-- **What:** The public CloudKit database is used for anchor storage without user authentication, write validation, or rate limiting.
-- **Why:** Anyone who discovers the container identifier can write arbitrary anchor data, inject malicious timestamps, or overwrite legitimate alignment data.
-- **Action:** Add server-side CloudKit subscription validation, use per-user private databases for writes, or implement a write token mechanism.
-- **Severity:** High
+**Verified clean:** No hardcoded secrets/tokens (grep for bearer/apiKey/secret/password patterns); security-scoped bookmark stored in Keychain with a UserDefaults→Keychain migration path (`Persistence.swift:191-201`); log statements sanitize home-directory prefixes (`EPUBAutoImportScanner.swift:330-334`); StoreKit 2 transaction listener and entitlement refresh present (`StoreManager.swift:82`, `:96`).
 
 ---
 
 ## 7. Performance
 
-### 7.1 Expensive String Allocation in Sliding Window
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentTextMatcher.swift:147-148,151-152`
-- **What:** `score()` calls `joined(separator: " ")` on both token arrays AND `Set(transcriptTokens)` and `Set(candidateTokens)` on every invocation. Called ~108,000 times during a typical Tier-1 alignment run.
-- **Why:** Each invocation allocates two Strings and two Sets. This O(N*M) string comparison and dynamic heap allocation causes severe CPU thrashing during alignment.
-- **Action:** Precompute `Set(candidateTokens)` once per candidate in the outer loop. Short-circuit: skip Set computation if `stringConfidence` is already above threshold.
-- **Severity:** Critical
+### 7.1 Main-thread database work
+See **§3.2** — the same 23 synchronous DAO sites are the codebase's largest jank risk; profile before converting.
 
-### 7.2 Heavy Main-Thread Computation in AutoAlignmentService
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentService.swift:271-314,632-660`
-- **What:** `runTier1` and `runTier3` each independently filter, sort, and compute time estimates for all EPUB blocks. This work is duplicated between tiers.
-- **Why:** O(N log N) sorts and loops on potentially 3,000+ blocks synchronously on the main actor causes frame drops. The same computation is performed twice.
-- **Action:** Extract common block-estimation into a shared helper called once from `runPipeline()`, pass results to both tiers. Run on a background task.
-- **Severity:** High
-
-### 7.3 Periodic Main-Thread Array Sorting in ContinuousAlignmentService
-- **Location:** `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:160`
-- **What:** `timelineItems.sorted(...)` runs inside a buffer processing function on the `@MainActor`.
-- **Why:** Sorts thousands of timeline elements every 15 seconds on the main thread, causing regular UI stutters.
-- **Action:** Cache the sorted timeline state and use binary search.
-- **Severity:** High
-
-### 7.4 Synchronous I/O on Main Actor
-- **Location:** `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:125`, `OrbitAudioBooks/Services/TranscriptService.swift:21,37,65`
-- **What:** `Data(contentsOf:)` called synchronously on the main actor for reading sidecar JSON files during track loading.
-- **Why:** Blocks the main thread during track loading; large transcript JSON files (several MB for full audiobooks) cause UI stutter.
-- **Action:** Wrap file reads in `Task.detached { try Data(contentsOf: url) }.value` or use async `FileHandle`.
+### 7.2 Watch marquee animates at frame rate whenever the title overflows
+- **Location:** `Echo Watch App/Views/PlayerPage.swift:911-947` (`TimelineView(.animation)` at `:919`)
+- **What:** The scrolling-title marquee uses an unpaused `.animation` schedule, redrawing at display refresh rate any time the text is wider than its container — including while playback is paused.
+- **Why:** Continuous per-frame invalidation is one of the most expensive things a watch view can do (battery + thermals); the recent "wrist-down tick fix" commit shows this class of issue already bit once.
+- **Action:** Use `TimelineView(.animation(minimumInterval:paused:))`, pausing when not playing and when `@Environment(\.isLuminanceReduced)` is true; consider pausing after one full scroll cycle.
 - **Severity:** Medium
 
-### 7.5 Duplicate WhisperKit Model Loading
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentService.swift:112` & `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:107`
-- **What:** Both services independently load their own `WhisperKit` instance with `"base.en"` model.
-- **Why:** The "base.en" model is ~40 MB in memory. Two independent instances nearly double the footprint to ~80 MB if both services are active.
-- **Action:** Introduce a shared WhisperKit model manager that reference-counts model usage so both services share one instance.
-- **Severity:** High
-
-### 7.6 MacGlobalAlignmentService Allocates Arrays per Window in Tight Loop
-- **Location:** `Orbit Audiobooks macOS/Services/MacGlobalAlignmentService.swift:263`
-- **What:** `transcriptWindow.map { $0.word }` creates a new `[String]` for every window of every block alignment search, inside nested while/for loops.
-- **Why:** Allocates and discards hundreds of arrays during a global alignment run.
-- **Action:** Precompute word array once, then slice from the precomputed array.
-- **Severity:** Medium
-
-### 7.7 DatabaseService Migration Flag in Wrong UserDefaults Domain
-- **Location:** `Shared/Database/DatabaseService.swift:105-106`
-- **What:** `isMigrationDone` reads from `UserDefaults.standard` while the database lives in the App Group container.
-- **Why:** App extensions (widget, watch) have separate `UserDefaults.standard`. The migration flag won't synchronize — the database could be re-migrated on first extension launch.
-- **Action:** Store migration flag in App Group's `UserDefaults(suiteName:)`.
+### 7.3 Watch artwork JPEG re-encode is uncached
+- **Location:** `EchoCore/Services/ArtworkCache.swift:129`
+- **What:** The 0.75-quality JPEG for watch transfer is re-encoded from `watchImage` on demand; the send path dedupes by artwork key, but the encode itself isn't cached.
+- **Why:** Redundant CPU on artwork-change bursts (book switches); small but free to fix alongside §9.7's constant extraction.
+- **Action:** Cache encoded `Data` keyed by the same artwork version used for send-dedupe.
 - **Severity:** Low
 
 ---
 
 ## 8. SwiftUI / UI
 
-### 8.1 Strong [self] Capture in Bookmark Preview Creates Retain Cycle
-- **Location:** `OrbitAudioBooks/Views/Bookmarks.swift:757`
-- **What:** `playerNode.scheduleFile(audioFile, at: nil) { [self] in ... }` — see §5.9 for full analysis.
+### 8.1 Progress view polls `@Observable` state with a timer
+- **Location:** `EchoCore/Views/AutoAlignmentProgressView.swift:132-157`; state type `EchoCore/Services/AutoAlignmentState.swift:5-6` (`@MainActor @Observable`)
+- **What:** A 0.3 s `Timer` copies `sharedState.phase/progress/statusMessage` into local `@State` each tick.
+- **Why:** `AutoAlignmentState` is already `@Observable` — reading it directly in `body` gives per-property change tracking with zero timers, lower latency, and no invalidate-on-disappear bookkeeping (the copy also makes the progress UI lag up to 300 ms).
+- **Action:** Delete the timer and local mirror state; read `sharedState` properties directly in `body` (inject via `@Environment` or a stored `let`).
 - **Severity:** Medium
 
-### 8.2 Manual Binding(get:set:) in SwiftUI Body
-- **Location:** `OrbitAudioBooks/Views/SettingsView.swift:47-49`
-- **What:** `Toggle("Volume Boost", isOn: Binding(get: { model.isVolumeBoostEnabled }, set: { model.setVolumeBoost(enabled: $0) }))`. Manual `Binding(get:set:)` in view body.
-- **Why:** Manual bindings in view bodies are fragile and harder to maintain. They also bypass SwiftUI's change tracking.
-- **Action:** Use `@State` with `onChange()` or expose a `Binding<Bool>` from the model.
+### 8.2 Non-private `@State` across a cross-file extension split
+- **Location:** `EchoCore/Views/ReaderTab.swift:11-29` (8 internal `@State` properties); consumer `EchoCore/Views/ReaderTab+Alignment.swift:8`
+- **What:** `@State` is left internal so a same-type extension in another file can reach it.
+- **Why:** Internal `@State` invites external mutation (undefined behaviour if anything outside the view writes it) and signals the view owns workflow state that belongs in a model; the alignment workflow already has `ReaderFeedViewModel` and `AutoAlignmentState` available.
+- **Action:** Move alignment-workflow state (task handle, sheet/alert flags) into the view model; restore `private` on what remains.
 - **Severity:** Low
 
-### 8.3 foregroundColor Used Instead of foregroundStyle (widespread)
-- **Location:** ~30+ call sites across `SettingsView.swift`, `ReaderTab.swift`, `ChapterPickerSheet.swift`, `CardColorPickerSheet.swift`, and others
-- **What:** `.foregroundColor(.primary)`, `.foregroundColor(.secondary)`, `.foregroundColor(.accentColor)` used throughout.
-- **Why:** `foregroundColor` is the older API. `foregroundStyle` is preferred in modern SwiftUI (iOS 15+) and handles hierarchical rendering correctly.
-- **Action:** Replace `.foregroundColor(...)` with `.foregroundStyle(...)`.
+### 8.3 App-icon completion mutates `@State` without an explicit main-actor hop
+- **Location:** `EchoCore/Views/SettingsView.swift:313-317`
+- **What:** `setAlternateIconName`'s completion (delivery queue undocumented) assigns `currentIcon` and logs via `print`.
+- **Why:** Under Swift 5 mode nothing enforces main-thread delivery here; wrapping in `Task { @MainActor … }` makes it compiler-checked and future-proof (and the `print` should be `Logger` — see §2).
+- **Action:** Hop to `@MainActor` in the completion before touching view state.
 - **Severity:** Low
 
-### 8.4 Oversized View Files Without Component Extraction
-- **Location:** `OrbitAudioBooks/Views/ReaderTab.swift` (901 LOC), `OrbitAudioBooks/Views/Bookmarks.swift` (791 LOC), `OrbitAudioBooks/Views/WatchAppSettingsView.swift` (678 LOC)
-- **What:** Large view files mixing layout, gesture handling, business logic, and sub-view definitions.
-- **Why:** See §9.1–§9.4 for detailed split recommendations.
-- **Severity:** Medium
-
-### 8.5 Magic Animation Duration Literals in View Bodies
-- **Location:** `OrbitAudioBooks/Views/ReaderFeedCollectionView.swift:276,287,290`, `OrbitAudioBooks/Views/ReaderTab.swift:131`, `OrbitAudioBooks/Views/TranscriptOverlayView.swift:53,107`, and others
-- **What:** Animation durations like `0.2`, `0.25`, `0.5` are inline literals scattered across views.
-- **Why:** Tuning animation timing requires finding and changing every occurrence individually.
-- **Action:** Define animation durations as named constants in a shared `AnimationDurations` enum.
+### 8.4 Accessibility coverage is good where sampled — finish the sweep
+- **Location:** Spot-checked exemplar: `EchoCore/Views/TransportControlsView.swift:64-116` (icon-only buttons all labelled); 12 of 52 files in `EchoCore/Views/` reference `accessibilityLabel`
+- **What:** Transport controls are properly labelled; the remaining icon-only buttons across the other view files weren't exhaustively verified.
+- **Why:** Icon-only buttons without labels read as the SF Symbol name in VoiceOver.
+- **Action:** Sweep `Image(systemName:)`-only buttons in the unsampled files (Bookmarks, PlaylistView, ReaderTab toolbars) and label any gaps; run the Accessibility Inspector audit once.
 - **Severity:** Low
 
 ---
 
 ## 9. Dead code / duplication / refactor
 
-### 9.1 Oversized File: TimelineFeedCollectionView
-- **Location:** `OrbitAudioBooks/Views/TimelineFeedCollectionView.swift:1-1825`
-- **What:** 1,825 LOC containing multiple cell classes and a massive UICollectionView delegate coordinator.
-- **Why:** Hard to navigate, maintain, and test. Tightly couples view representations, delegate callbacks, and data source logic.
-- **Action:** Extract `Coordinator` to its own file, move individual cell subclasses into a `Cells/` directory.
-- **Severity:** High
+### 9.1 Files and directories to delete or untrack
+- `OrbitAudioBooks/`, `Orbit Audiobooks macOS/` — rebrand leftovers, zero pbxproj references (verified).
+- `scratch/` — git-tracked design scraps (2 Swift before/after files, 4 SVGs).
+- `Tools/OrbitTranscriptionCLI/` — untracked `.build/` + `Package.resolved` for a deleted package; `Tools/__pycache__/`.
+- `build.log` — untracked build output at repo root; gitignore it.
+- **Severity:** High (cleanup; zero risk, removes an entire phantom subproject)
 
-### 9.2 Oversized File: PlayerModel
-- **Location:** `OrbitAudioBooks/ViewModels/PlayerModel.swift:1-1295`
-- **What:** 1,295 LOC functioning as a god-object mediating between dozens of services. Already has extension files (`PlayerModel+PlaybackControllerDelegate.swift`, etc.) but the core file remains massive.
-- **Why:** Tight coupling and huge file size likely causes merge conflicts and compilation slowness.
-- **Action:** Split further: extract Playback Controls, Sleep Timer, Now Playing, Bookmarks API, Audio Source Switching into separate extension files following existing pattern.
-- **Severity:** High
-
-### 9.3 Oversized File: AutoAlignmentService
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentService.swift:1-1031`
-- **What:** 1,031 LOC managing state, orchestration of four tier alignment loops, and WhisperKit audio capture.
-- **Why:** Multi-tier logic is deeply nested, hard to read and test. WhisperKit management is duplicated with other services.
-- **Action:** Extract Tier0-Tier3 algorithms into `AutoAlignmentService+AlignmentTiers.swift`. Extract WhisperKit model/transcription into shared `WhisperSession`.
+### 9.2 Two parallel audio snippet players
+- **Locations:** `EchoCore/Services/SnippetPlayer.swift` (used by `PlayerModel`) vs `EchoCore/Services/AudioSnippetPlayer.swift` (used only by `EchoCore/Views/Bookmarks.swift:396`, `:752`)
+- **What:** Two implementations of "play a short audio range" with separate AVFoundation setup.
+- **Why:** Double maintenance; behavioural drift between bookmark preview and other snippet playback.
+- **Action:** Pick one (the protocol-oriented `MediaPlayable` direction in CLAUDE.md suggests folding both behind one service) and migrate the two Bookmarks call sites.
 - **Severity:** Medium
 
-### 9.4 Oversized File: ReaderTab
-- **Location:** `OrbitAudioBooks/Views/ReaderTab.swift:1-901`
-- **What:** 901 LOC mixing view layout, EPUB TOC sheet UI, TOC parsing logic, context menu builders, and alignment operations.
-- **Why:** Violates SwiftUI separation of concerns. Business logic (alignment, DB writes) interleaved with view declarations.
-- **Action:** Move `EPUBTOCSheet` and TOC node generation to separate files. Extract alignment operations into a `ReaderTab+Alignment.swift` or a dedicated ViewModel.
+### 9.3 macOS target reimplements iOS EPUB parsing and alignment
+- **Locations:** `Echo macOS/Services/MacEPUBParser.swift` (also hardcodes the logger subsystem at `:10` instead of `Logger(category:)`), `Echo macOS/Services/MacGlobalAlignmentService.swift` vs `Shared/EPUBXMLParsing.swift` + `EchoCore/Services/EPUBImportService.swift` / `AutoAlignmentService.swift`
+- **What:** Mac-prefixed services duplicate parsing/alignment logic that already lives in `Shared/` and `EchoCore/`.
+- **Why:** The duplication is why the macOS target rotted unnoticed (§5.1) — shared logic would have kept it compiling.
+- **Action:** If the macOS target is revived, move the shared logic into `Shared/` (or an EchoKit package) and delete the Mac copies; if parked, delete the target's Services/ wholesale.
 - **Severity:** Medium
 
-### 9.5 Duplicated Code: EPUB XML Parser Delegates (~160 lines)
-- **Location:** `Orbit Audiobooks macOS/Services/MacEPUBParser.swift:106-205` & `OrbitAudioBooks/Services/EPUBImportService.swift:242-410`
-- **What:** Both files define private `XMLParserDelegate` classes with identical names (`ContainerXMLParser`, `OPFParserDelegate`, `XHTMLBlockDelegate`) and near-identical implementations. `SpineItemDescriptor` struct is also duplicated.
-- **Why:** Every EPUB bugfix or feature addition must be applied in two places. The `parseContainerXML`, `parseOPF`, and `parseXHTML` method names are duplicated.
-- **Action:** Extract shared XML delegates into `Shared/EPUBParser.swift` or a framework target. Have both MacEPUBParser and EPUBImportService call into it.
-- **Severity:** High
-
-### 9.6 Duplicated Code: WhisperKit Infrastructure (3 services)
-- **Location:** `OrbitAudioBooks/Services/AutoAlignmentService.swift:758-960`, `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:103-153`, `Orbit Audiobooks macOS/Services/MacGlobalAlignmentService.swift:191-238`
-- **What:** Three services independently manage a `WhisperKit` instance, `whisperQueue`, model loading, and transcription — all with the same `withCheckedContinuation` pattern.
-- **Why:** Adding a fourth service or changing WhisperKit configuration requires updating 3+ files. Multiple model instances waste memory.
-- **Action:** Extract into a shared `WhisperSession` actor or class. All three services hold a reference to the shared instance.
-- **Severity:** High
-
-### 9.7 Duplicated Code: Documents-Dir Construction (10+ locations)
-- **Location:** `OrbitAudioBooks/Views/Bookmarks.swift:152,189`, `OrbitAudioBooks/Views/ReaderTab.swift:662`, `OrbitAudioBooks/Views/Cells/ImageCardCell.swift:55`, `OrbitAudioBooks/Services/EPUBAutoImportScanner.swift:223`, `OrbitAudioBooks/Services/TimelineIngestionFactory.swift:443`, `OrbitAudioBooks/Services/MockMediaProvider.swift:9,27`, `Orbit Audiobooks macOS/Views/TranscriptionManager.swift:151`, `Orbit Audiobooks macOS/Views/TranscriptStore.swift:22`, `Orbit Audiobooks Watch App/Services/WatchVoiceMemoRecorder.swift:90`
-- **What:** `FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!` (or `.applicationSupportDirectory`) repeated with subtle variations.
-- **Why:** Any directory strategy change must be applied in every location.
-- **Action:** Create a `FileLocations` enum with static methods like `documentsDirectory()`, `applicationSupportDirectory()`, `cacheDirectory()`.
+### 9.4 `AudiobookPlayerUIArchitect` design scaffold ships in the app target
+- **Locations:** `EchoCore/Views/AudiobookPlayerUIArchitect.swift` (no references from any other source file — verified; no `#if DEBUG`); companion script `add_architect.rb` at repo root; positional-identity `ForEach(0..<segments.count, id: \.self)` at `:230`
+- **What:** A large interactive design-tuning surface compiled into release builds, plus the one-off Ruby script that injected it.
+- **Why:** Dead weight in the shipped binary; the dynamic positional `ForEach` is also the only real identity anti-pattern found in the view layer.
+- **Action:** Move behind `#if DEBUG` (or delete) and delete `add_architect.rb` either way.
 - **Severity:** Medium
 
-### 9.8 Duplicated Code: Ad-hoc AVAudioEngine Setup (3+ locations)
-- **Location:** `OrbitAudioBooks/Services/BookmarkStore.swift:240-257`, `OrbitAudioBooks/Views/Bookmarks.swift:749-757`, `OrbitAudioBooks/Services/SnippetPlayer.swift:21-25`
-- **What:** Multiple files independently implement `AVAudioFile(forReading:)` + `engine.connect(playerNode, to: engine.mainMixerNode, format:)` + `playerNode.scheduleFile(...)`.
-- **Why:** Audio playback logic scattered across the codebase, increasing chance of divergent behavior.
-- **Action:** Delegate to `AudioEngine` (the central abstraction) or create a shared audio utility.
+### 9.5 Rebrand residue: identifiers still `com.orbit*` — decide, don't drift
+- **Locations:** All 8 `PRODUCT_BUNDLE_IDENTIFIER`s (`com.orbit.audiobooks*`); `group.com.orbitaudiobooks` (`Shared/AppGroupDefaults.swift:6` + entitlements); `iCloud.com.orbitaudiobooks` (entitlements); `Logger.orbitSubsystem` = `"com.orbitaudiobooks"` (`Shared/Logger+Subsystem.swift:8`); queue label (`EchoCore/Services/TimelineService.swift:36`); `CLAUDE.md:9`
+- **What:** The Orbit→Echo rebrand (`751e89c`) renamed user-facing surfaces but left every machine identifier on the old name.
+- **Why:** This is *not* a mechanical fix: bundle IDs, app-group IDs, and the CloudKit container are the app's identity — changing them after release orphans user data and IAP. Before first public release is the only cheap moment to decide.
+- **Action:** Make the call now: either migrate all identifiers to an Echo domain in one commit (pre-release), or freeze the Orbit identifiers permanently and document that in README/CLAUDE.md so they stop looking like an oversight.
 - **Severity:** Medium
 
-### 9.9 Ad-hoc Magic Constants
-- **Location:** ~30+ scattered sites across the codebase
-- **What:** Inline timer intervals, search windows, capture durations, and CloudKit strings without named constants. Key examples:
-  - `OrbitAudioBooks/Services/AutoAlignmentService.swift:680,711` — `let captureDuration = 3.0`
-  - `OrbitAudioBooks/Services/ContinuousAlignmentService.swift:29,48` — `interval = 15.0`, `capacitySeconds = 2.0`
-  - `OrbitAudioBooks/Services/TransportControlsView+LongPress.swift:48-54` — sleep timer values 15/30/45/60 hardcoded in switch
-  - `OrbitAudioBooks/ViewModels/TimelineFeedViewModel.swift:77` — `windowSize = 100`
-- **Why:** Magic numbers buried in method bodies make tuning brittle and hard to discover.
-- **Action:** Extract to a `Config` enum or struct per service. Make `SleepTimerMode` conform to `CaseIterable`.
+### 9.6 Oversized files (>600 LOC)
+- **`EchoCore/ViewModels/PlayerModel.swift` (1255)** — extensions (+Bookmarks, +PlaybackControllerDelegate, +WatchState) already exist; next extractions: artwork/palette caching (`:198-260`) into a `PlayerArtworkPresenter`, and deep-link/chapter-navigation orchestration.
+- **`Echo Watch App/Services/WatchViewModel.swift` (973)** — split the Pomodoro state machine and connectivity message handling into separate types.
+- **`Echo Watch App/Views/PlayerPage.swift` (964)** — marquee (`:908-947`), quick-bookmark gesture, and cover viewer are separable leaf views/files.
+- **`EchoCore/Services/PlaybackController.swift` (922)** — chapter-clamp seek math (`:630-668` and siblings) is a pure-function candidate for extraction + unit tests.
+- **`EchoCore/Views/Bookmarks.swift` (778)**, **`WatchAppSettingsView.swift` (728)**, **`ReaderTab.swift` (725)**, **`PlaylistView.swift` (719)**, **`AutoAlignmentService.swift` (663)**, **`TimelineFeedCollectionView.swift` (627)**, **`SettingsView.swift` (624)** — same treatment when next touched.
+- **Severity:** Medium (refactor-when-touched; don't big-bang)
+
+### 9.7 Magic constants
+- JPEG/artwork: `EchoCore/Views/Bookmarks.swift:694` (`maxDimension: 1600`, quality `0.84`), `EchoCore/Services/ArtworkCache.swift:129` (quality `0.75`) → one `ImageEncoding` constants enum.
+- Watch messaging: the `"command"` key appears as a string literal at 6 sites across `Echo Watch App/` and `EchoCore/` → shared `WatchMessageKey` constants.
 - **Severity:** Low
 
-### 9.10 No TODO/FIXME/HACK Markers
-- **What:** The codebase has zero `TODO`, `FIXME`, `HACK`, `XXX`, or `#warning` markers — exceptionally clean.
-- **Severity:** Informational
+### 9.8 Open TODO census
+- Exactly one TODO in project code (a documented REFACTOR-TODO in `EchoCore/CarPlay/CarPlaySceneDelegate.swift`); no `#if false` blocks or commented-out code regions found.
+- **Severity:** Low (informational — unusually clean)
 
 ---
 
 ## 10. Cross-cutting recommendations
 
-1. **Modernize GCD usages globally.** 50 `DispatchQueue.main.async`/`.sync` call sites remain across the codebase. Replace with `MainActor.run { }` (synchronous callbacks) or `Task { @MainActor in }` (async contexts). Annotate `@Observable` classes with `@MainActor` so the compiler enforces isolation.
-
-2. **Extract shared infrastructure.** Three patterns recur across platforms: EPUB XML parsing (iOS + macOS), WhisperKit management (iOS auto-alignment + continuous + macOS global), and documents-directory construction (10+ sites). Extract each into a shared module to eliminate copy-paste maintenance burden.
-
-3. **Formatters.** Consistently use the new Foundation `FormatStyle` across the entire codebase. Legacy `Formatter` subclasses (`DateFormatter`, `ISO8601DateFormatter`) and C-style `String(format:)` should be replaced with `Date().formatted(...)` and `.formatted(.number.precision(...))`.
-
-4. **Remove `fatalError` from production code paths.** Both `DatabaseService` init and `Orbit_AudioBooksApp` init use `fatalError` — a crashed app is never the right UX. Replace with graceful error presentation.
-
-5. **Add error logging to all empty `catch` blocks.** The five silent `catch {}` blocks in `ReaderTab.swift` and similar patterns elsewhere should at minimum log the error via `os_log`, so alignment/DB failures produce actionable diagnostics.
-
-6. **Fix CloudKit production readiness.** Three issues compound: (a) Development environment in all builds, (b) `hashValue`-based record IDs preventing cross-device record matching, (c) `%f` float precision in predicates. Together, these mean CloudKit sync is effectively broken for production use.
+1. **Run the Swift 6 migration as a project, starting with the settings.** §3.4, §3.5, and §3.6 are facets of one effort: unify `SWIFT_DEFAULT_ACTOR_ISOLATION` across targets, flip one target at a time to the Swift 6 language mode in a branch, and treat its diagnostics as the authoritative concurrency audit. The codebase is unusually close (zero warnings, Approachable Concurrency on, no `nonisolated(unsafe)`) — the remaining cost is concentrated in the queue-hop and fire-and-forget-Task patterns already cited.
+2. **Adopt one async-database policy.** The 23 synchronous DAO sites (§3.2) should resolve to a written rule: reads/writes on user-interaction paths are async; import-time batch work may stay sync. Encode it in the DAO layer (offer async variants, deprecate sync entry points for hot tables) rather than relying on per-call-site discipline.
+3. **Make Task lifecycle a convention.** §3.1 and §3.3 share a root cause: ad-hoc `Task {}` spawning. A tiny utility (store-replace-cancel, plus snapshot-before-spawn for guards) used everywhere ends the class of bug.
+4. **Close the rebrand.** §9.5's identifier decision plus §2's typo/doc fixes and §9.1's deletions retire "Orbit" from the repo in an afternoon — or enshrine it deliberately. Either outcome beats the current half-state, which already produced one Critical (§5.1's orphaned script phase).
+5. **Decide the macOS target's status in writing.** Every macOS finding (§5.1, §9.3, the entitlement gap) stems from the target evolving outside the iOS code-sharing path. Revive it through `Shared/`, or park it explicitly.
 
 ---
 
 ## 11. What was NOT audited
 
-- **Tools/OrbitTranscriptionCLI/** — Python pipeline and Swift CLI tools excluded by request.
-- **SwiftUI Layout performance** — no Instruments profiling for hitches, hangs, or excessive view updates.
-- **Test coverage** — tests got a quick scan; `OrbitAudioBooksTests` has file-missing test errors. No deep test quality assessment.
-- **Localization strings** — no check for complete or missing `.xcstrings` entries.
-- **Third-party dependency internals** — GRDB, WhisperKit, ZIPFoundation, swift-collections treated as black boxes.
-- **Build settings / Xcode project structure** — beyond what's visible in shared schemes.
-- **Widget and watchOS extension entitlements** — not opened; verify they match the App Group identifier used in the main app.
-- **Algorithmic correctness of alignment tier logic** — AutoAlignmentService tier algorithms reviewed for performance and error handling, but not for mathematical correctness of the alignment heuristics.
+- `build/`, `vendor/`, `scratch/` contents, `docs/`, `fastlane/`, `Echo.xcodeproj` beyond the build settings/phases cited above.
+- Third-party dependency internals (WhisperKit, GRDB, ZIPFoundation, swift-transformers, swift-jinja, yyjson).
+- Algorithmic correctness of the alignment math (`TokenDTW.swift`, Levenshtein/Jaccard thresholds in `AutoAlignmentTextMatcher.swift`) — structure was reviewed; constants and matching quality were not.
+- `Tools/transcription_generator.py` (Python pipeline) — not reviewed this pass.
+- Test targets (`EchoTests/`, `Echo Watch AppTests/`, UI tests) — existence confirmed, coverage and quality not assessed.
+- Localization (`Localizable.xcstrings`) and Dynamic Type behaviour beyond spot checks.
+- CloudKit schema/record design in `CloudKitSyncService.swift` (concurrency posture sampled only).
+- StoreKit product configuration vs App Store Connect (`com.orbit.pro.unlock` exists in build settings; not validated).
+- Runtime profiling — no Instruments traces were captured; performance findings are static-analysis only.
 
 ---
 
 ## 12. Verification
 
-- **§5.1** — open `OrbitAudioBooks/Services/CloudKitSyncService.swift`, line 39. `"\(title.hashValue)-\(author.hashValue)-\(Int(duration))"` uses randomly-seeded `hashValue` for CloudKit record IDs.
-- **§5.5** — open `OrbitAudioBooks/Services/ContinuousAlignmentService.swift`, line 47. `AVAudioFormat(...)!` force-unwraps a failable initializer that returns nil on unsupported PCM configurations.
-- **§5.6** — open `OrbitAudioBooks/Orbit_AudioBooksApp.swift`, line 32. `fatalError("DatabaseService initialization failed: \(error)")` kills the app at launch. Also `Shared/Database/DatabaseService.swift`, line 18 for the App Group variant.
-- **§5.7** — open `OrbitAudioBooks/Services/ChapterGroupingService.swift`, lines 55-62. The `guard !groupAtoms.isEmpty` at line 55 protects the force-unwraps at 61-62, but the pattern is fragile.
-- **§7.1** — open `OrbitAudioBooks/Services/AutoAlignmentTextMatcher.swift`, lines 146-158. `joined(separator: " ")` string concatenation and two `Set` constructions called per sliding-window iteration in a tight O(N*M) loop.
-- **§6.3** — open `OrbitAudioBooks/OrbitAudioBooks.entitlements`, line 18. `com.apple.developer.icloud-container-environment` = `Development`. No Production entitlements file exists.
+Open each cited location; every Critical/High claim below was confirmed by reading the lines during the audit.
+
+- **§5.1** — run `xcodebuild -project Echo.xcodeproj -scheme "Echo macOS" build`: fails with "Unable to resolve module dependency: 'WhisperKit'" at `Echo macOS/Services/MacGlobalAlignmentService.swift:4`. Then open `Echo.xcodeproj/project.pbxproj:577-601`: the shell phase runs `swift build --package-path "${SRCROOT}/Tools/OrbitTranscriptionCLI"` under `set -euo pipefail` with no existence guard; `git ls-files Tools` shows the package is not in the repo.
+- **§6.1** — open `EchoCore/Services/EPUBAutoImportScanner.swift:314-321`: the loop appends raw `entry.path` to `destDir` and extracts; no `..`/absolute-path check exists in the function.
+- **§3.1** — open `EchoCore/Services/WhisperSession.swift:73-75`: `capturedGeneration` is assigned *inside* the `Task` from the already-current `generation`; compare `:53-54` where `release()` assigns it *before* the `Task`.
+- **§3.2** — `grep -rn "DAO(db: db.writer)" EchoCore/Services` returns 23 sites; the enclosing services are `@MainActor` (implicitly, via the Echo target's default isolation).
+- **§9.1** — `git ls-files scratch` lists 6 tracked files; `grep -c "OrbitAudioBooks" Echo.xcodeproj/project.pbxproj` returns 0.
+
+**Claims investigated and demoted/dropped during verification** (for transparency): CarPlay force-unwrap "Critical crash" → safe local binding, kept as Low style (§5.6); XMLParser XXE "High" → default already safe, kept as Low hardening (§6.2); XMLParser delegate "background-thread race" → delegates run synchronously on the calling thread, dropped; `DominantColorExtractor` NaN-index crash → impossible (saturation guard precedes bucket math), dropped; audio-tap "locks the realtime thread" → ring buffer is lock-free by design, dropped; stale-bookmark "uses stale data" → refresh path is correct, replaced by the `.minimalBookmark` concern (§5.2); `aggregatedChapters[idx]` bounds race → index derived from the same array in the same MainActor turn, dropped.
+
+If any finding doesn't reproduce at the cited line, flag the §number and it will be re-investigated.

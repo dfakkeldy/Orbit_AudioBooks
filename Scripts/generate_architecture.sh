@@ -112,11 +112,11 @@ generate_tree() {
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
-generate_tree "EchoCore (iOS)"                        "$REPO_ROOT/EchoCore"
-generate_tree "Echo: Audiobook Study Player macOS"    "$REPO_ROOT/Echo: Audiobook Study Player macOS"
-generate_tree "Echo: Audiobook Study Player Watch App" "$REPO_ROOT/Echo: Audiobook Study Player Watch App"
-generate_tree "Shared (cross-target)"                  "$REPO_ROOT/Shared"
-generate_tree "Widget Extension"                       "$REPO_ROOT/Echo: Audiobook Study Player Widget"
+generate_tree "EchoCore (iOS)"                     "$REPO_ROOT/EchoCore"
+generate_tree "Echo macOS"                           "$REPO_ROOT/Echo macOS"
+generate_tree "Echo Watch App"                       "$REPO_ROOT/Echo Watch App"
+generate_tree "Shared (cross-target)"                "$REPO_ROOT/Shared"
+generate_tree "Echo Widget"                          "$REPO_ROOT/Echo Widget"
 
 # -----------------------------------------------------------------------------
 # Re-append preserved manual content

@@ -1,3 +1,5 @@
 git_url("git@github.com:dfakkeldy/orbit-audiobooks-certificates.git")
+# TODO(Echo rebrand): Migrate to echo-audiobooks-certificates repo
+
 storage_mode("git")
 team_id("8AXNA5B37R")

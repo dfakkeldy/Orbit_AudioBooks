@@ -3,7 +3,7 @@
 <!-- ⚠️  AUTO-GENERATED — do not edit directly. -->
 <!-- Regenerate with: `make architecture`                        -->
 
-**Last generated:** 2026-06-09 07:55:59
+**Last generated:** 2026-06-09 21:34:26
 
 This document maps the source-tree layout of the Xcode targets and Shared/
 module in the Echo: Audiobook Study Player project. Folders are shown in the order
@@ -77,6 +77,7 @@ Services/InlineFlashcardTriggerController.swift
 Services/LoopMode.swift
 Services/M4BParser.swift
 Services/MockMediaProvider.swift
+Services/ModelRetainBox.swift
 Services/NotificationNames.swift
 Services/NowPlayingController.swift
 Services/PDFImportCoordinator.swift
@@ -204,16 +205,40 @@ Views/VoiceMemoOverlayView.swift
 Views/WatchAppSettingsView.swift
 ```
 
-## Echo: Audiobook Study Player macOS
+## Echo macOS
 
 ```
-(directory not found — skipped)
+Echo_macOS.entitlements
+Echo_macOSApp.swift
+Info.plist
+PrivacyInfo.xcprivacy
+Services/AudioExtractor.swift
+Services/MacEPUBParser.swift
+Services/MacGlobalAlignmentService.swift
+Views/MacContentView.swift
+Views/MacPlayerModel.swift
+Views/TranscriptionManager.swift
+Views/TranscriptPane.swift
+Views/TranscriptStore.swift
 ```
 
-## Echo: Audiobook Study Player Watch App
+## Echo Watch App
 
 ```
-(directory not found — skipped)
+EchoCoreWatchApp.swift
+Info.plist
+Models/WatchBookmark.swift
+PrivacyInfo.xcprivacy
+Services/WatchViewModel.swift
+Services/WatchVoiceMemoRecorder.swift
+Views/Bookmarks.swift
+Views/Components/PomodoroButton.swift
+Views/Components/ToggleTraitModifier.swift
+Views/ContentView.swift
+Views/PlayerPage.swift
+Views/PomodoroTimerPickerView.swift
+Views/WatchControlBackground.swift
+Views/WatchReviewView.swift
 ```
 
 ## Shared (cross-target)
@@ -281,10 +306,15 @@ WatchFlashcard.swift
 WordFrequency.swift
 ```
 
-## Widget Extension
+## Echo Widget
 
 ```
-(directory not found — skipped)
+Info.plist
+Models/AppIntent.swift
+PrivacyInfo.xcprivacy
+Views/Echo_Widget.swift
+Views/Echo_WidgetBundle.swift
+Views/Echo_WidgetControl.swift
 ```
 
 

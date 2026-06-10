@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Orbit Audiobooks.
+All notable changes to Echo: Audiobook Study Player.
 
 ## [Unreleased]
 
@@ -15,7 +15,7 @@ All notable changes to Orbit Audiobooks.
 - **Anchor management:** "Erase Anchor" removes a single locked anchor from a block; "Reset Alignment" clears all anchors for the current audiobook. Both trigger timeline recalculation. Available via context menu on locked-anchor cards in both the Reader and Timeline feeds.
 - **Reader-specific bottom toolbar:** When the Read tab is active, `BottomToolbarView` switches to reader-optimized controls (skip back, play/pause, skip forward, timeline, bookmark) instead of the standard transport layout. Skip durations use configurable seek settings with dynamic SF Symbol naming.
 - **Anchor status indicators:** Locked-anchor cards show a green badge — a timestamp label (Reader feed) or 🔗 icon (Timeline feed) — distinguishing manually-aligned items from interpolated/estimated ones.
-- **Debug development assets:** Macbeth audiobook + EPUB bundle (`macbeth_m4b/`) under Development Assets, loadable via a `#if DEBUG` "Load Development Assets" button in Settings for instant reader pipeline testing.
+- **Debug development assets:** Alice in Wonderland EPUB fixture (`aliceinwonderland_1102_librivox/`) under Development Assets, loadable via a `#if DEBUG` "Load Development Assets" button in Settings for instant reader pipeline testing.
 - Mini-player control bar (`PlayerControlBar`) on the Timeline tab — appears above the bottom toolbar when a book is loaded, showing artwork, title/chapter metadata, and play/pause. Tap to open the full NowPlaying player.
 - Configurable seek forward/backward durations (5–60s), synced between phone and watch.
 - **Watch expanded to 5 pages** — up to 25 customizable action slots (5 pages × 5 slots) with per-page configuration and TabView-style page swiping in settings. Empty pages auto-hide on the watch.
@@ -33,6 +33,13 @@ All notable changes to Orbit Audiobooks.
 - **Section scrubber ticks**: `SectionTickOverlay` renders hairline tick marks on the scrubber rail at each sub-section boundary, with magnetic snapping and haptic feedback (`UIImpactFeedbackGenerator`) while dragging.
 - **Compact player layout**: "Compact" layout style option in player settings, reducing transport button sizes and placing the scrubber inline between time labels for a minimalist, one-handed-friendly look.
 - **Section disclosure groups in playlist**: logical chapters with sub-section data render as expandable `DisclosureGroup` rows, with tappable section rows and now-playing indicators.
+- **Artwork-derived accent color theming**: Dynamic accent (tint) color derived from audiobook cover artwork via `DominantColorExtractor` — downsamples to 100×100px, converts to HSL, builds a saturation²-weighted hue histogram with centre-distance biasing, and clamps saturation/lightness for readability. Available as the "Artwork" theme option in Settings (now the default).
+- **Accent contrast safety pipeline**: Two-stage safety net ensuring artwork-derived accent colors are legible against the player surface. `ColorMetrics.isLegible(_:on:)` uses a dual-gate trigger (WCAG luminance ≥ 2.4:1 AND CIELAB ΔE chroma ≥ 52). `AccentSafetyNet.resolve(...)` applies a progressive A→B→C rescue ladder: (A) nudge hue lightness to contrast floor within distortion budget, (B) re-pick next safe cover hue, (C) fall back to nudged brand tint. Returns a `Tier` for debug/telemetry. Key types: `ColorMetrics` (WCAG/CIELAB/HSL/`RGB`), `AccentSafetyNet` (A→B→C rescue), `ArtworkPalette` (`{ rawAccent, candidates, background }`).
+- **Shared extractPalette histogram pass**: `DominantColorExtractor.extractPalette(from:)` returns `{ rawAccent, candidates, background }` from a single downsampled histogram scan, shared by accent extraction (`artworkAccentColor`) and background gradient computation.
+- **Now Playing UI redesign**: Unified dock/header component architecture (`UnifiedTopHeader`, `UnifiedBottomDock`) with adaptive theming, full-bleed artwork split layout, and tab-specific content padding. Player layout supports Default and Compact styles with configurable transport button sizes.
+- **Pomodoro timer**: Focus timer with hours support, multi-wheel picker (hours/minutes/seconds), thicker circular progress indicator with dynamic formatting, wrist-down tick fix, and 3-second persistent alarm. Available as a watch action with artwork accent color syncing.
+- **Fullscreen cover art viewer**: Tap album art on watch to view fullscreen cover art.
+- **Watch face date overlay**: Configurable date overlay on watch player screen with format options (e.g., "Tue, Jun 9").
 
 ### Changed
 - **Proportional fallback chapter alignment:** `AutoAlignmentService` now calculates estimated fallback timestamps for EPUB chapters proportionally based on cumulative `word_count` instead of a linear sequence index. A block with 500 words is appropriately weighted against a block with 5 words.
@@ -45,6 +52,9 @@ All notable changes to Orbit Audiobooks.
 - Watch communication reliability improvements and playlist toggle UI polish.
 - Artwork handling simplified; oversized widget artwork now downsampled via ImageIO instead of discarded.
 - Timeline feed action buttons (bookmark, flashcard, etc.) now use `UIButton.Configuration` with larger content insets for improved hit targets while maintaining 14pt icon size.
+- **Watch connectivity architecture overhauled**: Significant state now syncs via durable `updateApplicationContext` (delivered immediately to active watch, guaranteed on next activation), with `sendMessage` retained only as a low-latency optimisation. Transport commands never ride the `transferUserInfo` background queue to prevent stale command replay. High-frequency progress and sleep-timer ticks stay live-only (`reason: .progress`).
+- **Swift Concurrency & Thread Safety modernized**: `MainActor.assumeIsolated` replaces `Task { @MainActor in }` for callbacks guaranteed on the main thread across 9 service files. `AVAudioEngine`, `Timer`, and `NSObjectProtocol` observer properties annotated `nonisolated(unsafe)` to suppress Swift 6 data-race diagnostics. `@preconcurrency import AVFoundation` added project-wide.
+- **AlignmentService word-position calculation**: Hidden blocks and image blocks now receive weight 0.0 in cumulative word-position computation. Block positions shifted from center to start positioning for more predictable interpolation.
 
 ### Fixed
 - Watch skip forward/backward fallback SF Symbols corrected from nonexistent `goforward`/`gobackward` to valid `arrow.clockwise`/`arrow.counterclockwise`.
@@ -54,6 +64,15 @@ All notable changes to Orbit Audiobooks.
 - Security-scoped URL access permissions for EPUB auto-import.
 - Destructive file operations in EPUB import replaced with copy-only approach.
 - EPUB heading hierarchy bug where explicit HTML header tags (e.g., `<h1>`) on sub-sections incorrectly overwrote active chapter and part context.
+- **Pause on output device disconnect**: `AudioEngine` now observes `AVAudioSession.routeChangeNotification` and pauses on `.oldDeviceUnavailable` (wired headphones / aux / Bluetooth removed). Previously, `AVAudioEngine` would fall back to the built-in speaker and keep rendering when the cable was pulled.
+- **Progress save before track change**: `PlayerLoadingCoordinator` now persists the previous book's last-known-good position under the correct folder key before `stop()` zeroes `audioEngine.currentTime` and `state.folderURL` changes.
+- **EPUB auto-import security scope**: When a single file (not a folder) is opened directly, a temporary security-scoped resource access is started on the parent directory so sibling EPUB files can be enumerated.
+- **Security scope URL reuse**: `SecurityScopeManager.startSelection(url:)` and `startFile(url:)` now correctly stop the previous access grant when the URL changes (previously `guard !hasAccess` early-exited, leaking the old grant).
+- **TokenDTW gap-cost initialization**: DTW cost matrix boundary row and column now initialized with cumulative gap costs so the DP can correctly skip leading tokens with no match in the other sequence.
+- **EPUB TOC fallback and chapter index off-by-one**: EPUB table of contents now falls back gracefully when heading hierarchy is incomplete; chapter index corrected for sticky header display.
+- **Watch stale transport commands**: Transport commands (play/pause/seek) no longer ride the `transferUserInfo` persistent FIFO queue, preventing phantom resume-after-pause and position jumps on relaunch. Queued payloads are routed through `WatchCommandRouter.route(queuedMessage:)` which honors only deferred-safe commands.
+- **Watch timer suspension cap**: When the watch wakes from sleep, `Timer.scheduledTimer` delta is capped at 2.0 seconds — beyond that, the watch requests fresh authoritative state from the phone instead of animating through accumulated progress.
+- **Watch stale userInfo handling**: After applying received `userInfo` state, the watch immediately requests the phone's current state to converge to the authoritative position.
 
 ---
 

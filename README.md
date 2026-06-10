@@ -70,10 +70,10 @@ The workspace is composed of four targets, each with its own entry point and vie
 
 | Target | Bundle Identifier / Entry Point | Purpose |
 |---|---|---|
-| **EchoCore** (`iOS/iPadOS`) | `Echo_AudioBooksApp.swift` → `RootTabView.swift` | Primary audiobook player. Uses a 3-tab layout (NowPlayingTab, ReaderTab with EPUB/PDF alignment and full-text search, PlaylistTab). PlayerModel acts as a thin coordinator over 20+ single-responsibility services. Handles file/folder selection, bookmarks, voice memos, WatchConnectivity, and Now Playing integration. When an EPUB or PDF file is loaded alongside the audiobook, the Reader tab provides a searchable, browsable book with per-paragraph alignment (EPUB) or page-level alignment (PDF). |
-| **Echo: Audiobook Study Player macOS** (`macOS`) | `Echo_Audiobooks_macOSApp.swift` → `MacContentView.swift` | Native macOS desktop companion. Uses `MacPlayerModel` (`@Observable`-based) with a `NavigationSplitView` layout: a bookmarks sidebar, a player pane with transport controls and a speed picker, and EPUB alignment via `MacGlobalAlignmentService` with streaming audio transcription support. |
-| **Echo: Audiobook Study Player Watch App** (`watchOS`) | `EchoCoreWatchApp.swift` → `ContentView.swift` | Wearable remote for the iOS player. Communicates with the phone via `WCSession` to send play/pause, skip, scrub, volume, loop mode, sleep timer, section navigation, and bookmark commands. Features a customizable button layout with up to five pages of five action slots each (25 total), with configurable seek forward/backward durations (5–60s), all syncable from the phone. |
-| **Echo: Audiobook Study Player Widget** (`Widgets`) | `Echo_Audiobooks_WidgetBundle.swift` → `Echo_Audiobooks_Widget.swift` | A `WidgetBundle` exposing a `StaticConfiguration` widget (`.accessoryCircular`) that shows the current track title, progress ring, and thumbnail via `AppGroupDefaults` communication. Also includes a `TogglePlaybackIntent` (App Intent) for Control Center / widget interactions. |
+| **EchoCore** (`iOS/iPadOS`) | `EchoCoreApp.swift` → `RootTabView.swift` | Primary audiobook player. Uses a 3-tab layout (NowPlayingTab, ReaderTab with EPUB/PDF alignment and full-text search, PlaylistTab). PlayerModel acts as a thin coordinator over 20+ single-responsibility services. Handles file/folder selection, bookmarks, voice memos, WatchConnectivity, and Now Playing integration. When an EPUB or PDF file is loaded alongside the audiobook, the Reader tab provides a searchable, browsable book with per-paragraph alignment (EPUB) or page-level alignment (PDF). |
+| **Echo macOS** (`macOS`) | `Echo_macOSApp.swift` → `MacContentView.swift` | Native macOS desktop companion. Uses `MacPlayerModel` (`@Observable`-based) with a `NavigationSplitView` layout: a bookmarks sidebar, a player pane with transport controls and a speed picker, and EPUB alignment via `MacGlobalAlignmentService` with streaming audio transcription support. |
+| **Echo Watch App** (`watchOS`) | `EchoCoreWatchApp.swift` → `ContentView.swift` | Wearable remote for the iOS player. Communicates with the phone via `WCSession` to send play/pause, skip, scrub, volume, loop mode, sleep timer, section navigation, and bookmark commands. Features a customizable button layout with up to five pages of five action slots each (25 total), with configurable seek forward/backward durations (5–60s), all syncable from the phone. |
+| **Echo Widget** (`Widgets`) | `Echo_WidgetBundle.swift` → `Echo_Widget.swift` | A `WidgetBundle` exposing a `StaticConfiguration` widget (`.accessoryCircular`) that shows the current track title, progress ring, and thumbnail via `AppGroupDefaults` communication. Also includes a `TogglePlaybackIntent` (App Intent) for Control Center / widget interactions. |
 
 Shared models and utilities used across targets include:
 
@@ -123,8 +123,8 @@ Echo is built from the ground up for the AuDHD (Autism + ADHD) and broader neuro
 
 The project bundles two specially-selected font families to support dyslexic and neurodivergent readers:
 
-- **Lexend** ([`EchoCore/Fonts/Lexend.ttf`](EchoCore/Fonts/Lexend.ttf) and [`Echo: Audiobook Study Player macOS/Fonts/Lexend.ttf`](Echo%20Audiobooks%20macOS/Fonts/Lexend.ttf)) — A typeface designed with research-backed letter spacing and proportions to improve reading fluency and reduce visual crowding.
-- **OpenDyslexic** ([`EchoCore/Fonts/OpenDyslexic-Regular.otf`](EchoCore/Fonts/OpenDyslexic-Regular.otf) and [`Echo: Audiobook Study Player macOS/Fonts/OpenDyslexic-Regular.otf`](Echo%20Audiobooks%20macOS/Fonts/OpenDyslexic-Regular.otf)) — An open-source font weighted at the bottom to combat letter reversal and rotation, widely adopted by the dyslexia community.
+- **Lexend** ([`EchoCore/Fonts/Lexend.ttf`](EchoCore/Fonts/Lexend.ttf) and [`Echo macOS/Fonts/Lexend.ttf`](Echo%20macOS/Fonts/Lexend.ttf)) — A typeface designed with research-backed letter spacing and proportions to improve reading fluency and reduce visual crowding.
+- **OpenDyslexic** ([`EchoCore/Fonts/OpenDyslexic-Regular.otf`](EchoCore/Fonts/OpenDyslexic-Regular.otf) and [`Echo macOS/Fonts/OpenDyslexic-Regular.otf`](Echo%20macOS/Fonts/OpenDyslexic-Regular.otf)) — An open-source font weighted at the bottom to combat letter reversal and rotation, widely adopted by the dyslexia community.
 
 ### App Icon & Colors: An AuDHD Shoutout
 
@@ -156,17 +156,17 @@ The Echo app icon features an **infinity symbol (∞) in silver and gold** — a
 
 | Target | Test File | Scope |
 |---|---|---|
-| **EchoCoreTests** | `EchoCoreTests.swift` | Unit tests for the iOS model layer (playback logic, bookmark persistence, timer logic). |
-| **EchoCoreUITests** | `EchoCoreUITests.swift`, `EchoCoreUITestsLaunchTests.swift` | UI integration tests for the iOS app using XCUITest. |
-| **Echo: Audiobook Study Player Watch AppTests** | `Echo_Audiobooks_Watch_AppTests.swift` | Unit tests for watchOS model and WCSession command parsing. |
-| **Echo: Audiobook Study Player Watch AppUITests** | `Echo_Audiobooks_Watch_AppUITests.swift` | UI tests for the watch app (launch validation, button interaction). |
+| **EchoTests** | `EchoTests.swift` | Unit tests for the iOS model layer (playback logic, bookmark persistence, timer logic). |
+| **EchoUITests** | `EchoUITests.swift`, `EchoUITestsLaunchTests.swift` | UI integration tests for the iOS app using XCUITest. |
+| **Echo Watch AppTests** | `Echo_Watch_AppTests.swift` | Unit tests for watchOS model and WCSession command parsing. |
+| **Echo Watch AppUITests** | `Echo_Watch_AppUITests.swift` | UI tests for the watch app (launch validation, button interaction). |
 
 Run all tests from Xcode with `⌘U` or via the terminal:
 
 ```bash
 xcodebuild test \
-  -workspace Echo\ Audiobooks.xcodeproj \
-  -scheme "Echo: Audiobook Study Player" \
+  -project Echo.xcodeproj \
+  -scheme "Echo" \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
 ```
 
@@ -174,10 +174,14 @@ xcodebuild test \
 
 [`MockMediaProvider.swift`](EchoCore/MockMediaProvider.swift) is a `#if DEBUG`-only utility that seeds a sample audiobook (`BIFF.m4b`) into the simulator's Documents directory on first launch. It is automatically invoked during `DEBUG && targetEnvironment(simulator)` builds in the app's `init()`.
 
-**Usage during development:**
-- Add `BIFF.m4b` to the app bundle (e.g., in the `Development Assets` folder).
-- The mock provider copies it to the Documents directory on first launch, making it available for selection in the folder picker.
-- The provider also supplies `sampleAudiobookURL()` for automatic restoration in `restoreLastSelectionIfPossible()`.
+A development EPUB fixture is also available for testing the reader pipeline:
+
+```
+EchoCore/Development Assets/aliceinwonderland_1102_librivox/
+└── Alice's Adventures in Wonderland.epub  ← Lewis Carroll (EPUB)
+```
+
+In `#if DEBUG` builds, `SettingsView` exposes a "Load Development Assets" button under a "Debug Menu" section. This invokes `PlayerModel.loadFolder()` with the main bundle URL, seeding the sample audiobook for immediate testing of the reader, alignment, and search features without requiring external file selection.
 
 This allows developers to test the full playback, bookmarking, and chapter-navigation pipeline without any network dependency or real audiobook files.
 
