@@ -6,6 +6,12 @@ It's all open source. You can audit every claim below: [github.com/dfakkeldy/Ech
 
 ---
 
+## Now — June 2026 · *The road to 1.0* (in progress)
+
+The next chapter is underway: Echo now has a defined 1.0 — a trustworthy study player on iPhone, Watch, and Mac, with honest study analytics and a complete flashcard workflow. The program, in landing order: a **listening capture layer** (so your stats accumulate from the very next beta build), **CI and the Echo identity cleanup**, the **Insights screen** (real listening time, streaks, chapter coverage, retention curves), opt-in **Context Memory** (place-tagged bookmarks and sessions), the full **Anki workflow** (decks, tags, a card editor, the mark-later Card Inbox, real .apkg import), **Brain Dump notes** with watch dictation, **Markdown second-brain export**, and **iCloud study sync**. About fourteen weeks of evenings and weekends, planned the same way everything else here was built: in public.
+
+---
+
 ## Week 1 — April 19 · *The two-hour app* (10 commits)
 
 It started with a problem, not a plan. No audiobook app on the internet would loop a single chapter, survive thirty interruptions a shift, and play at 1.25× without chipmunk-voicing the narrator. One Sunday of vibe-coding later: a working player that loaded a folder from iCloud, looped chapters, and played speed-corrected audio. By the end of the day it had background-persistence so it would still be ready to play after a long pause — the first brick of what became Smart Rewind.

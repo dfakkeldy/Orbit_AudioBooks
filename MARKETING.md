@@ -131,8 +131,14 @@ The website and manual describe the complete product vision in present tense (pe
 | SM-2 flashcards, daily review, watch review, deck import | Everywhere | ✅ Shipped |
 | 3-tier auto-alignment (WhisperKit/TokenDTW) | Everywhere | ✅ Shipped |
 | PDF companion + manual alignment joystick | Everywhere | ✅ Shipped |
-| **Chapter Study Mode** (chapter-as-Anki-card, study playlist) | Manual, Learn, site | 🔶 Vision — keep out of App Store copy until shipped |
-| **Location snapshot bookmarks** (Maps thumbnail) | Site "what's next" only | 🔶 Vision |
-| iCloud study-state sync | Manual (basic), site | 🔶 Partial (anchors only) — phrase carefully |
+| **Chapter Study Mode** (chapter-as-Anki-card, study playlist) | Manual, Learn, site | 🔶 Vision (post-1.0) — site copy tagged "🔭 Roadmap" |
+| iCloud study-state sync (cards/decks/bookmarks/position) | Manual, Learn, site | 🔶 Partial (anchors only) — WS8; site copy tagged "🚧 Coming in 1.0" |
+| **Insights / Stats screen** (listening time, streaks, coverage, retention) | Site, Learn, Manual | 🔶 WS3–4 — tagged "🚧 Coming in 1.0" |
+| **Context Memory** (opt-in location on bookmarks/sessions/chapters) | Site, Learn, Manual, Privacy | 🔶 WS5 — tagged "🚧 Coming in 1.0" |
+| **Card Inbox / mark-later** (+ card editor, decks & tags) | Site, Learn, Manual | 🔶 WS6 — tagged "🚧 Coming in 1.0" |
+| **Brain Dump / Book Notes** (untethered notes, watch dictation) | Site, Learn, Manual | 🔶 WS6b — tagged "🚧 Coming in 1.0" |
+| **.apkg import, JSON deck export, study-notes Markdown bundle** | Site, Learn, Manual | 🔶 WS7 — tagged "🚧 Coming in 1.0" |
 
-When a 🔶 item ships: move it into App Store description + What's New, announce in devlog, delete the row.
+When a 🔶 item ships: move it into App Store description + What's New, announce in devlog, delete the row (and remove the site's 🚧 tag).
+
+**Site tag convention (added 2026-06-10):** all unshipped features on the website/manual carry a visible "🚧 Coming in 1.0" or "🔭 Roadmap" pill — the site may describe the full vision in present tense *because* the tags disclose status. The Libation/OpenAudible links live in the website FAQ only — never in App Store metadata or in-app help (App Review 2.3.1 posture).

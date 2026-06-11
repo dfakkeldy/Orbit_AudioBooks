@@ -18,11 +18,14 @@
 | Resource | What it covers |
 |---|---|
 | 🌐 [Website](https://dfakkeldy.github.io/Echo/) | Marketing home: the story, the features, the science |
-| 🧠 [Getting the Most Out of Echo](https://dfakkeldy.github.io/Echo/learn.html) ([md](docs/guides/getting-the-most-out-of-echo.md)) | Every feature + the memory science behind it (context-dependent memory, spaced repetition, the testing effect…) |
-| 📖 [User Manual](https://dfakkeldy.github.io/Echo/manual.html) ([md](docs/guides/user-manual.md)) | Complete reference: every feature on every platform |
+| 🧠 [Getting the Most Out of Echo](https://dfakkeldy.github.io/Echo/learn.html) ([md](docs/guides/getting-the-most-out-of-echo.md)) | Every feature + the memory science behind it (context-dependent memory, spaced repetition, the testing effect, cognitive offloading…) |
+| ♾️ [The Focus Field Guide](https://dfakkeldy.github.io/Echo/focus.html) ([md](docs/guides/focus-field-guide.md)) | ADHD/AuDHD strategies — task initiation, time blindness, organization, motivation, hyperfocus, distractibility — with sources |
+| 📖 [User Manual](https://dfakkeldy.github.io/Echo/manual.html) ([md](docs/guides/user-manual.md)) | Complete reference: every feature on every platform, incl. library organization |
 | 🛠 [Devlog](https://dfakkeldy.github.io/Echo/devlog.html) ([md](docs/guides/devlog.md)) | Week-by-week build history from the real commit log |
 | 📣 [Marketing Plan](MARKETING.md) | Positioning, channels, App Store strategy (open like everything else) |
 | 🏗 [ARCHITECTURE.md](ARCHITECTURE.md) · [ROADMAP.md](ROADMAP.md) · [CHANGELOG.md](CHANGELOG.md) | For contributors |
+
+> **Status tags used below:** 🚧 = **Coming in 1.0** (in active development) · 🔭 = **Roadmap** (planned after 1.0). Everything unmarked ships in the current beta.
 
 ---
 
@@ -51,9 +54,11 @@ Search for any phrase   →   Jump instantly to that moment in the narration
           ↓
 Lock paragraphs to timestamps   →   Build a precise, verified map of the book
           ↓
-Create bookmarks & flashcards   →   Capture knowledge while you listen
+Capture while you listen   →   Bookmarks, voice memos, marks, brain-dump notes
           ↓
 Review with spaced repetition   →   Retain what you learned, on your schedule
+          ↓
+See honest insights & export your second brain   →   Own what you learned
 ```
 
 ### Features Built for Focus
@@ -63,10 +68,43 @@ Review with spaced repetition   →   Retain what you learned, on your schedule
 - **Voice Memo Bookmarks.** Instantly save your thoughts without fumbling with your phone. Perfect for driving, walking, or when your hands are full. Memos can play back inline when the narration reaches them.
 - **Photo Bookmarks.** Attach a photo (from camera or library) to any bookmark; the player artwork dynamically switches to your photo as playback passes that moment. Built on *context-dependent memory* — your brain encodes where you were alongside what you heard, and the photo becomes a retrieval cue. [The science →](https://dfakkeldy.github.io/Echo/learn.html)
 - **Spaced Repetition (SRS).** Built-in flashcard system using the SM-2 algorithm to help you memorize crucial facts, languages, or concepts permanently — with audio snippets on cards, Anki-style deck import, review stats, daily reminders, and hands-free review on Apple Watch.
+- **Mark Now, Card Later.** 🚧 One tap (phone or watch) marks a passage without pausing playback; the **Card Inbox** turns marks into flashcards when you have the bandwidth. Retires mid-playback popups for good.
+- **Decks, Tags & Real Anki Import.** 🚧 Organize cards into decks with tags, edit any card, review per deck — and import genuine `.apkg` Anki decks with scheduling history preserved. JSON deck export round-trips losslessly.
+- **Brain Dump / Book Notes.** 🚧 A frictionless mental inbox: park any thought — text or voice, even dictated from the watch — without pausing the book, then promote keepers to bookmarks or flashcards. Built for leaky working memory.
+- **Context Memory (opt-in).** 🚧 Echo can tag bookmarks, sessions, and chapter starts with an approximate place name ("Chapter 3 started at Oak Street") — context-dependent memory, automated. Off by default, reduced accuracy, deletable in one tap, session history never syncs.
+- **Insights.** 🚧 A dedicated stats screen computed entirely on-device: listening time by day/week/month/year, streaks, per-chapter coverage heatmaps ("Ch 7 — 86%, listened 3×"), speed trends, time-of-day patterns, retention curves, grade distributions, and a 30-day review forecast.
+- **Second-Brain Export.** 🚧 Per-book Markdown bundles — bookmarks, notes, flashcards, voice memos, photos — that drop straight into Obsidian, Logseq, or Notion. Plain files, relative links, no accounts, no lock-in. (Bookmark Markdown export ships today.)
+- **iCloud Study Sync.** 🚧 Flashcards, decks, bookmarks, and playback position across iPhone, Mac, and Watch via your personal iCloud — Echo runs no servers.
 - **True ePub & PDF Alignment.** Seamlessly scroll through the text and view diagrams exactly when the audio reaches that section. On-device auto-alignment (WhisperKit + CoreML) maps every paragraph to the narration — no cloud API calls, no privacy concerns. PDF companion documents are supported with page-level alignment and per-page screenshot bookmarks.
 - **Pristine Speed Control.** Listen at 1.25x (or faster) with zero pitch distortion. Speed suggestions adapt to your listening habits.
 - **Apple Watch Remote.** A massive, user-configurable interface with up to 25 customizable buttons across 5 pages. Assign the Digital Crown to control volume or scrub through audio — leave your phone in your pocket.
 - **Designed for Neurodiversity.** Lexend and OpenDyslexic fonts — both backed by reading-fluency research — are built in. The hybrid document+audio view means you're never forced to learn by listening alone. The app icon (an infinity symbol in silver and gold) is a nod to the AuDHD community. The name "Echo" reflects how many neurodivergent brains work: ideas echoing between different modes of thinking, with text and audio reinforcing each other.
+
+---
+
+## The Road to v1.0
+
+Echo has a defined 1.0:
+
+> **Echo 1.0 is a trustworthy study player on iPhone (full), Apple Watch (companion), and Mac (functional core), with real listening/study analytics, a complete intentional-flashcard workflow including real Anki deck import, and study-state sync across devices.**
+
+The program runs as dependency-ordered workstreams (~14 weeks solo), each landing on its own branch with tests-first plans and verification gates:
+
+| # | Workstream | What ships |
+|---|---|---|
+| WS0 | **Listening capture layer** | The playback-event recorder — ships *first* so insights data accumulates from the next beta build onward |
+| WS1 | **Identity & macOS foundation** | The Echo rebrand completed through every identifier, and the Mac target on a solid footing |
+| WS2 | **CI** | GitHub Actions building all schemes + tests on every PR |
+| WS3–4 | **Insights** | Stats backend (pure, tested aggregation) + the Insights screen with Swift Charts and live dashboard modules |
+| WS5 | **Context Memory** | Opt-in, reduced-accuracy place capture on sessions, bookmarks, and chapter starts — privacy-first, deletable |
+| WS6 | **Anki core** | Decks + tags schema, the mark-later Card Inbox, a full card editor, deck management; inline popups retire |
+| WS6b | **Brain Dump / Book Notes** | Untethered per-book notes, global voice-memo inbox, watch dictation |
+| WS7 | **Import/Export** | Real `.apkg` import (scheduling preserved), JSON deck export, Markdown second-brain bundle export |
+| WS8 | **iCloud study sync** | Flashcards, decks, bookmarks, playback position — private database, sensible conflict rules |
+| WS9 | **Polish & release** | Onboarding (incl. a library-organization step), reader speed controls, alignment celebration, Mac stats/review panes, TestFlight beta → release |
+| WS10 | **Docs & site content** | Study-workflow guides, organization training, context-memory explainer — published as features ship |
+
+**Deliberately after 1.0** (each with its seam already designed): FSRS scheduling, `.apkg` export, AnkiConnect, on-device AI card drafting, focus soundscapes, hyperfocus/transition alarms, Context Memory map view, CarPlay capture buttons, full Mac reader parity. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
