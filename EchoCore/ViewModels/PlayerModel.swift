@@ -191,77 +191,70 @@ final class PlayerModel {
 
     // MARK: - Dynamic accent colour from artwork
 
-    /// Current UI colour scheme, fed from `RootTabView`. Drives surface-aware
-    /// contrast so the rescued accent recomputes on light/dark switches.
+    /// Current UI colour scheme, fed from `RootTabView`. Drives theme
+    /// construction so light/dark switches rebuild the theme.
     var uiColorScheme: ColorScheme = .light
 
-    @ObservationIgnored private var cachedPalette: DominantColorExtractor.ArtworkPalette?
-    @ObservationIgnored private var cachedPaletteVersion: Int = -1
+    @ObservationIgnored private var cachedSignature: CoverSignature?
+    @ObservationIgnored private var cachedSignatureVersion: Int = -1
 
-    @ObservationIgnored private var cachedSafeAccent: Color?
-    @ObservationIgnored private var cachedSafeAccentVersion: Int = -1
-    @ObservationIgnored private var cachedSafeAccentScheme: ColorScheme = .light
+    @ObservationIgnored private var cachedTheme: CoverTheme?
+    @ObservationIgnored private var cachedThemeVersion: Int = -1
+    @ObservationIgnored private var cachedThemeScheme: ColorScheme = .light
 
     /// One cached extraction pass for the current cover (or thumbnail).
-    var artworkPalette: DominantColorExtractor.ArtworkPalette {
+    /// Nil ONLY while no artwork is loaded, so the next access retries —
+    /// the same retry contract the old palette cache had.
+    private var currentSignature: CoverSignature? {
         let version = currentDisplayArtworkVersion
-        if version != cachedPaletteVersion || cachedPalette == nil {
-            if let image = currentDisplayArtwork ?? thumbnailImage {
-                cachedPalette = DominantColorExtractor.extractPalette(from: image)
-                cachedPaletteVersion = version  // Only cache on successful image lookup
-            } else {
-                // Return empty palette WITHOUT caching the version,
-                // so next access will retry extraction when artwork is available.
-                return DominantColorExtractor.ArtworkPalette(
-                    rawAccent: nil, candidates: [], background: []
-                )
-            }
+        if version != cachedSignatureVersion || cachedSignature == nil {
+            guard let image = currentDisplayArtwork ?? thumbnailImage else { return nil }
+            cachedSignature = DominantColorExtractor.signature(from: image)
+            cachedSignatureVersion = version
         }
-        return cachedPalette!
+        return cachedSignature
     }
 
-    /// The contrast-safe accent for the current cover and colour scheme, or
-    /// `nil` when the cover has no vivid colour (greyscale / no image).
-    var artworkAccentColor: Color? {
-        let palette = artworkPalette
-        guard let raw = palette.rawAccent else { return nil }   // nil-contract
-
-        let version = currentDisplayArtworkVersion
-        if version == cachedSafeAccentVersion,
-           uiColorScheme == cachedSafeAccentScheme,
-           let cached = cachedSafeAccent {
-            return cached
+    /// The role-based theme for the current cover and colour scheme.
+    /// Never nil: missing artwork gets the designed neutral theme.
+    var coverTheme: CoverTheme {
+        guard let signature = currentSignature else {
+            return CoverThemeBuilder.build(from: .neutral, scheme: uiColorScheme)
         }
+        let version = currentDisplayArtworkVersion
+        if version == cachedThemeVersion,
+           uiColorScheme == cachedThemeScheme,
+           let theme = cachedTheme {
+            return theme
+        }
+        let theme = CoverThemeBuilder.build(from: signature, scheme: uiColorScheme)
+        cachedTheme = theme
+        cachedThemeVersion = version
+        cachedThemeScheme = uiColorScheme
+        return theme
+    }
 
-        let surface = AccentSafetyNet.representativeSurface(
-            background: palette.background.map(ColorMetrics.rgb),
-            scheme: uiColorScheme
-        )
-        let resolution = AccentSafetyNet.resolve(
-            rawAccent: ColorMetrics.rgb(raw),
-            candidates: palette.candidates.map(ColorMetrics.rgb),
-            surface: surface,
+    /// Artwork accent facade. Nil when the cover has no vivid colour
+    /// (greyscale / no image) so callers' `?? .accentColor` fallbacks engage.
+    var artworkAccentColor: Color? {
+        let theme = coverTheme
+        return theme.isNeutralFallback ? nil : theme.accent
+    }
+
+    /// Accent hex for the Watch, built with the DARK recipe — Watch surfaces
+    /// are always dark regardless of the phone's scheme.
+    var artworkAccentColorHex: String? {
+        guard let signature = currentSignature, !signature.isNeutral else { return nil }
+        let resolved = CoverThemeBuilder.resolve(
+            signature,
+            scheme: .dark,
             brand: ColorMetrics.rgb(Color.accentColor)
         )
-        let safe = ColorMetrics.color(resolution.color)
-        cachedSafeAccent = safe
-        cachedSafeAccentVersion = version
-        cachedSafeAccentScheme = uiColorScheme
-        return safe
-    }
-
-    /// RAW (un-rescued) accent hex for the Watch, whose surface is always dark.
-    var artworkAccentColorHex: String? {
-        guard let color = artworkPalette.rawAccent else { return nil }
-        let uiColor = UIColor(color)
-        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
-            let r = Int(round(red * 255.0))
-            let g = Int(round(green * 255.0))
-            let b = Int(round(blue * 255.0))
-            return String(format: "#%02X%02X%02X", r, g, b)
-        }
-        return nil
+        let a = resolved.accent
+        return String(format: "#%02X%02X%02X",
+                      Int((a.r * 255).rounded()),
+                      Int((a.g * 255).rounded()),
+                      Int((a.b * 255).rounded()))
     }
 
     // MARK: - Chapters (pass-through to PlaybackState)
