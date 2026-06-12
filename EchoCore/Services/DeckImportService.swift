@@ -43,6 +43,19 @@ struct DeckImportService {
             }
         }
 
+        let deckID: String
+        if let existingID = try findDeck(named: deck.deckName, db: db) {
+            deckID = existingID
+        } else {
+            deckID = UUID().uuidString
+            try db.write { db in
+                try db.execute(sql: """
+                    INSERT INTO deck (id, name, source, created_at, modified_at)
+                    VALUES (?, ?, 'json_import', ?, ?)
+                    """, arguments: [deckID, deck.deckName, Date().ISO8601Format(), Date().ISO8601Format()])
+            }
+        }
+
         let dao = FlashcardDAO(db: db)
         for card in deck.cards {
             let flashcard = Flashcard(
@@ -60,6 +73,10 @@ struct DeckImportService {
                 lastReviewedAt: nil,
                 lastGrade: nil,
                 isEnabled: true,
+                deckID: deckID,
+                tags: nil,
+                mediaJSON: nil,
+                sourceBlockID: nil,
                 playlistPosition: nil,
                 createdAt: Date().ISO8601Format(),
                 modifiedAt: Date().ISO8601Format()
@@ -68,5 +85,11 @@ struct DeckImportService {
         }
 
         return deck.cards.count
+    }
+
+    private func findDeck(named name: String, db: DatabaseWriter) throws -> String? {
+        try db.read { db in
+            try String.fetchOne(db, sql: "SELECT id FROM deck WHERE name = ?", arguments: [name])
+        }
     }
 }
