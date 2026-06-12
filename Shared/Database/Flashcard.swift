@@ -24,6 +24,10 @@ struct Flashcard: Codable, FetchableRecord, MutablePersistableRecord {
     var lastReviewedAt: String?
     var lastGrade: Int?
     var isEnabled: Bool
+    var deckID: String?
+    var tags: String?
+    var mediaJSON: String?
+    var sourceBlockID: String?
     var playlistPosition: Double?
     var createdAt: String?
     var modifiedAt: String?
@@ -45,6 +49,10 @@ struct Flashcard: Codable, FetchableRecord, MutablePersistableRecord {
         case lastReviewedAt = "last_reviewed_at"
         case lastGrade = "last_grade"
         case isEnabled = "is_enabled"
+        case deckID = "deck_id"
+        case tags
+        case mediaJSON = "media_json"
+        case sourceBlockID = "source_block_id"
         case playlistPosition = "playlist_position"
         case createdAt = "created_at"
         case modifiedAt = "modified_at"
