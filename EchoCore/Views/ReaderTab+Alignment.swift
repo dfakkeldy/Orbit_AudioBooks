@@ -289,7 +289,11 @@ extension ReaderTab {
                 actions.append(saveImageAction)
             }
 
-            return UIMenu(title: "", children: actions)
+            // Audit D1: long-press is the timestamp reveal for inactive cards.
+            let timeString = viewModel?.audioStartTimeByBlockID[blockID]
+                .map { Duration.seconds($0).formatted(.time(pattern: .minuteSecond)) }
+            let menuTitle = timeString.map { String(localized: "Audio position \($0)") } ?? ""
+            return UIMenu(title: menuTitle, children: actions)
         }
     }
 

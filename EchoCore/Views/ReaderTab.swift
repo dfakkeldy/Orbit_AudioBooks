@@ -72,10 +72,12 @@ struct ReaderTab: View {
                 Spacer().frame(height: 4)
             }
         }
+        // Audit D2: the header floats in the same tonal world as the rest of
+        // the app — chapter theme color when set, else the cover accent.
         .background(
             Rectangle()
-                .fill(topChapterThemeColor.map { Color(hex: $0) } ?? .clear)
-                .opacity(topChapterThemeColor != nil ? 0.3 : 0.0)
+                .fill(topChapterThemeColor.map { Color(hex: $0) } ?? model.coverTheme.accent)
+                .opacity(topChapterThemeColor != nil ? 0.3 : 0.12)
         )
         .background(.ultraThinMaterial)
         .shadow(color: Color.black.opacity(0.05), radius: 3, y: 2)
