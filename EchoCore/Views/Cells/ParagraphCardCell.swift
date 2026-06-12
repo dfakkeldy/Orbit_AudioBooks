@@ -28,10 +28,15 @@ final class ParagraphCardCell: UICollectionViewCell {
         return label
     }()
 
+    private var hasAnchorText = false
+
     var isActiveBlock: Bool = false {
         didSet {
             activeBar.isHidden = !isActiveBlock
             contentView.alpha = isActiveBlock ? 1.0 : 0.95
+            // Audit D1: the timestamp doubles as the "you are here" marker —
+            // visible on the active card only; others reveal via long-press.
+            anchorLabel.isHidden = !(isActiveBlock && hasAnchorText)
         }
     }
 
@@ -105,8 +110,9 @@ final class ParagraphCardCell: UICollectionViewCell {
     }
     
     func setManuallyAligned(_ isAnchored: Bool, timeString: String?) {
-        anchorLabel.isHidden = false
+        hasAnchorText = (timeString != nil)
         anchorLabel.text = timeString
         anchorLabel.textColor = isAnchored ? .systemRed : .secondaryLabel
+        anchorLabel.isHidden = !(isActiveBlock && hasAnchorText)
     }
 }

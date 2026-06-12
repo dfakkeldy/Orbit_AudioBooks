@@ -33,6 +33,9 @@ final class PlaybackState {
     var progressFraction: Double = 0.0
     var progressText: String = "--:--"
     var elapsedText: String = "--:--"
+    /// Total duration of the current scope (chapter or book), un-negated.
+    /// Shown when the trailing scrubber label is toggled off "remaining".
+    var durationText: String = "--:--"
     var durationSeconds: Double? = nil
 
     // MARK: - Chapters

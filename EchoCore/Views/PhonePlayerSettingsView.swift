@@ -20,6 +20,31 @@ struct PhonePlayerSettingsView: View {
         .loopMode, .speed, .sleepTimer, .bookmark
     ]
 
+    /// Actions the mini-player slots can perform (no sleep timer — that lives
+    /// in the top pill; no pomodoro yet).
+    private let miniPlayerChoices: [WatchAction] = [
+        .playPause, .skipBackward, .skipForward, .previousTrack, .nextTrack,
+        .previousSection, .nextSection, .loopMode, .speed, .bookmark, .empty
+    ]
+
+    private func miniPlayerChoiceName(_ action: WatchAction) -> String {
+        switch action {
+        case .playPause: return String(localized: "Play / Pause")
+        case .skipBackward: return String(localized: "Skip Back")
+        case .skipForward: return String(localized: "Skip Forward")
+        case .previousTrack: return String(localized: "Previous Chapter")
+        case .nextTrack: return String(localized: "Next Chapter")
+        case .previousSection: return String(localized: "Previous Section")
+        case .nextSection: return String(localized: "Next Section")
+        case .loopMode: return String(localized: "Loop Mode")
+        case .speed: return String(localized: "Speed")
+        case .bookmark: return String(localized: "Bookmark")
+        case .sleepTimer: return String(localized: "Sleep Timer")
+        case .pomodoro: return String(localized: "Pomodoro")
+        case .empty: return String(localized: "Empty")
+        }
+    }
+
     var body: some View {
         @Bindable var settings = settings
 
@@ -39,6 +64,39 @@ struct PhonePlayerSettingsView: View {
                     .pickerStyle(.segmented)
                     
                     Text("The Compact layout uses a smaller scrubber and reorganizes transport controls for a more minimalist look.")
+                        .customFont(.subheadline, appFont: settings.appFont)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.quaternary)
+                )
+
+                // MARK: Mini-Player Buttons
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Mini-Player Buttons")
+                        .customFont(.title3, weight: .semibold, appFont: settings.appFont)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(0..<3, id: \.self) { slot in
+                        Picker(String(localized: "Slot \(slot + 1)"), selection: Binding(
+                            get: { settings.miniPlayerPage.indices.contains(slot) ? settings.miniPlayerPage[slot] : .empty },
+                            set: { newAction in
+                                var page = settings.miniPlayerPage
+                                while page.count < 3 { page.append(.empty) }
+                                page[slot] = newAction
+                                settings.miniPlayerPage = page
+                            }
+                        )) {
+                            ForEach(miniPlayerChoices) { action in
+                                Label(miniPlayerChoiceName(action), systemImage: action.iconName).tag(action)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+
+                    Text("The three buttons shown in the mini-player on the Timeline and Reader tabs.")
                         .customFont(.subheadline, appFont: settings.appFont)
                         .foregroundStyle(.tertiary)
                 }

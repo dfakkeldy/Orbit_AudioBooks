@@ -81,6 +81,7 @@ final class PlaybackProgressPresenter {
             state.progressFraction = 0
             state.progressText = "--:--"
             state.elapsedText = "--:--"
+            state.durationText = "--:--"
             return
         }
 
@@ -100,6 +101,7 @@ final class PlaybackProgressPresenter {
             state.elapsedText = NowPlayingController.formatTime(max(0, bookElapsed) / speed)
             let remaining = max(0, state.totalBookDuration - bookElapsed) / speed
             state.progressText = "-\(NowPlayingController.formatTime(remaining))"
+            state.durationText = NowPlayingController.formatTime(state.totalBookDuration / speed)
             if didChange { onSyncToWatch?() }
         }
 
@@ -128,6 +130,7 @@ final class PlaybackProgressPresenter {
                     let remaining = max(0, chapterDuration - chapterElapsed) / speed
                     state.progressText = "-\(NowPlayingController.formatTime(remaining))"
                     state.elapsedText = NowPlayingController.formatTime(max(0, chapterElapsed) / speed)
+                    state.durationText = NowPlayingController.formatTime(chapterDuration / speed)
                     if didChange { onSyncToWatch?() }
                     return
                 }
@@ -140,6 +143,7 @@ final class PlaybackProgressPresenter {
             state.progressFraction = 0
             state.progressText = "--:--"
             state.elapsedText = "--:--"
+            state.durationText = "--:--"
             return
         }
 
@@ -150,6 +154,7 @@ final class PlaybackProgressPresenter {
         let remaining = max(0, duration - elapsed) / speed
         state.progressText = "-\(NowPlayingController.formatTime(remaining))"
         state.elapsedText = NowPlayingController.formatTime(max(0, elapsed) / speed)
+        state.durationText = NowPlayingController.formatTime(duration / speed)
         if didChange { onSyncToWatch?() }
     }
 }

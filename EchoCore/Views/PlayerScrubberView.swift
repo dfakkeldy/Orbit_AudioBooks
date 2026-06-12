@@ -9,13 +9,16 @@ struct PlayerScrubberView: View {
     @State private var scrubFraction: Double = 0.0
     @State private var isScrubbing = false
     @State private var lastSnappedFraction: Double? = nil
+    /// Audit B5: tapping the trailing time label toggles remaining ↔ duration,
+    /// the standard iOS behavior people already expect.
+    @AppStorage("scrubberShowsRemaining") private var showsRemaining = true
 
     var body: some View {
         if settings.playerLayoutStyle == "compact" {
             HStack(spacing: 12) {
                 timeLabel(model.elapsedText, alignment: .leading)
                 scrubber
-                timeLabel(model.progressText, alignment: .trailing)
+                trailingTimeButton
             }
         } else {
             VStack(spacing: 0) {
@@ -24,11 +27,66 @@ struct PlayerScrubberView: View {
                 HStack {
                     timeLabel(model.elapsedText, alignment: .leading)
                     Spacer()
-                    timeLabel(model.progressText, alignment: .trailing)
+                    trailingTimeButton
                 }
                 .padding(.horizontal, 4) // slight inset so text aligns with the slider thumb visually
+
+                // Audit B5: hairline book track + caption — the "where am I in
+                // the whole book" answer, on the same axis as the scrubber.
+                if model.chapters.count >= 2 {
+                    BookProgressTrack(
+                        bookFraction: bookFraction,
+                        tickFractions: BookProgressTrackModel.tickFractions(
+                            chapters: model.chapters,
+                            totalDuration: bookTotalDuration
+                        ),
+                        accent: model.artworkAccentColor ?? .accentColor
+                    )
+                    .padding(.top, 9)
+                    .padding(.horizontal, 4)
+
+                    Text(BookProgressTrackModel.caption(
+                        bookFraction: bookFraction,
+                        chapterTitle: currentLogicalChapter?.title,
+                        chapterCount: model.chapters.count
+                    ))
+                    .customFont(.caption2, appFont: model.resolvedAppFont)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 5)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
         }
+    }
+
+    private var trailingTimeButton: some View {
+        Button {
+            showsRemaining.toggle()
+            Haptic.play(.light)
+        } label: {
+            timeLabel(showsRemaining ? model.progressText : model.durationText, alignment: .trailing)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(showsRemaining ? "Time remaining" : "Duration"))
+        .accessibilityHint(Text("Double tap to toggle"))
+    }
+
+    private var bookTotalDuration: Double {
+        model.isMultiM4B ? model.totalBookDuration : (model.durationSeconds ?? 0)
+    }
+
+    private var bookFraction: Double {
+        let total = bookTotalDuration
+        guard total > 0 else { return 0 }
+        let elapsed: Double
+        if model.isMultiM4B {
+            let bookOffset = model.m4bBooks.indices.contains(model.currentIndex)
+                ? model.m4bBooks[model.currentIndex].cumulativeStartOffset : 0
+            elapsed = bookOffset + model.currentPlaybackTime
+        } else {
+            elapsed = model.currentPlaybackTime
+        }
+        return min(1, max(0, elapsed / total))
     }
 
     private var scrubber: some View {

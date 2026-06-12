@@ -11,14 +11,34 @@ struct BottomToolbarView: View {
             Spacer()
             speedButton
             Spacer()
-            sleepTimerMenu
-            Spacer()
             timelineButton
             Spacer()
             addBookmarkButton
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+    }
+
+    // MARK: - Shared chip treatment
+
+    /// Audit B2: active state is carried by a filled chip (shape), not color
+    /// alone. 44pt target either way.
+    private func utilityChip<Content: View>(isActive: Bool, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .frame(width: 44, height: 44)
+            .background(isActive ? AnyShapeStyle(model.coverTheme.chip) : AnyShapeStyle(.clear), in: Circle())
+            .contentShape(Rectangle())
+            .foregroundStyle(isActive ? AnyShapeStyle(model.artworkAccentColor ?? .accentColor) : AnyShapeStyle(.secondary))
+    }
+
+    private func utilityTextChip(isActive: Bool, _ text: String) -> some View {
+        Text(text)
+            .customFont(.headline)
+            .padding(.horizontal, 12)
+            .frame(minWidth: 44, minHeight: 44)
+            .background(isActive ? AnyShapeStyle(model.coverTheme.chip) : AnyShapeStyle(.clear), in: Capsule())
+            .contentShape(Rectangle())
+            .foregroundStyle(isActive ? AnyShapeStyle(model.artworkAccentColor ?? .accentColor) : AnyShapeStyle(.secondary))
     }
 
     // MARK: - Loop Mode
@@ -28,27 +48,26 @@ struct BottomToolbarView: View {
             model.cycleLoopMode()
             Haptic.play(.medium)
         } label: {
-            ZStack {
-                switch model.loopMode {
-                case .off:
-                    Image(systemName: "infinity.circle")
-                        .font(.title2)
-                case .chapter:
-                    Image(systemName: "infinity.circle.fill")
-                        .font(.title2)
-                case .bookmark:
-                    Image(systemName: "arrow.trianglehead.clockwise")
-                        .font(.title2)
-                        .overlay(
-                            Image(systemName: "bookmark.fill")
-                                .font(.system(size: 9, weight: .bold))
-                        )
+            utilityChip(isActive: model.loopMode != .off) {
+                ZStack {
+                    switch model.loopMode {
+                    case .off:
+                        Image(systemName: "infinity.circle")
+                            .font(.title2)
+                    case .chapter:
+                        Image(systemName: "infinity.circle.fill")
+                            .font(.title2)
+                    case .bookmark:
+                        Image(systemName: "arrow.trianglehead.clockwise")
+                            .font(.title2)
+                            .overlay(
+                                Image(systemName: "bookmark.fill")
+                                    .font(.system(size: 9, weight: .bold))
+                            )
+                    }
                 }
             }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
         }
-        .foregroundStyle(model.loopMode != .off ? (model.artworkAccentColor ?? .accentColor) : .secondary)
         .accessibilityLabel(Text("Loop mode"))
         .accessibilityValue(Text({
             switch model.loopMode {
@@ -84,11 +103,8 @@ struct BottomToolbarView: View {
                 model.setSpeed(1.0)
             }
         } label: {
-            Text(speedLabel)
-                .customFont(.headline)
-                .frame(minWidth: 44, minHeight: 44)
+            utilityTextChip(isActive: model.speed != 1.0, speedLabel)
         }
-        .foregroundStyle(model.speed != 1.0 ? (model.artworkAccentColor ?? .accentColor) : .secondary)
         .accessibilityLabel(Text("Playback speed"))
         .accessibilityValue(Text(speedLabel))
         .onChange(of: model.speed) { _, newSpeed in
@@ -96,65 +112,6 @@ struct BottomToolbarView: View {
         }
     }
 
-
-    // MARK: - Sleep Timer
-
-    private var sleepTimerMenu: some View {
-        Menu {
-            Button {
-                model.setSleepTimer(.minutes(15))
-                Haptic.play(.light)
-            } label: { Label("15 Minutes", systemImage: "15.circle") }
-            Button {
-                model.setSleepTimer(.minutes(30))
-                Haptic.play(.light)
-            } label: { Label("30 Minutes", systemImage: "30.circle") }
-            Button {
-                model.setSleepTimer(.minutes(45))
-                Haptic.play(.light)
-            } label: { Label("45 Minutes", systemImage: "45.circle") }
-            Button {
-                model.setSleepTimer(.minutes(60))
-                Haptic.play(.light)
-            } label: { Label("1 Hour", systemImage: "1.circle") }
-            Divider()
-            Button {
-                model.setSleepTimer(.endOfChapter)
-                Haptic.play(.light)
-            } label: { Label("End of Chapter", systemImage: "book.closed") }
-            if model.sleepTimerMode.isActive {
-                Divider()
-                Button(role: .destructive) {
-                    model.cancelSleepTimer()
-                    Haptic.play(.light)
-                } label: { Label("Off", systemImage: "xmark.circle") }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: model.sleepTimerMode.isActive ? "moon.zzz.fill" : "moon.zzz")
-                    .font(.title2)
-                if case .minutes = model.sleepTimerMode {
-                    SleepTimerCountdownView()
-                } else if case .endOfChapter = model.sleepTimerMode {
-                    Text("EOC")
-                        .customFont(.caption2, weight: .semibold)
-                        .foregroundStyle(model.artworkAccentColor ?? .accentColor)
-                }
-            }
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .foregroundStyle(model.sleepTimerMode.isActive ? (model.artworkAccentColor ?? .accentColor) : .secondary)
-        .accessibilityLabel(Text("Sleep Timer"))
-        .accessibilityValue(Text({
-            switch model.sleepTimerMode {
-            case .off: return String(localized: "Off")
-            case .minutes(let m):
-                return String(localized: "\(m) minutes, \(model.sleepTimerRemainingSeconds) seconds remaining")
-            case .endOfChapter: return String(localized: "End of Chapter")
-            }
-        }()))
-    }
 
     // MARK: - Timeline / View Toggle
 
@@ -172,13 +129,16 @@ struct BottomToolbarView: View {
             }
             Haptic.play(.medium)
         } label: {
-            Image(systemName: "list.bullet")
-                .font(.title2)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            utilityChip(isActive: model.selectedTab == .timeline || model.selectedTab == .read) {
+                Image(systemName: "list.bullet")
+                    .font(.title2)
+            }
         }
-        .foregroundStyle((model.selectedTab == .timeline || model.selectedTab == .read) ? (model.artworkAccentColor ?? .accentColor) : .secondary)
         .accessibilityLabel(Text("Toggle chapters list"))
+        .accessibilityValue(Text(model.selectedTab == .nowPlaying
+            ? String(localized: "Player")
+            : model.selectedTab == .timeline ? String(localized: "Timeline") : String(localized: "Reader")))
+        .accessibilityAddTraits((model.selectedTab == .timeline || model.selectedTab == .read) ? .isSelected : [])
         .disabled(model.tracks.isEmpty)
     }
 
@@ -191,12 +151,11 @@ struct BottomToolbarView: View {
                 Haptic.play(.medium)
             }
         } label: {
-            Image(systemName: "bookmark.fill")
-                .font(.title2)
-                .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+            utilityChip(isActive: false) {
+                Image(systemName: "bookmark.fill")
+                    .font(.title2)
+            }
         }
-        .foregroundStyle(.secondary)
         .accessibilityLabel(Text("Add bookmark at current time"))
         .disabled(model.tracks.isEmpty)
     }
@@ -244,18 +203,5 @@ struct BottomToolbarView: View {
         }
         .accessibilityLabel(Text("Skip forward 5 seconds"))
         .disabled(model.tracks.isEmpty)
-    }
-}
-
-private struct SleepTimerCountdownView: View {
-    @Environment(PlayerModel.self) private var model
-
-    var body: some View {
-        if model.sleepTimerRemainingSeconds > 0 {
-            Text(sleepTimerCountdownText(model.sleepTimerRemainingSeconds))
-                .customFont(.caption2, weight: .semibold)
-                .foregroundStyle(model.artworkAccentColor ?? .accentColor)
-                .monospacedDigit()
-        }
     }
 }
