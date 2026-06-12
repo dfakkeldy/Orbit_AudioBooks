@@ -31,40 +31,24 @@ struct PlayerControlBar: View {
                         }
                 }
 
-                // Metadata Details
-                VStack(alignment: .leading, spacing: 2) {
-                    MarqueeText(
-                        text: titleText,
-                        fontStyle: .subheadline,
-                        fontWeight: .semibold,
-                        appFont: settings.appFont,
-                        foregroundStyle: .primary
-                    )
-                    
-                    if model.chapters.count >= 2 && !model.currentTitle.isEmpty {
-                        Text(model.currentTitle)
-                            .customFont(.caption, weight: .regular, appFont: settings.appFont)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                // Metadata Details — single line; the chapter title carries
+                // identity here, book identity lives in the full player.
+                MarqueeText(
+                    text: titleText,
+                    fontStyle: .subheadline,
+                    fontWeight: .semibold,
+                    appFont: settings.appFont,
+                    foregroundStyle: .primary
+                )
+
+                Spacer(minLength: 4)
+
+                // Three user-configurable slots (default −30 · play · +30).
+                HStack(spacing: 2) {
+                    ForEach(Array(settings.miniPlayerPage.prefix(3).enumerated()), id: \.offset) { _, action in
+                        miniSlotButton(action)
                     }
                 }
-
-                Spacer()
-
-                // Play / Pause Button
-                Button {
-                    model.togglePlayPause()
-                    Haptic.play(.light)
-                } label: {
-                    Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel(model.isPlaying ? Text("Pause") : Text("Play"))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -73,6 +57,91 @@ struct PlayerControlBar: View {
         .accessibilityLabel(Text("Mini-player"))
         .accessibilityValue(accessibilityValueText)
         .accessibilityHint(Text("Double tap to open full player"))
+    }
+
+    @ViewBuilder
+    private func miniSlotButton(_ action: WatchAction) -> some View {
+        Button {
+            perform(action)
+        } label: {
+            Image(systemName: iconName(for: action))
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(Text(accessibilityName(for: action)))
+    }
+
+    private func iconName(for action: WatchAction) -> String {
+        switch action {
+        case .playPause: return model.isPlaying ? "pause.fill" : "play.fill"
+        case .skipBackward: return WatchAction.skipBackward.dynamicIconName(forDuration: settings.seekBackwardDuration)
+        case .skipForward: return WatchAction.skipForward.dynamicIconName(forDuration: settings.seekForwardDuration)
+        default: return action.iconName
+        }
+    }
+
+    private func perform(_ action: WatchAction) {
+        switch action {
+        case .playPause:
+            model.togglePlayPause()
+            Haptic.play(.light)
+        case .skipBackward:
+            _ = model.skipBackward30()
+            Haptic.play(.light)
+        case .skipForward:
+            _ = model.skipForward30()
+            Haptic.play(.light)
+        case .previousTrack:
+            _ = model.skipBackwardNavigation()
+            Haptic.play(.light)
+        case .nextTrack:
+            _ = model.skipForwardNavigation()
+            Haptic.play(.light)
+        case .previousSection:
+            model.previousSectionOrRestart()
+            Haptic.play(.light)
+        case .nextSection:
+            model.nextSection()
+            Haptic.play(.light)
+        case .loopMode:
+            model.cycleLoopMode()
+            Haptic.play(.medium)
+        case .bookmark:
+            if let draft = model.bookmarkDraftAtCurrentTime() {
+                model.activeBookmarkDraft = draft
+                Haptic.play(.medium)
+            }
+        case .speed:
+            let speeds = SettingsManager.Defaults.speedPresets
+            if let index = speeds.firstIndex(of: model.speed) {
+                model.setSpeed(speeds[(index + 1) % speeds.count])
+            } else {
+                model.setSpeed(1.0)
+            }
+            Haptic.play(.medium)
+        case .sleepTimer, .pomodoro, .empty:
+            break
+        }
+    }
+
+    private func accessibilityName(for action: WatchAction) -> String {
+        switch action {
+        case .playPause: return model.isPlaying ? String(localized: "Pause") : String(localized: "Play")
+        case .skipBackward: return String(localized: "Skip back \(settings.seekBackwardDuration) seconds")
+        case .skipForward: return String(localized: "Skip forward \(settings.seekForwardDuration) seconds")
+        case .previousTrack: return String(localized: "Previous chapter")
+        case .nextTrack: return String(localized: "Next chapter")
+        case .previousSection: return String(localized: "Previous section")
+        case .nextSection: return String(localized: "Next section")
+        case .loopMode: return String(localized: "Loop mode")
+        case .bookmark: return String(localized: "Add bookmark")
+        case .speed: return String(localized: "Playback speed")
+        case .sleepTimer, .pomodoro, .empty: return ""
+        }
     }
 
     private var titleText: String {
