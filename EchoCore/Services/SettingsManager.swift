@@ -46,6 +46,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let silenceDetectionLookbackSeconds = 10.0
         static let phonePage: [WatchAction] = [.previousTrack, .skipBackward, .playPause, .skipForward, .nextTrack]
         static let phoneLongPressPage: [WatchAction] = [.empty, .empty, .empty, .empty, .empty]
+        static let miniPlayerPage: [WatchAction] = [.skipBackward, .playPause, .skipForward]
         static let volumeBoostGain: Float = 9.0
         static let seekBackwardDuration = 30
         static let seekForwardDuration = 30
@@ -100,6 +101,7 @@ final class SettingsManager: SettingsManagerProtocol {
         static let silenceDetectionLookbackSeconds = "silenceDetectionLookbackSeconds"
         static let phonePage = "phonePage"
         static let phoneLongPressPage = "phoneLongPressPage"
+        static let miniPlayerPage = "miniPlayerPage"
         static let seekBackwardDuration = "seekBackwardDuration"
         static let seekForwardDuration = "seekForwardDuration"
         static let watchPresets = "watchPresets"
@@ -157,6 +159,7 @@ final class SettingsManager: SettingsManagerProtocol {
     // MARK: - Customizable Phone Controls & Presets
     var phonePage: [WatchAction] { didSet { defaults.set(try? JSONEncoder().encode(phonePage), forKey: Keys.phonePage) } }
     var phoneLongPressPage: [WatchAction] { didSet { defaults.set(try? JSONEncoder().encode(phoneLongPressPage), forKey: Keys.phoneLongPressPage) } }
+    var miniPlayerPage: [WatchAction] { didSet { defaults.set(try? JSONEncoder().encode(miniPlayerPage), forKey: Keys.miniPlayerPage) } }
     var seekBackwardDuration: Int { didSet { defaults.set(seekBackwardDuration, forKey: Keys.seekBackwardDuration) } }
     var seekForwardDuration: Int { didSet { defaults.set(seekForwardDuration, forKey: Keys.seekForwardDuration) } }
     var watchPresets: [WatchPreset] { didSet { defaults.set(try? JSONEncoder().encode(watchPresets), forKey: Keys.watchPresets) } }
@@ -335,6 +338,7 @@ final class SettingsManager: SettingsManagerProtocol {
         watchDateFormat = appGroupDefaults.string(forKey: Keys.watchDateFormat) ?? Defaults.watchDateFormat
         phonePage = Self.decodeWatchPage(key: Keys.phonePage, from: defaults, fallback: Defaults.phonePage)
         phoneLongPressPage = Self.decodeWatchPage(key: Keys.phoneLongPressPage, from: defaults, fallback: Defaults.phoneLongPressPage)
+        miniPlayerPage = Self.decodeWatchPage(key: Keys.miniPlayerPage, from: defaults, fallback: Defaults.miniPlayerPage)
         
         let storedSeekBackward = defaults.integer(forKey: Keys.seekBackwardDuration)
         seekBackwardDuration = storedSeekBackward == 0 ? Defaults.seekBackwardDuration : storedSeekBackward
@@ -393,6 +397,7 @@ final class SettingsManager: SettingsManagerProtocol {
             Keys.crownScrubSensitivity: Defaults.crownScrubSensitivity,
             Keys.phonePage: (try? JSONEncoder().encode(Defaults.phonePage)) ?? Data(),
             Keys.phoneLongPressPage: (try? JSONEncoder().encode(Defaults.phoneLongPressPage)) ?? Data(),
+            Keys.miniPlayerPage: (try? JSONEncoder().encode(Defaults.miniPlayerPage)) ?? Data(),
             Keys.seekBackwardDuration: Defaults.seekBackwardDuration,
             Keys.seekForwardDuration: Defaults.seekForwardDuration,
             Keys.playerLayoutStyle: Defaults.playerLayoutStyle,
