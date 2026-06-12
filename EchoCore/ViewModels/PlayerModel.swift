@@ -392,9 +392,7 @@ final class PlayerModel {
     var voiceMemoProgress: Double { bookmarkStore.voiceMemoProgress }
 
     /// The currently triggered inline flashcard, shown as an overlay during playback.
-    var activeInlineCard: Flashcard? = nil
     /// Whether an inline flashcard overlay is currently presented.
-    var isShowingInlineFlashcard: Bool { activeInlineCard != nil }
 
     /// Active playback session event ID for timeline logging.
     @ObservationIgnored var currentPlaybackEventID: String?
@@ -1248,26 +1246,8 @@ final class PlayerModel {
     // MARK: - Inline Flashcard wrappers
 
     /// Grades the currently shown inline flashcard and resumes playback.
-    func gradeInlineFlashcard(_ grade: Int) {
-        guard let card = activeInlineCard else { return }
-        flashcardTriggerController.gradeCard(grade, cardID: card.id)
-        activeInlineCard = nil
-        if flashcardTriggerController.wasPlayingBeforeFlashcard {
-            flashcardTriggerController.wasPlayingBeforeFlashcard = false
-            audioEngine.playImmediately(atRate: speed)
-            playbackController.applySpeedToCurrentItem()
-        }
-    }
 
     /// Dismisses the inline flashcard overlay without grading, resuming playback.
-    func dismissInlineFlashcard() {
-        activeInlineCard = nil
-        if flashcardTriggerController.wasPlayingBeforeFlashcard {
-            flashcardTriggerController.wasPlayingBeforeFlashcard = false
-            audioEngine.playImmediately(atRate: speed)
-            playbackController.applySpeedToCurrentItem()
-        }
-    }
 
     private func persistSelection(url: URL) {
         // Refresh security scope for the new selection.
