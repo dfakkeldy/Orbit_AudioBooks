@@ -14,6 +14,7 @@ struct CircularProgressPlayButton: View {
     @State private var showToast = false
     @State private var toastMessage = ""
     @State private var toastTask: Task<Void, Never>? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let currentProgress = showChapterProgress ? chapterProgress : totalProgress
@@ -46,7 +47,7 @@ struct CircularProgressPlayButton: View {
                 )
                 .frame(width: 92, height: 92)
                 .rotationEffect(.degrees(-90))
-                .animation(.smooth(duration: 0.35), value: currentProgress)
+                .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: currentProgress)
 
             // Play/Pause Hero Button
             TransportButton(
@@ -69,7 +70,7 @@ struct CircularProgressPlayButton: View {
         .onTapGesture(count: 2) {
             showChapterProgress.toggle()
             toastMessage = showChapterProgress ? String(localized: "Chapter Progress") : String(localized: "Book Progress")
-            withAnimation(.spring(duration: 0.25)) {
+            withAnimation(reduceMotion ? nil : .spring(duration: 0.25)) {
                 showToast = true
             }
             Haptic.play(.medium)
@@ -78,7 +79,7 @@ struct CircularProgressPlayButton: View {
             toastTask = Task {
                 try? await Task.sleep(for: .seconds(1.5))
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
                     showToast = false
                 }
             }

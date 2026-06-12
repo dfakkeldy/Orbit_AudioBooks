@@ -71,22 +71,24 @@ struct BookOverridesSections: View {
                 }
             }
             .disabled(isUploading)
+            // Presentation modifiers belong on a plain row view, not the
+            // Section, so both Form homes present the alert reliably.
+            .alert(uploadAlert?.title ?? "", isPresented: Binding(
+                get: { uploadAlert != nil },
+                set: { if !$0 { uploadAlert = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                if let message = uploadAlert?.message {
+                    Text(message)
+                }
+            }
         } header: {
             if let headerTitle {
                 Text(headerTitle)
             }
         } footer: {
             Text("Overrides apply to this book only. \u{201C}Inherit\u{201D} follows the global setting.")
-        }
-        .alert(uploadAlert?.title ?? "", isPresented: Binding(
-            get: { uploadAlert != nil },
-            set: { if !$0 { uploadAlert = nil } }
-        )) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            if let message = uploadAlert?.message {
-                Text(message)
-            }
         }
     }
 
