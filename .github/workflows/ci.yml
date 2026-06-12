@@ -35,7 +35,7 @@ jobs:
           xcodebuild build-for-testing \
             -project Echo.xcodeproj \
             -scheme Echo \
-            -destination "generic/platform=iOS" \
+            -destination "generic/platform=iOS Simulator" \
             -quiet
 
       - name: Build watchOS
