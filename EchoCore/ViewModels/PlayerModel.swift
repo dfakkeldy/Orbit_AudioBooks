@@ -182,6 +182,7 @@ final class PlayerModel {
     var progressFraction: Double { state.progressFraction }
     var progressText: String { state.progressText }
     var elapsedText: String { state.elapsedText }
+    var durationText: String { state.durationText }
     var durationSeconds: Double? { state.durationSeconds }
     var currentPlaybackTime: TimeInterval { audioEngine.currentTime }
     var thumbnailImage: UIImage? { state.thumbnailImage }
@@ -913,25 +914,15 @@ final class PlayerModel {
     private func smartRewindAmount(for pausedDuration: TimeInterval) -> Double {
         let settings = settingsManager
 
-        let secondsThreshold = settings?.rewindPauseSecondsThreshold ?? SettingsManager.Defaults.rewindPauseSecondsThreshold
-        let secondsAmount = settings?.rewindAmountAfterSeconds ?? SettingsManager.Defaults.rewindAmountAfterSeconds
-
-        let minutesThreshold = settings?.rewindPauseMinutesThreshold ?? SettingsManager.Defaults.rewindPauseMinutesThreshold
-        let minutesAmount = settings?.rewindAmountAfterMinutes ?? SettingsManager.Defaults.rewindAmountAfterMinutes
-
-        let hoursThreshold = settings?.rewindPauseHoursThreshold ?? SettingsManager.Defaults.rewindPauseHoursThreshold
-        let hoursAmount = settings?.rewindAmountAfterHours ?? SettingsManager.Defaults.rewindAmountAfterHours
-
-        var rewindAmount = 0
-        if pausedDuration >= Double(secondsThreshold) {
-            rewindAmount = secondsAmount
-        }
-        if pausedDuration >= Double(minutesThreshold * 60) {
-            rewindAmount = minutesAmount
-        }
-        if pausedDuration >= Double(hoursThreshold * 3600) {
-            rewindAmount = hoursAmount
-        }
+        let policy = SmartRewindPolicy(
+            secondsThreshold: settings?.rewindPauseSecondsThreshold ?? SettingsManager.Defaults.rewindPauseSecondsThreshold,
+            secondsAmount: settings?.rewindAmountAfterSeconds ?? SettingsManager.Defaults.rewindAmountAfterSeconds,
+            minutesThreshold: settings?.rewindPauseMinutesThreshold ?? SettingsManager.Defaults.rewindPauseMinutesThreshold,
+            minutesAmount: settings?.rewindAmountAfterMinutes ?? SettingsManager.Defaults.rewindAmountAfterMinutes,
+            hoursThreshold: settings?.rewindPauseHoursThreshold ?? SettingsManager.Defaults.rewindPauseHoursThreshold,
+            hoursAmount: settings?.rewindAmountAfterHours ?? SettingsManager.Defaults.rewindAmountAfterHours
+        )
+        var rewindAmount = policy.rewindAmount(forPausedDuration: pausedDuration)
 
         // Backward compatibility with previous single-level rewind settings.
         if rewindAmount == 0 {
