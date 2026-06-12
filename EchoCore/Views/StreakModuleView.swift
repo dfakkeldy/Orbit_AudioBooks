@@ -1,23 +1,24 @@
 import SwiftUI
 
-/// Today's total listening time, queried from playback_event via StatsRepository.
-struct StatsModuleView: View {
+/// Current listening streak from playback_event active days.
+struct StreakModuleView: View {
     @Environment(PlayerModel.self) private var model
     @ScaledMetric(relativeTo: .body) private var cardWidth: CGFloat = 140
-    @State private var todayDuration: TimeInterval = 0
+    @State private var currentStreak: Int = 0
+    @State private var longestStreak: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label("Today", systemImage: "clock")
+            Label("Streak", systemImage: "flame")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if todayDuration > 0 {
-                Text(formatDuration(todayDuration))
+            if currentStreak > 0 {
+                Text("\(currentStreak) day\(currentStreak == 1 ? "" : "s")")
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundStyle(.green)
-                Text("listened")
+                    .foregroundStyle(.orange)
+                Text("Best: \(longestStreak) day\(longestStreak == 1 ? "" : "s")")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else {
@@ -25,31 +26,25 @@ struct StatsModuleView: View {
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(.secondary)
-                Text("No listening yet")
+                Text("Start listening")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(12)
         .frame(width: cardWidth)
-        .background(.green.opacity(0.06))
+        .background(.orange.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .task { await loadToday() }
+        .task { await load() }
     }
 
-    private func loadToday() async {
+    private func load() async {
         guard let db = model.databaseService else { return }
         do {
             let repo = StatsRepository(reader: db.writer)
             let overview = try await repo.fetchOverview()
-            todayDuration = overview.todayDuration
+            currentStreak = overview.streak.currentStreakDays
+            longestStreak = overview.streak.longestStreakDays
         } catch { }
-    }
-
-    private func formatDuration(_ interval: TimeInterval) -> String {
-        let hours = Int(interval) / 3600
-        let minutes = (Int(interval) % 3600) / 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
     }
 }

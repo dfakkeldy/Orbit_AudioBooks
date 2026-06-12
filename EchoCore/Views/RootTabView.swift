@@ -62,6 +62,10 @@ struct RootTabView: View {
                             onEditBookmark: { id in editingBookmarkID = id },
                             onCreateBookmark: { draft in newBookmarkDraft = draft }
                         )
+                    case .stats:
+                        NavigationStack {
+                            StatsView()
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
