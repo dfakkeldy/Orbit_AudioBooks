@@ -268,11 +268,11 @@ enum EPUBAutoImportScanner {
 
         // Copy the EPUB into the cache directory so Archive opens a local file
         // rather than a file-provider-managed one. This avoids permission issues
-        // with File Provider Storage paths.
-        let cachedEPUB = cacheDir.appendingPathComponent("\(safeID).epub")
-        if FileManager.default.fileExists(atPath: cachedEPUB.path) {
-            try FileManager.default.removeItem(at: cachedEPUB)
-        }
+        // with File Provider Storage paths. The copy is uniquely named and
+        // removed after extraction — a shared name raced when two imports ran
+        // concurrently (remove/copy interleaving truncated the archive).
+        let cachedEPUB = cacheDir.appendingPathComponent("\(safeID)_\(UUID().uuidString).epub")
+        defer { try? FileManager.default.removeItem(at: cachedEPUB) }
         do {
             let started = epubURL.startAccessingSecurityScopedResource()
             defer { if started { epubURL.stopAccessingSecurityScopedResource() } }
