@@ -15,14 +15,6 @@ extension PlayerModel: PlaybackControllerDelegate {
             if resolvedPlayBookmarksInline,
                currentTime.isFinite {
                 checkVoiceMemoTrigger(at: currentTime, previousSeconds: lastBookmarkCheckSecond)
-                if let card = flashcardTriggerController.checkTrigger(
-                    at: currentTime,
-                    previousSeconds: lastBookmarkCheckSecond,
-                    hasActiveCard: activeInlineCard != nil
-                ) {
-                    audioEngine.pause()
-                    activeInlineCard = card
-                }
                 lastBookmarkCheckSecond = currentTime
             }
         }
