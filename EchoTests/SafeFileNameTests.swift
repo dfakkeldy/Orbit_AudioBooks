@@ -39,4 +39,25 @@ final class SafeFileNameTests: XCTestCase {
         let result = SafeFileName.fromAudiobookID("my-book_v1.0")
         XCTAssertEqual(result, "my-book_v1.0")
     }
+
+    /// Audiobook IDs are file URLs whose *unique* part (the book folder) comes
+    /// last. Two long IDs sharing a 128-scalar prefix must still map to
+    /// distinct names, or their caches and image assets collide on disk.
+    func testLongIDsDifferingOnlyInTruncatedTailStayDistinct() {
+        let sharedPrefix = "file:///Users/test/Library/Mobile Documents/com~apple~CloudDocs/"
+            + String(repeating: "Audiobooks/", count: 12)
+        let bookA = SafeFileName.fromAudiobookID(sharedPrefix + "Author/Book One/")
+        let bookB = SafeFileName.fromAudiobookID(sharedPrefix + "Author/Book Two/")
+
+        XCTAssertNotEqual(bookA, bookB)
+        XCTAssertLessThanOrEqual(bookA.count, 128)
+        XCTAssertLessThanOrEqual(bookB.count, 128)
+    }
+
+    /// The long-ID mapping must be stable across calls and launches (no
+    /// process-seeded hashing) — derived cache paths are recomputed later.
+    func testLongIDMappingIsDeterministic() {
+        let long = "file:///" + String(repeating: "deep/path/", count: 30) + "Book/"
+        XCTAssertEqual(SafeFileName.fromAudiobookID(long), SafeFileName.fromAudiobookID(long))
+    }
 }

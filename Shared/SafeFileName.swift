@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Sanitizes audiobook identifiers into filesystem-safe names.
@@ -15,8 +16,21 @@ enum SafeFileName {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
         let filtered = cleaned.unicodeScalars.filter { allowed.contains($0) }
         let scalarLimit = 128
-        let trimmed = String(filtered.prefix(scalarLimit))
-        guard !trimmed.isEmpty else { return "unknown" }
-        return trimmed
+
+        guard !filtered.isEmpty else { return "unknown" }
+        if filtered.count <= scalarLimit {
+            return String(filtered)
+        }
+
+        // Audiobook IDs are file URLs whose unique part (the book folder)
+        // comes *last*, so plain truncation collapses distinct books onto one
+        // name — colliding their caches and image-asset directories. Keep a
+        // readable prefix and append a stable digest of the full ID.
+        // (SHA-256, not `Hasher` — derived paths are recomputed across
+        // launches and `Hasher` is per-process seeded.)
+        let digest = SHA256.hash(data: Data(id.utf8))
+        let suffix = digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+        let prefix = String(filtered.prefix(scalarLimit - suffix.count - 1))
+        return "\(prefix)-\(suffix)"
     }
 }
