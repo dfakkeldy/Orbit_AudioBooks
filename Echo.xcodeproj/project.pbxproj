@@ -708,7 +708,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
-				OTHER_SWIFT_FLAGS = "$(inherited) -enable-experimental-feature IsolatedDeinit";
 			};
 			name = Debug;
 		};
@@ -753,7 +752,6 @@
 				SWIFT_VERSION = 5.0;
 				VALIDATE_PRODUCT = YES;
 				VERSIONING_SYSTEM = "apple-generic";
-				OTHER_SWIFT_FLAGS = "$(inherited) -enable-experimental-feature IsolatedDeinit";
 			};
 			name = Release;
 		};
