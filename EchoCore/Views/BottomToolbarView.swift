@@ -124,6 +124,8 @@ struct BottomToolbarView: View {
                 case .timeline:
                     model.selectedTab = .read
                 case .read:
+                    model.selectedTab = .stats
+                case .stats:
                     model.selectedTab = .timeline
                 }
             }
