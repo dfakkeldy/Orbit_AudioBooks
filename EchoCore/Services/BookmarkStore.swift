@@ -139,6 +139,16 @@ final class BookmarkStore: BookmarkStoreProtocol {
         postBookmarksDidChange()
     }
 
+    /// Updates location fields on an existing bookmark (fire-and-forget from LocationCaptureService).
+    func updateLocation(id: UUID, latitude: Double, longitude: Double, placeName: String?) {
+        guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
+        bookmarks[idx].latitude = latitude
+        bookmarks[idx].longitude = longitude
+        bookmarks[idx].placeName = placeName
+        onPersist?(bookmarks)
+        // Don't fire postBookmarksDidChange — avoid spurious UI updates for background location
+    }
+
     func toggleBookmarkEnabled(id: UUID) {
         guard let idx = bookmarks.firstIndex(where: { $0.id == id }) else { return }
         bookmarks[idx].isEnabled.toggle()

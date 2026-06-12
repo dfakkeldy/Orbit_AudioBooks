@@ -2,13 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ATSApplicationFontsPath</key>
+	<string>Fonts/</string>
 	<key>CFBundleDisplayName</key>
 	<string>Echo: Learn Audiobooks</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.books</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
-	<key>ATSApplicationFontsPath</key>
-	<string>Fonts/</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Echo remembers where you listen so you can revisit the context. Location is opt-in, reduced accuracy, on-device only, and deletable at any time.</string>
 </dict>
 </plist>
