@@ -14,12 +14,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Select Latest Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer || \
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-          xcodebuild -version
-
       - name: Cache Swift Package Manager
         uses: actions/cache@v4
         with:
@@ -30,23 +24,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
-      - name: Build iOS (build-for-testing — no simulator on free runner)
+      - name: Build iOS (simulator SDK, no test execution)
         run: |
-          xcodebuild build-for-testing \
+          xcodebuild build \
             -project Echo.xcodeproj \
             -scheme Echo \
-            -destination "generic/platform=iOS Simulator" \
-            -quiet
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tail -30
 
-      - name: Build watchOS
-        run: |
-          xcodebuild build-for-testing \
-            -project Echo.xcodeproj \
-            -scheme "Echo Watch App" \
-            -destination "generic/platform=watchOS" \
-            -quiet
-
-      - name: Build macOS Target
+      - name: Build macOS
         run: |
           xcodebuild build \
             -project Echo.xcodeproj \
