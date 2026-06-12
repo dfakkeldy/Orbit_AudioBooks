@@ -16,6 +16,9 @@ struct BookmarkRecord: Codable, FetchableRecord, MutablePersistableRecord {
     var isEnabled: Bool
     var playlistPosition: Double?
     var pdfViewStateJSON: String?
+    var latitude: Double?
+    var longitude: Double?
+    var placeName: String?
     var createdAt: String
     var modifiedAt: String
 
@@ -33,6 +36,9 @@ struct BookmarkRecord: Codable, FetchableRecord, MutablePersistableRecord {
         case isEnabled = "is_enabled"
         case playlistPosition = "playlist_position"
         case pdfViewStateJSON = "pdf_view_state_json"
+        case latitude
+        case longitude
+        case placeName = "place_name"
         case createdAt = "created_at"
         case modifiedAt = "modified_at"
     }
@@ -53,6 +59,9 @@ extension BookmarkRecord {
         self.imagePath = model.bookmarkImageFileName
         self.isEnabled = model.isEnabled
         self.playlistPosition = nil
+        self.latitude = model.latitude
+        self.longitude = model.longitude
+        self.placeName = model.placeName
         self.pdfViewStateJSON = {
             if let state = model.pdfViewState {
                 return String(data: try! JSONEncoder().encode(state), encoding: .utf8)
@@ -77,7 +86,10 @@ extension BookmarkRecord {
             pdfViewState: pdfViewStateJSON.flatMap { json in
                 try? JSONDecoder().decode(PDFViewState.self, from: Data(json.utf8))
             },
-            isEnabled: isEnabled
+            isEnabled: isEnabled,
+            latitude: latitude,
+            longitude: longitude,
+            placeName: placeName
         )
     }
 }

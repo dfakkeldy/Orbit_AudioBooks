@@ -81,6 +81,10 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
     /// Whether this bookmark is active. Disabled bookmarks are ignored by the
     /// voice-memo trigger, but remain visible (grayed out) in the playlist.
     var isEnabled: Bool = true
+    /// Context-dependent memory: coarse location at creation time (opt-in; nil when disabled).
+    var latitude: Double?
+    var longitude: Double?
+    var placeName: String?
 
     init(
         id: UUID = UUID(),
@@ -92,7 +96,10 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
         voiceMemoFileName: String? = nil,
         bookmarkImageFileName: String? = nil,
         pdfViewState: PDFViewState? = nil,
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        placeName: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -104,11 +111,14 @@ struct Bookmark: Identifiable, Codable, Equatable, Hashable {
         self.bookmarkImageFileName = bookmarkImageFileName
         self.pdfViewState = pdfViewState
         self.isEnabled = isEnabled
+        self.latitude = latitude
+        self.longitude = longitude
+        self.placeName = placeName
     }
 
     /// Backward-compat decoder so older Bookmarks (without `title`) still load.
     enum CodingKeys: String, CodingKey {
-        case id, title, folderKey, trackId, timestamp, note, voiceMemoFileName, bookmarkImageFileName, pdfViewState, isEnabled
+        case id, title, folderKey, trackId, timestamp, note, voiceMemoFileName, bookmarkImageFileName, pdfViewState, isEnabled, latitude, longitude, placeName
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)

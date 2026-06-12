@@ -27,6 +27,9 @@ final class PlayerModel {
     /// timeline UI; this one feeds Stats. Nil when the database is unavailable.
     @ObservationIgnored private(set) var sessionRecorder: PlaybackSessionRecorder?
 
+    /// Opt-in context-dependent memory: coarse location capture for sessions, bookmarks, and chapter starts.
+    @ObservationIgnored let locationCapture = LocationCaptureService()
+
     var audioEngine: AudioEngine { playbackController.audioEngine }
     @ObservationIgnored weak var settingsManager: SettingsManager?
     let bookSettingsOverrideStore = BookSettingsOverrideStore()

@@ -43,6 +43,7 @@ extension PlayerModel {
         let bookmark = bookmarkStore.addBookmark(at: t, trackId: trackId, folderKey: folderURL?.absoluteString)
         logRealTimeEvent(type: .bookmarkCreated, title: bookmark.title, timestamp: t,
                          sourceItemID: bookmark.id.uuidString, sourceItemType: "bookmark")
+        captureLocationForBookmark(bookmark.id)
         return bookmark
     }
 
@@ -77,7 +78,27 @@ extension PlayerModel {
         )
         logRealTimeEvent(type: .bookmarkCreated, title: title, timestamp: timestamp,
                          sourceItemID: bookmark.id.uuidString, sourceItemType: "bookmark")
+        captureLocationForBookmark(bookmark.id)
         return bookmark
+    }
+
+    /// Fire-and-forget location capture for a bookmark that was just created.
+    /// Never blocks the user action — location arrives asynchronously and updates the bookmark in-place.
+    private func captureLocationForBookmark(_ bookmarkID: UUID) {
+        guard databaseService != nil, settingsManager?.locationCaptureEnabled ?? false else { return }
+        let capture = locationCapture
+        let store = bookmarkStore
+        Task {
+            guard let place = await capture.capture() else { return }
+            await MainActor.run {
+                store.updateLocation(
+                    id: bookmarkID,
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                    placeName: place.placeName
+                )
+            }
+        }
     }
 
     /// Updates an existing bookmark's metadata and re-persists the list.
