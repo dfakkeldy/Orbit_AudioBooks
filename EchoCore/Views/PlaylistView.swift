@@ -10,12 +10,14 @@ struct IdentifiableUUID: Identifiable, Hashable {
 /// A unified row in the playlist that mixes chapters, tracks, and bookmarks
 /// in chronological order.
 enum PlaylistRow: Identifiable {
+    case partHeader(title: String, key: Int)
     case chapter(index: Int, chapter: Chapter, displayTitle: String)
     case track(index: Int, track: Track)
     case bookmark(Bookmark)
 
     var id: String {
         switch self {
+        case .partHeader(let t, let key): return "part-\(key)-\(t)"
         case .chapter(_, let c, _): return "chapter-\(c.id)"
         case .track(_, let t):   return "track-\(t.id)"
         case .bookmark(let b):   return "bookmark-\(b.id.uuidString)"
@@ -24,6 +26,7 @@ enum PlaylistRow: Identifiable {
 
     var sortKey: Double {
         switch self {
+        case .partHeader: return -.infinity // emitted in order, never sorted
         case .chapter(_, let c, _): return c.startSeconds
         case .track(let i, _):   return Double(i) // track ordering
         case .bookmark(let b):   return b.timestamp
@@ -44,6 +47,7 @@ struct PlaylistView: View {
     var onZoomIn: (() -> Void)? = nil
 
     @State private var cachedPlaylistRows: [PlaylistRow] = []
+    @State private var searchText = ""
     @State private var hasEPUB = false
     @State private var hasPDF = false
     @State private var hasTranscript = false
@@ -183,26 +187,36 @@ struct PlaylistView: View {
                 }
                 
                 let hierarchicalTitles = computeHierarchicalTitles(for: model.chapters)
-                
-                for (index, chapter) in model.chapters.enumerated() {
-                    let displayTitle = hierarchicalTitles[index]
-                    rows.append(.chapter(index: index, chapter: chapter, displayTitle: displayTitle))
-                    
-                    if model.showBookmarks {
-                        let chapterBookmarks = model.bookmarks
-                            .filter { $0.timestamp >= chapter.startSeconds && $0.timestamp < chapter.endSeconds }
-                            .sorted { $0.timestamp < $1.timestamp }
-                        for bookmark in chapterBookmarks {
-                            rows.append(.bookmark(bookmark))
+
+                // Audit C2: shared part prefixes become section headers; rows
+                // keep just the chapter's own title.
+                let groups = ChapterPartGrouper.group(displayTitles: hierarchicalTitles)
+                var chapterIndex = 0
+                for (groupIndex, group) in groups.enumerated() {
+                    if let header = group.header {
+                        rows.append(.partHeader(title: header, key: groupIndex))
+                    }
+                    for rowTitle in group.rowTitles {
+                        let chapter = model.chapters[chapterIndex]
+                        rows.append(.chapter(index: chapterIndex, chapter: chapter, displayTitle: rowTitle))
+
+                        if model.showBookmarks {
+                            let chapterBookmarks = model.bookmarks
+                                .filter { $0.timestamp >= chapter.startSeconds && $0.timestamp < chapter.endSeconds }
+                                .sorted { $0.timestamp < $1.timestamp }
+                            for bookmark in chapterBookmarks {
+                                rows.append(.bookmark(bookmark))
+                            }
                         }
+                        chapterIndex += 1
                     }
                 }
-                return rows
+                return filteredBySearch(rows)
             } else if model.showBookmarks {
                 // If only bookmarks are shown, display them chronologically
-                return model.bookmarks
+                return filteredBySearch(model.bookmarks
                     .sorted { $0.timestamp < $1.timestamp }
-                    .map { .bookmark($0) }
+                    .map { .bookmark($0) })
             } else {
                 return []
             }
@@ -221,8 +235,41 @@ struct PlaylistView: View {
                     }
                 }
             }
-            return rows
+            return filteredBySearch(rows)
         }
+    }
+
+    /// Filters rows by the inline search field; part headers survive only if
+    /// at least one of their rows does. (Inline field instead of `.searchable`
+    /// because the app hides the system navigation bar.)
+    private func filteredBySearch(_ rows: [PlaylistRow]) -> [PlaylistRow] {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return rows }
+
+        var result: [PlaylistRow] = []
+        var pendingHeader: PlaylistRow? = nil
+        for row in rows {
+            switch row {
+            case .partHeader:
+                pendingHeader = row
+            case .chapter(_, _, let displayTitle):
+                if displayTitle.localizedStandardContains(query) {
+                    if let header = pendingHeader { result.append(header); pendingHeader = nil }
+                    result.append(row)
+                }
+            case .track(_, let track):
+                if track.title.localizedStandardContains(query) {
+                    result.append(row)
+                }
+            case .bookmark(let bm):
+                let title = bm.title.isEmpty ? String(localized: "Bookmark") : bm.title
+                if title.localizedStandardContains(query) {
+                    if let header = pendingHeader { result.append(header); pendingHeader = nil }
+                    result.append(row)
+                }
+            }
+        }
+        return result
     }
 
     /// Bookmarks displayed during edit mode, sorted by timestamp.
@@ -261,6 +308,15 @@ struct PlaylistView: View {
                 List {
                     ForEach(cachedPlaylistRows) { row in
                         switch row {
+                        case .partHeader(let title, _):
+                            Text(title)
+                                .customFont(.caption, weight: .semibold, appFont: model.resolvedAppFont)
+                                .textCase(.uppercase)
+                                .kerning(0.8)
+                                .foregroundStyle(.secondary)
+                                .listRowSeparator(.hidden)
+                                .padding(.top, 12)
+                                .accessibilityAddTraits(.isHeader)
                         case .chapter(let index, let chapter, let displayTitle):
                             chapterRow(index: index, chapter: chapter, displayTitle: displayTitle)
                         case .track(let index, let track):
@@ -319,6 +375,7 @@ struct PlaylistView: View {
         .onChange(of: model.bookmarks) { _, _ in cachedPlaylistRows = recomputePlaylistRows() }
         .onChange(of: model.showChapters) { _, _ in cachedPlaylistRows = recomputePlaylistRows() }
         .onChange(of: model.showBookmarks) { _, _ in cachedPlaylistRows = recomputePlaylistRows() }
+        .onChange(of: searchText) { _, _ in cachedPlaylistRows = recomputePlaylistRows() }
         .onReceive(NotificationCenter.default.publisher(for: .timelineItemsIngested)) { notification in
             guard let ingestedID = notification.userInfo?["audiobookID"] as? String,
                   let audiobookID = model.folderURL?.absoluteString,
@@ -330,21 +387,41 @@ struct PlaylistView: View {
         }
     }
 
+    /// Audit C3: a self-describing segmented control instead of ambiguous
+    /// glyph chips. "All" preserves the interleaved chapters+bookmarks view.
+    private enum PlaylistFilter: Hashable { case all, chapters, bookmarks }
+
+    private var filterSelection: Binding<PlaylistFilter> {
+        Binding(
+            get: {
+                switch (model.showChapters, model.showBookmarks) {
+                case (true, false): return .chapters
+                case (false, true): return .bookmarks
+                default: return .all
+                }
+            },
+            set: { newValue in
+                switch newValue {
+                case .all: model.showChapters = true; model.showBookmarks = true
+                case .chapters: model.showChapters = true; model.showBookmarks = false
+                case .bookmarks: model.showChapters = false; model.showBookmarks = true
+                }
+            }
+        )
+    }
+
     @ViewBuilder
     private var filterChipsRow: some View {
         @Bindable var model = model
+        VStack(spacing: 8) {
         HStack(spacing: 12) {
-            Toggle(isOn: $model.showChapters) {
-                Image(systemName: model.showChapters ? (model.chapters.count >= 2 ? "book.fill" : "music.note") : (model.chapters.count >= 2 ? "book" : "music.note"))
+            Picker("Show", selection: filterSelection) {
+                Text("All").tag(PlaylistFilter.all)
+                Text(model.chapters.count >= 2 ? "Chapters" : "Tracks").tag(PlaylistFilter.chapters)
+                Text("Bookmarks").tag(PlaylistFilter.bookmarks)
             }
-            .toggleStyle(.button)
-            .accessibilityLabel(model.chapters.count >= 2 ? String(localized: "Chapters") : String(localized: "Tracks"))
-            
-            Toggle(isOn: $model.showBookmarks) {
-                Image(systemName: model.showBookmarks ? "bookmark.fill" : "bookmark")
-            }
-            .toggleStyle(.button)
-            .accessibilityLabel(String(localized: "Bookmarks"))
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 280)
 
             if isEmbedded && (model.chapters.count >= 2 || model.tracks.count > 1) {
                 Button {
@@ -389,6 +466,30 @@ struct PlaylistView: View {
             }
         }
         .padding(.horizontal, 16)
+
+        // Inline search field (stands in for `.searchable`, which needs the
+        // hidden system navigation bar to render).
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search chapters & bookmarks", text: $searchText)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel(Text("Clear search"))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 16)
+        }
         .padding(.vertical, 8)
     }
 
@@ -413,21 +514,18 @@ struct PlaylistView: View {
     @ViewBuilder
     private func chapterRowContent(index: Int, chapter: Chapter, displayTitle: String) -> some View {
         HStack {
+            // Audit C1 (inverted on purpose): the whole row toggles the chapter
+            // — an accidental toggle is harmless and instantly visible; an
+            // accidental play loses your place. Playback lives in the trailing
+            // 44pt button.
             Button {
                 model.toggleChapterEnabled(at: index)
-            } label: {
-                Image(systemName: chapter.isEnabled ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(chapter.isEnabled ? Color.accentColor : Color.secondary)
-                    .frame(width: 22)
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(.isButton)
-            
-            Button {
-                model.seek(toSeconds: chapter.startSeconds + 0.05)
-                onRowTapped?(chapter.startSeconds)
+                Haptic.play(.rigid)
             } label: {
                 HStack {
+                    Image(systemName: chapter.isEnabled ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(chapter.isEnabled ? Color.accentColor : Color.secondary)
+                        .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(displayTitle)
                             .foregroundStyle(.primary)
@@ -437,14 +535,31 @@ struct PlaylistView: View {
                     }
                     Spacer()
                     if model.currentChapterIndex == index {
-                        Image(systemName: "play.circle.fill")
+                        Image(systemName: "waveform")
                             .foregroundStyle(.tint)
+                            .accessibilityLabel(Text("Now playing"))
                     }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text(displayTitle))
+            .accessibilityValue(Text(chapter.isEnabled ? String(localized: "Enabled") : String(localized: "Disabled")))
+            .accessibilityHint(Text("Double tap to toggle this chapter"))
+
+            Button {
+                model.seek(toSeconds: chapter.startSeconds + 0.05)
+                onRowTapped?(chapter.startSeconds)
+                Haptic.play(.light)
+            } label: {
+                Image(systemName: "play.circle")
+                    .font(.title2)
+                    .foregroundStyle(model.artworkAccentColor ?? .accentColor)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Play \(displayTitle)"))
         }
         .foregroundStyle(chapter.isEnabled ? .primary : .tertiary)
         .opacity(chapter.isEnabled ? 1.0 : 0.35)
@@ -500,32 +615,44 @@ struct PlaylistView: View {
     @ViewBuilder
     private func trackRow(index: Int, track: Track) -> some View {
         HStack {
+            // Same inversion as chapter rows (audit C1): row toggles, trailing
+            // button plays.
             Button {
                 model.toggleTrackEnabled(at: index)
-            } label: {
-                Image(systemName: track.isEnabled ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(track.isEnabled ? Color.accentColor : Color.secondary)
-                    .frame(width: 22)
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(.isButton)
-
-            Button {
-                model.skipToTrack(index)
-                onRowTapped?(0)
+                Haptic.play(.rigid)
             } label: {
                 HStack {
+                    Image(systemName: track.isEnabled ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(track.isEnabled ? Color.accentColor : Color.secondary)
+                        .frame(width: 22)
                     Text(track.title)
                     Spacer()
                     if model.currentIndex == index {
-                        Image(systemName: "play.circle.fill")
+                        Image(systemName: "waveform")
                             .foregroundStyle(.tint)
+                            .accessibilityLabel(Text("Now playing"))
                     }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text(track.title))
+            .accessibilityValue(Text(track.isEnabled ? String(localized: "Enabled") : String(localized: "Disabled")))
+            .accessibilityHint(Text("Double tap to toggle this track"))
+
+            Button {
+                model.skipToTrack(index)
+                onRowTapped?(0)
+                Haptic.play(.light)
+            } label: {
+                Image(systemName: "play.circle")
+                    .font(.title2)
+                    .foregroundStyle(model.artworkAccentColor ?? .accentColor)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Play \(track.title)"))
         }
         .foregroundStyle(track.isEnabled ? .primary : .tertiary)
         .opacity(track.isEnabled ? 1.0 : 0.35)
