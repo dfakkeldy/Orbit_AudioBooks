@@ -106,8 +106,23 @@ struct NowPlayingTab: View {
     }
 
     private var metadataArea: some View {
-        VStack(spacing: 4) {
-            // Primary Line: Chapter Title marquee (smooth scrolling)
+        VStack(spacing: 5) {
+            // Eyebrow: book + author in small caps, tappable → book info (audit B4)
+            Button(action: showBookSettings) {
+                Text(secondaryLineText)
+                    .customFont(.caption, weight: .semibold, appFont: model.resolvedAppFont)
+                    .textCase(.uppercase)
+                    .kerning(1.1)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.folderURL == nil)
+            .accessibilityLabel(Text("Book info"))
+            .accessibilityValue(Text(secondaryLineText))
+
+            // Hero line: chapter title marquee — almost never truncates now
             MarqueeText(
                 text: titleText,
                 fontStyle: .title3,
@@ -116,13 +131,6 @@ struct NowPlayingTab: View {
                 foregroundStyle: .primary
             )
             .frame(maxWidth: .infinity, alignment: .center)
-
-            // Secondary Line: Book Title / Author
-            Text(secondaryLineText)
-                .customFont(.subheadline, appFont: model.resolvedAppFont)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
