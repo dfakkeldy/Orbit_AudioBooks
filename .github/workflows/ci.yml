@@ -25,15 +25,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Pin the toolchain to Xcode 26.x so CI compiles against the same SDK the
+      # project is developed and shipped with (the maintainer's machine runs
+      # Xcode 26 / iOS 26 SDK). The macos-15 runner installs several Xcodes but
+      # DEFAULTS to 16.4 (iOS 18 / watchOS 11.5 SDK), whose AVFoundation lacks
+      # 26-era symbols such as `AVAudioSession.CategoryOptions.allowBluetoothHFP`
+      # — so a tree that builds locally fails the gate here. Building with the
+      # newest SDK and deploying down to the iOS 18 / watchOS 11 floor is the
+      # standard arrangement. '26' resolves to the newest installed 26.x
+      # (resilient to runner-image updates) without ever jumping to a future major.
+      - name: Select Xcode 26
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26'
+
       - name: Cache Swift Package Manager
         uses: actions/cache@v4
         with:
           path: |
             ~/Library/Caches/org.swift.swiftpm
             ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved', 'Echo.xcodeproj/project.pbxproj') }}
+          # Namespaced by toolchain: DerivedData and module caches are not portable
+          # across Xcode major versions, so a cache saved by an earlier 16.4 run
+          # must not be restored into a 26.x build.
+          key: ${{ runner.os }}-xcode26-spm-${{ hashFiles('**/Package.resolved', 'Echo.xcodeproj/project.pbxproj') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-xcode26-spm-
 
       - name: Diagnostics
         run: |
