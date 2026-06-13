@@ -68,9 +68,13 @@ final class AudioEngine {
 
     // MARK: - WS-4 Subsystems
 
-    nonisolated(unsafe) var soundscapeMixer: SoundscapePlaying?
-    nonisolated(unsafe) var chimePlayer: ChimeScheduling?
-    nonisolated(unsafe) var visualizerTap: VisualizerDataProviding?
+    // Assigned at engine configuration and accessed only on the main actor
+    // (teardown here, plus the settings/visualizer views), so these need no
+    // isolation annotation — the prior `nonisolated(unsafe)` had no effect and
+    // would have suppressed the observation the views rely on (audit §3.4).
+    var soundscapeMixer: SoundscapePlaying?
+    var chimePlayer: ChimeScheduling?
+    var visualizerTap: VisualizerDataProviding?
 
     // MARK: - Time Tracking
 
