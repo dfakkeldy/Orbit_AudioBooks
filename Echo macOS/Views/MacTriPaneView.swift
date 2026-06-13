@@ -33,6 +33,13 @@ struct MacTriPaneView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 300, max: 500)
         }
         .navigationSplitViewStyle(.balanced)
+        .onReceive(NotificationCenter.default.publisher(for: .requestToggleDetailPane)) { _ in
+            withAnimation {
+                columnVisibility = columnVisibility == .detailOnly
+                    ? .all
+                    : (columnVisibility == .all ? .detailOnly : .all)
+            }
+        }
     }
 
     // MARK: - Player Bar

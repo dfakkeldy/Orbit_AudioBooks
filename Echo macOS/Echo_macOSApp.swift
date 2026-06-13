@@ -40,14 +40,28 @@ struct Echo_macOSApp: App {
                     player.requestOpenFile()
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Divider()
+
+                Button("Export Transcript…") {
+                    NotificationCenter.default.post(name: .requestExportTranscript, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             }
 
             CommandGroup(replacing: .textEditing) {
                 Button("Find in Book") {
-                    NSApp.sendAction(Selector(("focusSearch:")), to: nil, from: nil)
+                    NotificationCenter.default.post(name: .requestFocusSearch, object: nil)
                 }
                 .keyboardShortcut("f", modifiers: [.command])
                 .disabled(!player.hasMedia)
+            }
+
+            CommandMenu("View") {
+                Button("Toggle Notes Pane") {
+                    NotificationCenter.default.post(name: .requestToggleDetailPane, object: nil)
+                }
+                .keyboardShortcut("t", modifiers: [.command])
             }
 
             CommandMenu("Playback") {
@@ -107,6 +121,12 @@ struct Echo_macOSApp: App {
                 .keyboardShortcut("b", modifiers: [.command])
                 .disabled(!player.hasMedia)
 
+                Button("Mark Passage") {
+                    markPassage()
+                }
+                .keyboardShortcut("m", modifiers: [.command])
+                .disabled(!player.hasMedia)
+
                 Button("New Note") {
                     NotificationCenter.default.post(name: .requestNewNote, object: nil)
                 }
@@ -114,6 +134,22 @@ struct Echo_macOSApp: App {
                 .disabled(!player.hasMedia)
             }
         }
+    }
+
+    // MARK: - Actions
+
+    /// Marks the current playback position as a passage for later flashcard
+    /// conversion, via the shared database's MarkedPassageDAO.
+    private func markPassage() {
+        guard let audiobookID = player.audiobookID, player.hasMedia else { return }
+        let dao = MarkedPassageDAO(db: dbService.writer)
+        try? dao.insert(
+            audiobookID: audiobookID,
+            mediaTimestamp: player.currentTime,
+            endTimestamp: nil,
+            transcriptSnippet: nil,
+            note: nil
+        )
     }
 
     // MARK: - Open Panel
@@ -150,7 +186,6 @@ struct Echo_macOSApp: App {
     /// In-memory database used as a safe fallback when the shared App Group
     /// database cannot be initialised (first launch, no entitlements, etc.).
     private static func makeInMemoryDB() -> DatabaseService {
-        // In-memory initialisation should never throw under normal conditions.
         (try? DatabaseService(inMemory: ())) ?? (try! DatabaseService(inMemory: ()))
     }
 }
@@ -160,4 +195,10 @@ struct Echo_macOSApp: App {
 extension Notification.Name {
     /// Posted when the user presses the "New Note" menu command.
     static let requestNewNote = Notification.Name("com.echo.requestNewNote")
+    /// Posted when the user presses "Find in Book".
+    static let requestFocusSearch = Notification.Name("com.echo.requestFocusSearch")
+    /// Posted when the user presses "Toggle Notes Pane".
+    static let requestToggleDetailPane = Notification.Name("com.echo.requestToggleDetailPane")
+    /// Posted when the user presses "Export Transcript".
+    static let requestExportTranscript = Notification.Name("com.echo.requestExportTranscript")
 }

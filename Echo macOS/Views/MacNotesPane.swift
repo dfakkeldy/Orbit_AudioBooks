@@ -54,6 +54,14 @@ struct MacNotesPane: View {
         .onChange(of: player.audiobookID) { _, _ in
             Task { await loadNotes() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .requestNewNote)) { _ in
+            isCreatingNote = true
+            newNoteText = ""
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .requestExportTranscript)) { _ in
+            guard let url = player.currentURL else { return }
+            try? transcriptionManager.exportTranscript(for: url, segments: transcriptStore.segments(forHash: url.sha256Hash) ?? [])
+        }
     }
 
     // MARK: - Notes Header
