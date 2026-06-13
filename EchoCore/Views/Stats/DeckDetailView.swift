@@ -14,9 +14,17 @@ struct DeckDetailView: View {
     @State private var searchText: String = ""
     private let logger = Logger(category: "DeckDetailView")
 
-    var filteredCards: [Flashcard] {
-        if searchText.isEmpty { return cards }
-        return cards.filter {
+    @State private var filteredCards: [Flashcard] = []
+
+    /// Recomputes the filtered list when the search field or loaded cards change,
+    /// rather than on every `body` evaluation (audit §8.2). Keeps
+    /// `localizedCaseInsensitiveContains` for correct locale/diacritic matching.
+    private func applyFilter() {
+        guard !searchText.isEmpty else {
+            filteredCards = cards
+            return
+        }
+        filteredCards = cards.filter {
             $0.frontText.localizedCaseInsensitiveContains(searchText) ||
             $0.backText.localizedCaseInsensitiveContains(searchText)
         }
@@ -60,6 +68,7 @@ struct DeckDetailView: View {
         .navigationTitle(deckName)
         .searchable(text: $searchText, prompt: "Search cards")
         .task { await load() }
+        .onChange(of: searchText) { _, _ in applyFilter() }
     }
 
     private func load() async {
@@ -80,5 +89,6 @@ struct DeckDetailView: View {
         } catch {
             logger.error("Failed to load deck detail: \(error.localizedDescription)")
         }
+        applyFilter()
     }
 }
