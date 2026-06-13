@@ -24,6 +24,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
+      - name: Diagnostics & Environment Info
+        run: |
+          echo "=== Xcode Version ==="
+          xcodebuild -version
+          echo "=== Available Simulators ==="
+          xcrun simctl list devices available | grep -E "iPhone|Watch" || true
+
+      - name: Resolve Package Dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Echo.xcodeproj \
+            -scheme "Echo macOS"
+
       - name: Build macOS
         run: |
           xcodebuild build \
@@ -32,3 +45,26 @@ jobs:
             -destination "platform=macOS" \
             CODE_SIGNING_ALLOWED=NO \
             -quiet
+
+      - name: Test iOS
+        run: |
+          xcodebuild test \
+            -project Echo.xcodeproj \
+            -scheme "Echo" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
+            -only-testing:EchoTests \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Test watchOS
+        run: |
+          xcodebuild test \
+            -project Echo.xcodeproj \
+            -scheme "Echo Watch App" \
+            -destination "platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)" \
+            -only-testing:"Echo Watch AppTests" \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
