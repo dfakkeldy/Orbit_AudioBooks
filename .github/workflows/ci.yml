@@ -115,3 +115,20 @@ jobs:
             -only-testing:"Echo Watch AppTests" \
             -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
+
+      # On a test crash (e.g. a SIGABRT from a malloc double-free) the abort line
+      # alone doesn't say WHERE it happened. The simulated app's crash report,
+      # written to the runner's DiagnosticReports, carries the symbolicated
+      # backtrace — dump it so the failing frame is visible directly in the log.
+      - name: Dump crash reports on failure
+        if: failure()
+        run: |
+          echo "=== ~/Library/Logs/DiagnosticReports ==="
+          ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null || echo "(none)"
+          for f in $(ls -t ~/Library/Logs/DiagnosticReports/Echo*.ips 2>/dev/null | head -3); do
+            echo "===================== $f ====================="
+            cat "$f"
+          done
+          echo "=== CoreSimulator device crash logs (Echo) ==="
+          find ~/Library/Developer/CoreSimulator/Devices -name "Echo*.ips" -newermt "-30 minutes" 2>/dev/null \
+            | head -3 | while read -r f; do echo "===== $f ====="; cat "$f"; done || true
