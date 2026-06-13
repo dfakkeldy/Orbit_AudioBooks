@@ -91,6 +91,9 @@ jobs:
       # Run the products built above (test-without-building reuses them, so no
       # recompile). Catches runtime/logic regressions a compile-only gate misses —
       # e.g. the card_type NOT NULL insert failures across the flashcard subsystem.
+      # NOTE: unlike the build steps, the test steps run WITHOUT -quiet so a failing
+      # test's name and assertion appear in the CI log — a quiet test gate can't be
+      # diagnosed from its output.
       - name: Test — EchoTests (iOS)
         run: |
           set -o pipefail
@@ -100,8 +103,7 @@ jobs:
             -destination "$IOS_DESTINATION" \
             -only-testing:EchoTests \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO \
-            -quiet
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Test — Echo Watch AppTests (watchOS)
         run: |
@@ -112,5 +114,4 @@ jobs:
             -destination "$WATCH_DESTINATION" \
             -only-testing:"Echo Watch AppTests" \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO \
-            -quiet
+            CODE_SIGNING_ALLOWED=NO
