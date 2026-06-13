@@ -157,10 +157,8 @@ final class PlaybackController: PlaybackControllerProtocol {
 
         state.isManualSeeking = true
         audioEngine.seek(to: target) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.state.isManualSeeking = false
-                self?.coordinator_seekCompleted?(false)
-            }
+            self?.state.isManualSeeking = false
+            self?.coordinator_seekCompleted?(false)
         }
     }
 
@@ -314,10 +312,8 @@ final class PlaybackController: PlaybackControllerProtocol {
         if elapsed.isFinite, elapsed > 5 {
             state.isManualSeeking = true
             audioEngine.seek(to: 0) { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.state.isManualSeeking = false
-                    self?.coordinator_seekCompleted?(false)
-                }
+                self?.state.isManualSeeking = false
+                self?.coordinator_seekCompleted?(false)
             }
             coordinator_refreshProgress?()
             return
@@ -330,10 +326,8 @@ final class PlaybackController: PlaybackControllerProtocol {
         } else {
             state.isManualSeeking = true
             audioEngine.seek(to: 0) { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.state.isManualSeeking = false
-                    self?.coordinator_seekCompleted?(false)
-                }
+                self?.state.isManualSeeking = false
+                self?.coordinator_seekCompleted?(false)
             }
         }
     }
@@ -486,15 +480,13 @@ final class PlaybackController: PlaybackControllerProtocol {
         let targetSeconds = section.startSeconds + 0.05
         state.isManualSeeking = true
         audioEngine.seek(to: targetSeconds) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.state.isManualSeeking = false
-                self.coordinator_seekCompleted?(false)
-                self.coordinator_refreshProgress?()
-                if self.state.isPlaying {
-                    self.audioEngine.playImmediately(atRate: self.speed)
-                    self.applySpeedToCurrentItem()
-                }
+            guard let self else { return }
+            self.state.isManualSeeking = false
+            self.coordinator_seekCompleted?(false)
+            self.coordinator_refreshProgress?()
+            if self.state.isPlaying {
+                self.audioEngine.playImmediately(atRate: self.speed)
+                self.applySpeedToCurrentItem()
             }
         }
     }
@@ -506,15 +498,13 @@ final class PlaybackController: PlaybackControllerProtocol {
 
         state.isManualSeeking = true
         audioEngine.seek(to: targetSeconds) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.state.isManualSeeking = false
-                self.coordinator_seekCompleted?(false)
-                self.coordinator_refreshProgress?()
-                if self.state.isPlaying {
-                    self.audioEngine.playImmediately(atRate: self.speed)
-                    self.applySpeedToCurrentItem()
-                }
+            guard let self else { return }
+            self.state.isManualSeeking = false
+            self.coordinator_seekCompleted?(false)
+            self.coordinator_refreshProgress?()
+            if self.state.isPlaying {
+                self.audioEngine.playImmediately(atRate: self.speed)
+                self.applySpeedToCurrentItem()
             }
         }
     }
@@ -546,15 +536,13 @@ final class PlaybackController: PlaybackControllerProtocol {
             // Same book — seek in place.
             state.isManualSeeking = true
             audioEngine.seek(to: intraBookTime) { [weak self] _ in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.state.isManualSeeking = false
-                    self.coordinator_seekCompleted?(false)
-                    self.coordinator_refreshProgress?()
-                    if self.state.isPlaying {
-                        self.audioEngine.playImmediately(atRate: self.speed)
-                        self.applySpeedToCurrentItem()
-                    }
+                guard let self else { return }
+                self.state.isManualSeeking = false
+                self.coordinator_seekCompleted?(false)
+                self.coordinator_refreshProgress?()
+                if self.state.isPlaying {
+                    self.audioEngine.playImmediately(atRate: self.speed)
+                    self.applySpeedToCurrentItem()
                 }
             }
         } else {
@@ -658,10 +646,8 @@ final class PlaybackController: PlaybackControllerProtocol {
 
         state.isManualSeeking = true
         audioEngine.seek(to: target) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.state.isManualSeeking = false
-                self?.coordinator_seekCompleted?(false)
-            }
+            self?.state.isManualSeeking = false
+            self?.coordinator_seekCompleted?(false)
         }
         coordinator_refreshProgress?()
         return false
@@ -690,10 +676,8 @@ final class PlaybackController: PlaybackControllerProtocol {
         let target = min(duration, current + durationAmount)
         state.isManualSeeking = true
         audioEngine.seek(to: target) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.state.isManualSeeking = false
-                self?.coordinator_seekCompleted?(false)
-            }
+            self?.state.isManualSeeking = false
+            self?.coordinator_seekCompleted?(false)
         }
         coordinator_refreshProgress?()
         return false
@@ -703,16 +687,14 @@ final class PlaybackController: PlaybackControllerProtocol {
         guard audioEngine.isItemLoaded else { return }
         state.isManualSeeking = true
         audioEngine.seek(to: targetSeconds) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.state.isManualSeeking = false
-                self.coordinator_seekCompleted?(false)
-                self.coordinator_refreshProgress?()
-                self.coordinator_refreshArtwork?(targetSeconds, true)
-                if self.state.isPlaying {
-                    self.audioEngine.playImmediately(atRate: self.speed)
-                    self.applySpeedToCurrentItem()
-                }
+            guard let self else { return }
+            self.state.isManualSeeking = false
+            self.coordinator_seekCompleted?(false)
+            self.coordinator_refreshProgress?()
+            self.coordinator_refreshArtwork?(targetSeconds, true)
+            if self.state.isPlaying {
+                self.audioEngine.playImmediately(atRate: self.speed)
+                self.applySpeedToCurrentItem()
             }
         }
     }
@@ -844,16 +826,14 @@ final class PlaybackController: PlaybackControllerProtocol {
                     let targetSeconds = state.chapters[idx].startSeconds + 0.05
                     state.progressFraction = 0
                     audioEngine.seek(to: targetSeconds) { [weak self] _ in
-                        DispatchQueue.main.async {
-                            guard let self else { return }
-                            if self.isPlaying {
-                                self.audioEngine.playImmediately(atRate: self.speed)
-                                self.applySpeedToCurrentItem()
-                            } else {
-                                self.coordinator_persistAndSync?(true)
-                            }
-                            self.coordinator_refreshProgress?()
+                        guard let self else { return }
+                        if self.isPlaying {
+                            self.audioEngine.playImmediately(atRate: self.speed)
+                            self.applySpeedToCurrentItem()
+                        } else {
+                            self.coordinator_persistAndSync?(true)
                         }
+                        self.coordinator_refreshProgress?()
                     }
                     return
                 }
@@ -865,16 +845,14 @@ final class PlaybackController: PlaybackControllerProtocol {
         if loopMode == .chapter {
             state.progressFraction = 0
             audioEngine.seek(to: 0) { [weak self] _ in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    if self.isPlaying {
-                        self.audioEngine.playImmediately(atRate: self.speed)
-                        self.applySpeedToCurrentItem()
-                    } else {
-                        self.coordinator_persistAndSync?(true)
-                    }
-                    self.coordinator_refreshProgress?()
+                guard let self else { return }
+                if self.isPlaying {
+                    self.audioEngine.playImmediately(atRate: self.speed)
+                    self.applySpeedToCurrentItem()
+                } else {
+                    self.coordinator_persistAndSync?(true)
                 }
+                self.coordinator_refreshProgress?()
             }
         } else {
             nextTrack()

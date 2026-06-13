@@ -681,15 +681,13 @@ final class PlayerModel {
                 Task { @MainActor in
                     self.state.isManualSeeking = true
                     self.audioEngine.seek(to: savedTime) { [weak self] _ in
-                        DispatchQueue.main.async {
-                            self?.state.isManualSeeking = false
-                            self?.chapterLoadingCoordinator.updateCurrentChapterFromPlayerTime()
-                            self?.progressPresenter.updateElapsedTime()
-                            self?.progressPresenter.updateProgress()
-                            if let self, self.isPlaying {
-                                self.audioEngine.playImmediately(atRate: self.speed)
-                                self.playbackController.applySpeedToCurrentItem()
-                            }
+                        self?.state.isManualSeeking = false
+                        self?.chapterLoadingCoordinator.updateCurrentChapterFromPlayerTime()
+                        self?.progressPresenter.updateElapsedTime()
+                        self?.progressPresenter.updateProgress()
+                        if let self, self.isPlaying {
+                            self.audioEngine.playImmediately(atRate: self.speed)
+                            self.playbackController.applySpeedToCurrentItem()
                         }
                     }
                 }
