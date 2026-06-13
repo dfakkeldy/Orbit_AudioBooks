@@ -5,6 +5,7 @@ import MediaPlayer
 import WatchConnectivity
 import UIKit
 import os.log
+import GRDB
 
 // MARK: - Model
 
@@ -368,7 +369,7 @@ final class PlayerModel {
         guard let db = databaseService, let folder = folderURL?.absoluteString else { return false }
         return ((try? db.read { db in
             try StandaloneTranscriptRecord
-                .filter(Column("audiobook_id") == folder)
+                .filter(GRDB.Column("audiobook_id") == folder)
                 .fetchCount(db)
         } ) ?? 0) > 0
     }

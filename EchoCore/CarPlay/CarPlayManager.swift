@@ -150,7 +150,8 @@ final class CarPlayManager: NSObject {
                 detailText: record.author ?? NowPlayingController.formatTime(record.duration)
             )
             // Selecting a book from the library loads it for playback.
-            item.handler = { [weak model] _ in
+            item.handler = { [weak model] _, completion in
+                defer { completion() }
                 guard let model, let url = URL(string: record.id) else { return }
                 model.loadFolder(url, autoplay: true)
             }
@@ -213,11 +214,12 @@ final class CarPlayManager: NSObject {
                 let title = agg.chapterTitle.isEmpty ? "Chapter \(agg.chapterIndex + 1)" : agg.chapterTitle
                 let detail = "\(agg.bookTitle) · \(NowPlayingController.formatTime(agg.endSeconds - agg.startSeconds))"
                 let item = CPListItem(text: title, detailText: detail)
-                item.handler = { _ in
+                item.handler = { _, completion in
                     model.seekToAggregatedChapterPosition(
                         bookIndex: agg.bookIndex,
                         startSeconds: agg.startSeconds
                     )
+                    completion()
                 }
                 return item
             }
@@ -226,8 +228,9 @@ final class CarPlayManager: NSObject {
                 let title = ch.title ?? "Chapter \(ch.index + 1)"
                 let detail = NowPlayingController.formatTime(ch.endSeconds - ch.startSeconds)
                 let item = CPListItem(text: title, detailText: detail)
-                item.handler = { _ in
+                item.handler = { _, completion in
                     model.seek(toSeconds: ch.startSeconds)
+                    completion()
                 }
                 return item
             }
@@ -270,8 +273,9 @@ final class CarPlayManager: NSObject {
                 text: bm.title,
                 detailText: NowPlayingController.formatTime(bm.timestamp)
             )
-            item.handler = { _ in
+            item.handler = { _, completion in
                 model.jumpToBookmark(bm)
+                completion()
             }
             return item
         }

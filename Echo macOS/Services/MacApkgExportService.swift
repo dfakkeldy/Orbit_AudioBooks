@@ -61,7 +61,7 @@ struct MacApkgExportService {
     func export(deckIDs: [String], db: DatabaseWriter) async throws -> URL {
         let decks: [Deck]
         if deckIDs.isEmpty {
-            decks = try db.read { try Deck.fetchAll($0) }
+            decks = try await db.read { try Deck.fetchAll($0) }
         } else {
             decks = try deckIDs.compactMap { id in
                 try db.read { try Deck.fetchOne($0, key: id) }
@@ -75,7 +75,7 @@ struct MacApkgExportService {
 
         var allCards: [Flashcard] = []
         for deck in decks {
-            let cards = try db.read { db in
+            let cards = try await db.read { db in
                 try Flashcard
                     .filter(Column("deck_id") == deck.id)
                     .order(Column("created_at"))

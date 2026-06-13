@@ -4,7 +4,6 @@ import SwiftUI
 // MARK: - VisualizerUniforms (Swift mirror of Metal struct)
 
 /// Must match the `VisualizerUniforms` struct in `VisualizerShaders.metal` exactly.
-@frozen
 struct VisualizerUniforms {
     var time: Float
     var rms: Float
@@ -20,9 +19,13 @@ extension VisualizerUniforms {
                  Float(0), Float(0), Float(0), Float(0),
                  Float(0), Float(0), Float(0), Float(0))
         withUnsafeMutablePointer(to: &s) { ptr in
-            let buf = UnsafeMutableBufferPointer(start: ptr, count: 16)
-            for i in 0..<min(spectrum.count, 16) {
-                buf[i] = spectrum[i]
+            // A homogeneous tuple is laid out contiguously, so the tuple
+            // pointer can be reinterpreted as a Float buffer to fill it.
+            ptr.withMemoryRebound(to: Float.self, capacity: 16) { floatPtr in
+                let buf = UnsafeMutableBufferPointer(start: floatPtr, count: 16)
+                for i in 0..<min(spectrum.count, 16) {
+                    buf[i] = spectrum[i]
+                }
             }
         }
         self.time = time

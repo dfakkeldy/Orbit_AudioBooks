@@ -8,6 +8,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import GRDB
 
 struct MacAnkiExportView: View {
     @Environment(DatabaseService.self) private var dbService
@@ -136,7 +137,7 @@ struct MacAnkiExportView: View {
             Task {
                 do {
                     let service = MacApkgExportService()
-                    let apkgURL = try service.export(deckIDs: Array(selectedDeckIDs), db: dbService.writer)
+                    let apkgURL = try await service.export(deckIDs: Array(selectedDeckIDs), db: dbService.writer)
 
                     // Copy to user-chosen location
                     try? FileManager.default.removeItem(at: url)
