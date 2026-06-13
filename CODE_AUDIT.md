@@ -58,12 +58,15 @@ _2026-06-13 (session 2), branch `claude/elegant-heyrovsky-309173` (fast-forwarde
 - **§6.1** `.apkg`/EPUB extraction now capped (per-entry 100 MB, total 512 MB) via `ArchiveExtractionLimits` + unit tests.
 - **§3.7 (partial)** corrected the stale backdoor comment; the registry refactor remains a deliberate decision.
 - **§8.4 (partial)** removed the dead `topBannerColor`; the header-contrast question remains (and the audit headline was inaccurate — see below).
+- **§3.5** unwrapped 11 no-op `DispatchQueue.main.async` hops in seek completions (left the one genuine deferral); 22 playback tests pass.
+- **§3.8** macOS `waitForReadyToPlay` continuation guarded against double-resume (single-shot `finish()` on main).
+- **§8.2** `DeckDetailView` filter hoisted from `body` into `@State` recomputed on change.
+- **CI gating** — branch protection enabled on `main` requiring the "Build gate + tests" check (`enforce_admins: false`). Merge this branch first so `main` carries the new `ci.yml`.
 
 _A read-only multi-agent pass re-verified the remaining findings against the current tree. Several were over-stated or mis-framed: §3.6 (the one looping task already does what's asked; the others are one-shot/struct where deinit-cancel is impossible/harmful), §8.2 (`StatsView`'s citation has no such problem — only `DeckDetailView`'s per-keystroke filter is real), §8.4 (the flagged color is user-picked, not image-derived; the cover-derived value is already contrast-safe), §7.4 (a naive bounded buffer would hang the test suite via the `pendingCount` leak and corrupt analytics)._
 
 ### 🔲 Still open from this audit
-Highs: **none remaining.**
-- **Safe to do next** (low-risk, build/test-verifiable): §3.5 (unwrap 13 no-op `DispatchQueue.main.async`), §3.8 (macOS continuation single-shot guard), §8.2 (`DeckDetailView` per-keystroke filter only).
+Highs: **none remaining.** All low-risk, build/test-verifiable Mediums are now done (§3.5/§3.8/§8.2 above). What remains needs a product/design decision or is deferred:
 - **Needs a decision**: §3.6 (transcript-staleness generation token, or close as over-stated), §3.7 (CarPlay registry vs. keep), §5.5 (location auth: in-actor delegate bridge vs. a Settings toggle that doesn't exist yet — feature currently unreachable), §5.7 (pick the single bookmark source-of-truth — split 3 ways today), §7.4 (coalesce idempotent progress-ticks vs. bounded buffer), §8.4 (header foreground contrast approach).
 - **Deferred**: §4.1 (`Timer`→structured, 9 sites, not a bug), §9.2 (oversized files). Plus the Lows (§3.4 done; §4.2, §5.6, §6.2–§6.4, §8.5–§8.7, §9.3).
 
