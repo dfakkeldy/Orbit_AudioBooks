@@ -39,18 +39,45 @@ struct EchoCoreTests {
     @Test func playerDeepLinkParsesPlayURLWithoutTime() throws {
         let link = try #require(PlayerDeepLink(url: URL(string: "echoaudio://play")!))
 
-        #expect(link.time == nil)
+        #expect(link.action == .play(time: nil))
     }
 
     @Test func playerDeepLinkParsesPlayURLWithTime() throws {
         let link = try #require(PlayerDeepLink(url: URL(string: "echoaudio://play?time=30")!))
 
-        #expect(link.time == 30)
+        #expect(link.action == .play(time: 30))
+    }
+
+    @Test func playerDeepLinkParsesCustomProductPageURLs() throws {
+        let focusLink = try #require(PlayerDeepLink(url: URL(string: "echoaudio://focus")!))
+        #expect(focusLink.action == .focus)
+
+        let readLink = try #require(PlayerDeepLink(url: URL(string: "echoaudio://read")!))
+        #expect(readLink.action == .read)
+
+        let studyLink = try #require(PlayerDeepLink(url: URL(string: "echoaudio://study")!))
+        #expect(studyLink.action == .study)
     }
 
     @Test func playerDeepLinkRejectsUnregisteredScheme() {
         // The pre-rebrand scheme must no longer parse.
         #expect(PlayerDeepLink(url: URL(string: "orbitaudio://play?time=30")!) == nil)
+    }
+
+    @Test func deepLinkHandlerHandlesCustomProductPageActions() throws {
+        var handler = DeepLinkHandler()
+
+        let focusLink = try #require(PlayerDeepLink(url: URL(string: "echoaudio://focus")!))
+        let focusAction = handler.handle(focusLink, isItemLoaded: false, isPlaying: false)
+        #expect(focusAction == .showFocusGuide)
+
+        let readLink = try #require(PlayerDeepLink(url: URL(string: "echoaudio://read")!))
+        let readAction = handler.handle(readLink, isItemLoaded: false, isPlaying: false)
+        #expect(readAction == .navigate(.read))
+
+        let studyLink = try #require(PlayerDeepLink(url: URL(string: "echoaudio://study")!))
+        let studyAction = handler.handle(studyLink, isItemLoaded: false, isPlaying: false)
+        #expect(studyAction == .navigate(.timeline))
     }
 
     @Test func bookmarkMarkdownUsesCanonicalDeepLinkScheme() {

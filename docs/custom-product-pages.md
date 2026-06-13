@@ -8,6 +8,7 @@ Apple's June 2025 algorithm update allows Custom Product Pages to be **assigned 
 
 ## 1. ADHD & Focus Custom Product Page
 *   **Primary Keywords:** ADHD player, focus reader, executive function helper, smart rewind, distraction-free player, ADHD study tool, calm study.
+*   **In-App Deep Link:** `echoaudio://focus`
 
 ### Subtitle (28/30 Chars)
 `Calm Player for Active Minds`
@@ -61,6 +62,7 @@ Each screenshot uses high-contrast text overlays optimized for OCR indexing:
 
 ## 2. Dyslexia & Read-Along Custom Product Page
 *   **Primary Keywords:** dyslexia reading app, read along audio, word sync, visual text reader, dyslexic reader, highlight to seek, whisperkit, on-device audio alignment.
+*   **In-App Deep Link:** `echoaudio://read`
 
 ### Subtitle (27/30 Chars)
 `Read Along While You Listen`
@@ -118,6 +120,7 @@ Each screenshot uses high-contrast text overlays optimized for OCR indexing:
 
 ## 3. Audiobook Study & Spaced Repetition Page
 *   **Primary Keywords:** audio flashcards, book study player, spaced repetition app, anki companion, audio study, active recall helper, M4B player, EPUB flashcards.
+*   **In-App Deep Link:** `echoaudio://study`
 
 ### Subtitle (24/30 Chars)
 `Audiobooks to Flashcards`

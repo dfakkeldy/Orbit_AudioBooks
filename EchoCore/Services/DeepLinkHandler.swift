@@ -8,6 +8,10 @@ enum DeepLinkAction: Equatable {
     case seek(TimeInterval)
     /// Seek was requested but the item isn't loaded yet — queue for later.
     case queueSeek(TimeInterval)
+    /// Navigate to a specific tab selection.
+    case navigate(TabSelection)
+    /// Show the Help/Focus guide sheet.
+    case showFocusGuide
 }
 
 /// Parses and processes `echoaudio://` deep link URLs, managing a pending
@@ -26,26 +30,37 @@ struct DeepLinkHandler {
     ///   - isItemLoaded: Whether an audiobook track is currently loaded.
     ///   - isPlaying: Whether playback is currently active.
     mutating func handle(_ deepLink: PlayerDeepLink, isItemLoaded: Bool, isPlaying: Bool) -> DeepLinkAction? {
-        let time = deepLink.time
-        var action: DeepLinkAction?
+        switch deepLink.action {
+        case .play(let time):
+            var action: DeepLinkAction?
 
-        if let time {
-            if isItemLoaded {
-                action = .seek(time)
-            } else {
-                pendingSeekTime = time
-                action = .queueSeek(time)
+            if let time {
+                if isItemLoaded {
+                    action = .seek(time)
+                } else {
+                    pendingSeekTime = time
+                    action = .queueSeek(time)
+                }
             }
-        }
 
-        if isItemLoaded, !isPlaying {
-            if action != nil {
-                return action
+            if isItemLoaded, !isPlaying {
+                if action != nil {
+                    return action
+                }
+                return .play
             }
-            return .play
-        }
 
-        return action
+            return action
+
+        case .focus:
+            return .showFocusGuide
+
+        case .read:
+            return .navigate(.read)
+
+        case .study:
+            return .navigate(.timeline)
+        }
     }
 
     /// If a pending seek was queued and the item is now loaded, returns the

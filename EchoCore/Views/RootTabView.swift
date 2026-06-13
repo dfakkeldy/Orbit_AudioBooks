@@ -12,7 +12,7 @@ struct RootTabView: View {
     @State private var showingFolderPicker = false
     @State private var showingSettings = false
     @State private var showingBookSettings = false
-    @State private var showingHelp = false
+    // showingHelp presentation state resides on PlayerModel
     @State private var newBookmarkDraft: BookmarkDraft? = nil
     @State private var editingBookmarkID: UUID? = nil
     @State private var showingReview = false
@@ -44,7 +44,7 @@ struct RootTabView: View {
                         NowPlayingTab(
                             showsBookSettings: model.folderURL != nil,
                             openFolder: { showingFolderPicker = true },
-                            showHelp: { showingHelp = true },
+                            showHelp: { model.showingHelp = true },
                             showBookSettings: { showingBookSettings = true },
                             showSettings: { showingSettings = true },
                             onCreateBookmark: { draft in newBookmarkDraft = draft }
@@ -77,7 +77,7 @@ struct RootTabView: View {
                     onFolderTap: { showingFolderPicker = true },
                     onSettingsTap: { showingSettings = true },
                     onBookSettingsTap: { showingBookSettings = true },
-                    onHelpTap: { showingHelp = true }
+                    onHelpTap: { model.showingHelp = true }
                 )
 
                 // UnifiedBottomDock is only overlaid on non-NowPlaying views.
@@ -103,13 +103,13 @@ struct RootTabView: View {
             .sheet(isPresented: $showingBookSettings) {
                 BookSettingsView(model: model)
             }
-            .sheet(isPresented: $showingHelp) {
+            .sheet(isPresented: $model.showingHelp) {
                 NavigationStack {
                     HelpView()
                         .navigationTitle("Help")
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                Button("Done") { showingHelp = false }
+                                Button("Done") { model.showingHelp = false }
                             }
                         }
                 }

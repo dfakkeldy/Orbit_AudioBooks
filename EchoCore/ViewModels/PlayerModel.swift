@@ -48,6 +48,9 @@ final class PlayerModel {
     /// The currently selected tab (Listen, Read, or Timeline).
     var selectedTab: TabSelection = .nowPlaying
 
+    /// Presentation state of the Help/Focus guide sheet.
+    var showingHelp: Bool = false
+
     // MARK: - Shared Top Header / Reader / Playlist state
     var epubSearchText: String = ""
     var showReaderSettings: Bool = false
@@ -946,6 +949,11 @@ final class PlayerModel {
             seek(toSeconds: time)
         case .queueSeek:
             break
+        case .navigate(let tab):
+            selectedTab = tab
+        case .showFocusGuide:
+            selectedTab = .nowPlaying
+            showingHelp = true
         }
     }
 
