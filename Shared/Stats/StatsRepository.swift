@@ -105,7 +105,6 @@ struct StatsRepository: Sendable {
 
         let todayDuration = today.reduce(0) { $0 + $1.adjustedDuration }
         let totalDuration = all.reduce(0) { $0 + $1.adjustedDuration }
-        let dailyTotals = StatsAggregator.dailyTotals(segments: all, calendar: calendar)
         let avg = days.count > 0 ? totalDuration / Double(days.count) : 0
 
         return StatsOverview(

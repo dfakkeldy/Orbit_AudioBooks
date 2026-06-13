@@ -2,6 +2,15 @@ import Foundation
 
 /// Pure, synchronous aggregation functions. No database access.
 /// Every function is deterministic given the same inputs and calendar.
+///
+/// The four review/forecast functions (`retentionCurve`, `dueForecast`,
+/// `gradeDistribution`, `plannerAdherence`) are individually marked
+/// `nonisolated` so they can be invoked from the `@Sendable` GRDB reader
+/// closures in `StatsRepository` (audit §3.3). They are fully self-contained —
+/// only their value-type parameters and Foundation are used. The remaining
+/// functions reference main-actor helpers (`Calendar.startOfPeriod`,
+/// `ListeningSegment.adjustedDuration`) and are only ever called from
+/// main-actor contexts, so they stay on the default (main-actor) isolation.
 enum StatsAggregator {
 
     // MARK: - Bucketing
@@ -300,7 +309,7 @@ enum StatsAggregator {
     // MARK: - Retention Curve
 
     /// "Remembered" = grade >= 3 (passing grade in SM-2).
-    static func retentionCurve(
+    nonisolated static func retentionCurve(
         reviews: [(intervalDays: Int, grade: Int)]
     ) -> [(intervalDays: Int, retentionRate: Double)] {
         var groups: [Int: (total: Int, remembered: Int)] = [:]
@@ -317,7 +326,7 @@ enum StatsAggregator {
 
     // MARK: - Due Forecast
 
-    static func dueForecast(
+    nonisolated static func dueForecast(
         cards: [(nextReviewDate: Date, isEnabled: Bool)],
         days: Int = 30,
         calendar: Calendar = .current,
@@ -341,7 +350,7 @@ enum StatsAggregator {
 
     // MARK: - Grade Distribution
 
-    static func gradeDistribution(reviews: [Int]) -> [GradeDistribution] {
+    nonisolated static func gradeDistribution(reviews: [Int]) -> [GradeDistribution] {
         var counts: [Int: Int] = [:]
         for grade in reviews { counts[grade, default: 0] += 1 }
         return (0...5).map { grade in
@@ -351,7 +360,7 @@ enum StatsAggregator {
 
     // MARK: - Planner Adherence
 
-    static func plannerAdherence(
+    nonisolated static func plannerAdherence(
         plannedSessions: [(startTime: Date, endTime: Date, isCompleted: Bool)],
         listeningSegments: [(startedAt: Date, playbackDuration: TimeInterval)]
     ) -> PlannerAdherence {
