@@ -119,19 +119,25 @@ final class MacPlayerModel {
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             var observer: NSKeyValueObservation?
+            var didResume = false
+            // The KVO status callback and the timeout below are two independent
+            // resumers of the same continuation — a CheckedContinuation traps on
+            // double resume. Funnel both through `finish()` on the main queue so a
+            // single flag resumes (and invalidates the observer) exactly once;
+            // KVO is not guaranteed to deliver on the main thread (audit §3.8).
+            func finish() {
+                guard !didResume else { return }
+                didResume = true
+                observer?.invalidate()
+                continuation.resume()
+            }
             observer = item.observe(\.status, options: [.new]) { observedItem, _ in
-                if observedItem.status == .readyToPlay {
-                    observer?.invalidate()
-                    continuation.resume()
-                } else if observedItem.status == .failed {
-                    observer?.invalidate()
-                    continuation.resume()
-                }
+                guard observedItem.status == .readyToPlay || observedItem.status == .failed else { return }
+                DispatchQueue.main.async { finish() }
             }
             // Safety timeout — resume after 10 s if status never settles.
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                observer?.invalidate()
-                continuation.resume()
+                finish()
             }
         }
     }
