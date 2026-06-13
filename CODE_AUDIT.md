@@ -1,394 +1,431 @@
 # Echo: Audiobook Study Player — Code Audit
 
-Generated 2026-06-09. Scope: ~35,300 LOC across 295 Swift files in targets **Echo (iOS)**, **Echo Watch App**, **Echo WidgetExtension** (watchOS), **Echo macOS**, plus `Shared/` and `Tools/`. Excluded: `build/`, `vendor/`, `scratch/` (audited only as an artifact), `docs/`, `fastlane/`, `Tools/OrbitTranscriptionCLI/.build/` (untracked SPM leftovers), asset catalogs.
+Generated 2026-06-13. Scope: ~48,512 Swift LOC across 404 files + 1 Metal shader, in targets **Echo (iOS 18)**, **Echo Watch App (watchOS 11)**, **Echo Widget**, **Echo macOS (15)**, plus shared `EchoCore/` and `Shared/`. Excluded: `Tools/` (Python pipeline), `Scripts/`, `docs/`, `fastlane/`, asset catalogs, SPM dependency internals (GRDB, WhisperKit, ZIPFoundation, swift-transformers, swift-crypto), and the test targets (light scan only).
 
-Compiler ground truth (at audit time): a forced full rebuild of the **Echo scheme (iOS app + embedded watch app + widget) produced zero source warnings** in Swift 5 language mode with Approachable Concurrency. The **Echo macOS scheme failed to build** — now fixed on the remediation branch (see §5.1). The previous audit (2026-05-31, 55 findings) was fully remediated; 163 Swift files changed since, and this audit weights that delta (auto-alignment, watch sync/Pomodoro, colour-accent pipeline, EPUB import).
+This audit weights the **Wave-1 delta**: the prior audit (2026-06-09, 34 findings) was fully remediated, and ~28,600 insertions across 262 files have landed since (soundscapes/chimes, Metal visualizers, `.apkg`/AnkiConnect interop, FSRS scheduler, auto-draft chapter cards, CarPlay, location capture, stats, fidget views, macOS tri-pane). Those new subsystems received the bulk of scrutiny. _(The 2026-06-09 report this replaces is preserved in git history.)_
 
-Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally verified by opening the cited lines; several agent-reported claims were demoted or dropped after verification (see §12). The audit pass itself made no code changes — remediation followed on `feat/code-audit-remediation`; see **Remediation progress** below for what is done and what remains.
+**Compiler ground truth (at audit time):** the first (incremental) Debug build of the Echo scheme reported **1 hard error and 17 warnings**, but the single error was build-breaking and **masked an entire chain** — neither the iOS `EchoCore` module nor the `Echo macOS` target had ever cleanly compiled. Forcing a full build surfaced ~8 distinct compile errors across both targets (Wave-1 code that was committed without a green build). **All were fixed and verified during this session** — see the "Build repair" box below; every scheme (`Echo`, `Echo macOS`, `Echo Watch App`) now builds `** BUILD SUCCEEDED **`. The 17 warnings cluster into a small number of Swift-6-readiness root causes, all cited below. The pre-existing hygiene is otherwise excellent: **0 TODO/FIXME markers, 0 stray `print()` calls, 1 `try!`, 0 `as!`, 0 `ObservableObject`**, and the 13 `fatalError` sites are all `init?(coder:)` boilerplate in programmatic UIKit cells (acceptable).
 
----
+> ### ✅ Build repair (fixed & verified this session)
+> The `@frozen` error (§5.1) aborted compilation before the type-checker reached the rest of the module, hiding these. Each fix was confirmed by a full `xcodebuild` to `** BUILD SUCCEEDED **`:
+>
+> | File | Error | Fix |
+> |---|---|---|
+> | `EchoCore/Views/Visualizer/VisualizerView.swift:7` | `@frozen` on internal `VisualizerUniforms` (§5.1) | removed the attribute |
+> | `EchoCore/Views/Visualizer/VisualizerView.swift:22` | `UnsafeMutableBufferPointer` over a Float-tuple not rebound → `Float`-to-tuple assignment error (§5.8) | wrapped in `withMemoryRebound(to: Float.self, capacity: 16)` |
+> | `EchoCore/CarPlay/CarPlayManager.swift:153,216,229,273` | `CPListItem.handler` assigned a 1-arg closure; needs `(item, completion)` (§5.9) | `{ _, completion in … completion() }` |
+> | `EchoCore/Services/DefaultChimePlayer.swift:64` | bare `scheduleFile(_:at:)` resolved to the new `async` overload (§5.10) | passed `completionHandler: nil` to keep it non-blocking |
+> | `EchoCore/ViewModels/PlayerModel.swift:7,371` | GRDB `Column` used without `import GRDB` (§5.11) | added `import GRDB`, qualified `GRDB.Column` |
+> | `Echo macOS/Views/MacAnkiExportView.swift:11,140` | missing `import GRDB`; un-awaited `async` `export(...)` (§5.11) | added import; `try await` |
+> | `Echo macOS/Services/MacApkgExportService.swift:64,78` | un-awaited `async` `DatabaseWriter.read` (§5.11) | `try await db.read { … }` |
 
-## Remediation progress
-
-_Updated 2026-06-10 on branch `feat/code-audit-remaining`. All 34 findings now resolved — 26 in PR #25 (`feat/code-audit-remediation`) + 8 in this branch. Code-complete; the rebrand (§9.5) requires App Store Connect provisioning profile updates before device testing._
-
-**Legend:** ✅ done · 🔶 partial · 🔲 open
-
-### ✅ Done (34)
-
-- **§2 Quick wins** — "Audiobookk" typo (`7c63954`); `print`→`Logger` + `@MainActor` hop (`706ab56`, also §8.3); `TranscriptDidUpdate` constant (`fcc1c30`); CLAUDE.md Tools text (`9710c49`); `build.log` gitignored (`5eb2a02`); Orbit dirs + `scratch/` removed (`ccee339`, also §9.1); `LoopMode`/`SleepTimerMode` → `Models/`.
-- **§3.1** WhisperSession unload race → `ModelRetainBox` (`e1a862f`) · **§6.1** zip-slip extraction guard (`15690bb`).
-- **§5.1 [Critical]** macOS target revived — WhisperKit linked, orphaned CLI script phase removed, app-group entitlement added (`307c236`, `ba1f439`).
-- **§3.2 [High]** hot-path GRDB reads → async (`ef40c2d`) · **§3.4** TimelineService queue → GRDB async write (`44ec744`) · **§3.6** dropped `@unchecked Sendable` on `ReaderCardItem` (`b8106ee`).
-- **§4.1** AudioRingBuffer `OSAtomic` → `Synchronization.Atomic` (`b4324ca`) · **§4.2** async `AudioEngine.seek` (`c3f5432`).
-- **§5.2** full security-scoped bookmark options (`84916e7`) · **§5.4** artwork palette cache poison (`c82e44b`) · **§5.5 / §5.6 / §5.7** speed-divide / CarPlay unwrap / unbalanced security scope (`b8106ee`) · **§5.8** watch context key-set DEBUG assertion (`3204b69`).
-- **§6.2** XML external-entity hardening (`c82e44b`) · **§7.2** watch marquee now paused (`TimelineView(.animation(minimumInterval:paused:))`, code-verified) · **§7.3** cache watch artwork JPEG by version (`d84f554`).
-- **§8.1** AutoAlignmentProgressView reads `@Observable` directly, no Timer (`1f6c93f`) · **§8.3** app-icon completion `@MainActor` hop (`706ab56`).
-- **§9.2** unified snippet players (`2f51268`) · **§9.4** removed `AudiobookPlayerUIArchitect` scaffold + `add_architect.rb` · **§9.7** named JPEG / watch-message-key constants (`7d1e6bc`).
-- **§3.3** Task cancellation — `ContinuousAlignmentService` cancels in-flight work (`2f51268`); ReaderTab `.onDisappear` cancels `autoAlignmentTask`; `TimelineService` load-window Tasks gated by generation counter (`e45685c`).
-- **§9.3** macOS dedup — Shared alignment utilities extracted to `Shared/TextAlignmentUtilities.swift`; `MacGlobalAlignmentService` delegates tokenize/score/formatTime to shared free functions; all five macOS Logger sites use `Logger(category:)` instead of hardcoded subsystem (`87bd4a8`).
-- **§3.5** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (was only 2); consistent implicit isolation across all configurations (`e30c0a9`).
-- **§5.3** UserDefaults persistence refactored to per-book keys with one-time legacy migration; eliminates unbounded dictionary growth and cross-process write conflicts (`4622b6e`).
-- **§6.3** Split shared `Echo.entitlements` into per-target files — watch app and widget each have their own least-privilege entitlements (`4662fcf`).
-- **§8.2** ReaderTab alignment-workflow `@State` moved into `ReaderFeedViewModel` — `autoAlignmentTask`, presentation flags, and error state now owned by the ViewModel (`0014dbd`).
-- **§8.4** Accessibility labels added to icon-only buttons in Bookmarks view — delete-image, preview-toggle, and delete-voice-memo (`4798ac7`).
-- **§9.5** Full rebrand: all `com.orbit*` bundle IDs, app groups, iCloud containers, Keychain service, Logger subsystem, IAP product ID, notification identifier, URL scheme (`orbitaudio://`→`echoaudio://`), playlist manifest (`.orbitplaylist.json`→`.echoplaylist.json`), database file, and widget display name migrated to `com.echo.*` domain (`0f568aa`).
-
-### ⏸ Deferred
-
-- **§9.6** Oversized files (>600 LOC) — refactor when next touched; not a blocking issue for v1.0.
+Findings cite `path/to/file.swift:LINE`. Every Critical/High was personally verified by opening the cited lines; several agent-reported "Critical" claims (Metal/CarPlay force-unwraps, a ClozeParser "panic", `.apkg` SQL-injection) were **demoted or dropped** after verification — see §12. No code changes were made.
 
 ---
 
 ## 1. Executive summary
 
-Top items, in priority order:
+Top items to address, in priority order:
 
-1. **[Critical] The Echo macOS target does not build — two independent root causes** — §5.1 — `Echo macOS/Services/MacGlobalAlignmentService.swift:4` + `Echo.xcodeproj/project.pbxproj:577-601`.
-2. **[High] Zip-slip path traversal in EPUB extraction** — §6.1 — `EchoCore/Services/EPUBAutoImportScanner.swift:314-321`. A malicious EPUB can write outside its destination directory (inside the sandbox), including over the app's own data.
-3. **[High] `WhisperSession.forceUnload()` race guard is self-defeating** — §3.1 — `EchoCore/Services/WhisperSession.swift:70-80`. The generation snapshot is taken *inside* the unload Task, so the guard always passes and can unload a freshly re-acquired model.
-4. **[High] Synchronous GRDB work on the main actor (23 call sites)** — §3.2 — `DAO(db: db.writer)` pattern across `EchoCore/Services/`.
-5. **[Medium] Security-scoped bookmark saved with `.minimalBookmark`** — §5.2 — `EchoCore/Services/Persistence.swift:172-178`. May not survive relaunch as a security-scoped grant.
-6. **[Medium] `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` on only 2 of 5 targets** — §3.5 — same `Shared/` source compiles with different implicit isolation per target.
-7. **[Medium] Rebrand residue is a decision, not a cleanup** — §9.5 — bundle IDs, app-group/iCloud container IDs, logger subsystem all still `com.orbit*`; changing them breaks app/CloudKit identity, so decide deliberately before first release.
-8. **[Medium] Progress view polls `@Observable` state on a 0.3 s timer** — §8.1 — `EchoCore/Views/AutoAlignmentProgressView.swift:132-157`.
-9. **[Medium] Watch marquee runs `TimelineView(.animation)` at frame rate whenever the title overflows** — §7.2 — `Echo Watch App/Views/PlayerPage.swift:911-947`.
-10. **[Medium] Two parallel audio snippet players** — §9.2 — `SnippetPlayer.swift` vs `AudioSnippetPlayer.swift`.
+1. **[Critical — ✅ FIXED this session] `@frozen` on an internal struct broke the build** — §5.1 — `EchoCore/Views/Visualizer/VisualizerView.swift:7`. It masked a chain of ~8 compile errors (§5.8–§5.11) across the iOS `EchoCore` module and the `Echo macOS` target — all now fixed; every scheme builds green. Remaining action: add a CI build gate (§10 rec. 5).
+2. **[High] CarPlay disconnect teardown never runs** — §5.2 — `EchoCore/CarPlay/CarPlaySceneDelegate.swift:17`. The delegate method name matches no protocol requirement, so `manager?.disconnect()` is dead code.
+3. **[High] Data race: captured `var card` mutated in a `@Sendable` GRDB write** — §3.2 — `Shared/Services/ChapterCardDrafter.swift:97`. Swift-6-mode error; latent race in the new auto-draft service.
+4. **[High] Widget AppIntents touch a main-actor, non-Sendable `AppGroupDefaults` from a nonisolated `perform()`** — §3.1 — `Echo Widget/Models/AppIntent.swift:11,28,36`. Five Swift-6-mode errors.
+5. **[High] Pure stats/FSRS functions are implicitly `@MainActor` but called off-main** — §3.3 — `Shared/Stats/StatsRepository.swift:333,354,374,450`. Forces aggregation onto the main actor; Swift-6-mode errors at the call sites.
+6. **[Medium] Metal command-buffer / encoder force-unwraps in the per-frame draw loop** — §5.3 — `EchoCore/Views/Visualizer/VisualizerView.swift:114-115`. Latent crash when Metal returns nil under GPU pressure / backgrounding.
+7. **[Medium] Visualizer audio tap copies the full sample buffer every callback on the realtime thread** — §7.1 — `EchoCore/Services/DefaultVisualizerTap.swift:58`.
+8. **[Medium] CarPlay library refresh does a synchronous GRDB read on the main actor** — §7.3 — `EchoCore/CarPlay/CarPlayManager.swift:134-140`.
+9. **[Medium] FSRS scheduler silently drops the next-review date on calendar overflow** — §5.4 — `Shared/Database/FSRSScheduler.swift:76-77`.
+10. **[Medium] `sanitize(_:)` triplicated across three export services** — §9.1 — `ApkgExportService.swift:332`, `StudyNotesExportService.swift:124`, `MacApkgExportService.swift:345`.
 
 ---
 
 ## 2. Quick wins (≤30 min each)
 
-- **Fix user-visible display-name typo "Audiobookk"** — `Echo.xcodeproj/project.pbxproj:709` and `:751` (`INFOPLIST_KEY_CFBundleDisplayName` for Echo macOS, Debug + Release).
-- **Replace the only bare `print()` with `Logger`** — `EchoCore/Views/SettingsView.swift:315` (app-icon change failure path). See also §8.3.
-- **Delete the empty rebrand leftover directories** — `OrbitAudioBooks/` (assets only) and `Orbit Audiobooks macOS/` (empty). Zero references in `project.pbxproj` (verified).
-- **Untrack `scratch/`** — `scratch/NowPlayingTab_before.swift`, `scratch/NowPlayingTab_after.swift`, and 4 icon SVGs are git-tracked design leftovers; move anything worth keeping into `docs/` and gitignore the rest.
-- **Delete untracked tool leftovers** — `Tools/OrbitTranscriptionCLI/` (only `.build/` + `Package.resolved` remain; package was deleted from git) and `Tools/__pycache__/`. Add `build.log` to `.gitignore` explicitly.
-- **Extract the `"TranscriptDidUpdate"` notification name literal** — `Echo macOS/Views/TranscriptStore.swift:29`, `Echo macOS/Views/TranscriptionManager.swift:184`, `:255` → one `Notification.Name` constant.
-- **Move model enums out of Services/** — `EchoCore/Services/LoopMode.swift`, `EchoCore/Services/SleepTimerMode.swift` → `EchoCore/Models/`.
-- **Fix stale CLAUDE.md project context** — `CLAUDE.md:9` still describes the "SwiftUI CLI" in `Tools/`, which was deleted in the rebrand commit (`751e89c`).
+These deliver outsized value relative to effort and have no architectural ripples.
+
+- ~~Remove `@frozen` from `VisualizerUniforms`~~ ✅ **done this session** (§5.1), along with the rest of the build-repair chain (§5.8–§5.11). Remaining quick win: wire a CI build gate so this can't regress.
+- **Drop `nonisolated(unsafe)` → `nonisolated`** — `EchoCore/Services/AudioEngine.swift:71-73`. Compiler says the `unsafe` has no effect; clears 3 warnings (§3.4).
+- **Mark the four `StatsAggregator` functions `nonisolated static`** — clears the 4 main-actor-isolation warnings at `StatsRepository.swift:333,354,374,450` (§3.3).
+- **Remove the unused `dailyTotals` binding** — `Shared/Stats/StatsRepository.swift:108`. Dead `let` (§9.5).
+- **Remove the two spurious `await`s** — `Shared/Services/ChapterCardDrafter.swift:32,112` ("no async operations occur within 'await' expression").
+- **Rename the CarPlay disconnect delegate** to the real `CPTemplateApplicationSceneDelegate` requirement — `CarPlaySceneDelegate.swift:17` (§5.2). Small change, restores disconnect teardown.
 
 ---
 
 ## 3. Concurrency
 
-### 3.1 `WhisperSession.forceUnload()` captures its generation snapshot too late
-- **Status:** ✅ **FIXED 2026-06-09** (TDD). The reference-counted lifecycle was extracted into `EchoCore/Services/ModelRetainBox.swift` (`@MainActor`, generic, injected load/unload closures); both `release()` and `forceUnload()` now call one `scheduleUnload(ifGenerationEquals:)` helper that takes the snapshot as a synchronously-evaluated **argument**, making late capture impossible by construction. `WhisperSession` is now a thin adapter over the box. Regression test: `EchoTests/ModelRetainBoxTests.swift::forceUnloadDoesNotEvictAModelReacquiredBeforeTheUnloadRuns` (watched RED against the original bug, now GREEN). The box also tracks its `pendingUnload` task, which resolves the WhisperSession half of §3.3.
-- **Location:** `EchoCore/Services/WhisperSession.swift:70-80` (compare the correct pattern in `release()`, `:49-66`)
-- **What:** `release()` snapshots `generation` *before* spawning the unload Task; `forceUnload()` reads `capturedGeneration` *inside* the Task body, so the guard compares `generation` to itself and always passes.
-- **Why:** The documented protection ("don't nil out a freshly-loaded model") is dead code in `forceUnload()`. Sequence: `forceUnload()` → `acquire()` (book switched, model reloads) → stale Task runs → unloads and nils the model a live caller just received. Cancel-then-restart alignment is the stated use case for `forceUnload()`, so this is user-reachable.
-- **Action:** Hoist the `let capturedGeneration = generation` line outside the `Task` closure, mirroring `release()`. Consider one shared `scheduleUnload(after:)` helper so the pattern exists once.
+### 3.1 Widget AppIntents access a main-actor, non-Sendable `AppGroupDefaults` from a nonisolated `perform()`
+- **Location:** `Echo Widget/Models/AppIntent.swift:11, 28, 36` (root: `Shared/AppGroupDefaults.swift:10`)
+- **What:** Under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, `AppGroupDefaults.shared` (a `UserDefaults`) and `Bookmark.init` are main-actor-isolated, but `AppIntent.perform()` is nonisolated `async`; the compiler emits 5 warnings ("cannot be accessed from outside of the actor" / "non-Sendable type 'UserDefaults' … cannot exit main actor-isolated context" — errors in Swift 6).
+- **Why:** This is the project's main Swift-6-language-mode blocker; `UserDefaults` is not `Sendable` and crossing the boundary is a data race the compiler will reject.
+- **Action:** Either annotate the two `perform()` methods `@MainActor`, or read the needed primitives inside an `await MainActor.run { … }` and build a `Sendable` snapshot before leaving. Prefer a small main-actor accessor on `AppGroupDefaults` that returns value types.
 - **Severity:** High
 
-### 3.2 Synchronous GRDB reads/writes on the main actor
-- **Location:** 23 sites matching `DAO(db: db.writer)` under `EchoCore/Services/` — hot examples: `InlineFlashcardTriggerController.swift` (runs during playback ticks), `PlayerTimelinePersistenceService.swift`, `ChapterLoadingCoordinator.swift`, `TimelineIngestionService.swift`, `EPUBAutoImportScanner.swift`, `PDFImportCoordinator.swift`
-- **What:** `@MainActor` services construct DAOs over `db.writer` and execute queries synchronously on the main thread.
-- **Why:** GRDB serializes internally so this is safe, but it blocks the main thread for the duration of each query; EPUB transcript tables hold thousands of block rows per book, so worst-case reads can produce visible jank — and under a future Swift 6 / DatabaseActor migration each site needs touching anyway.
-- **Action:** Profile the per-tick and per-gesture paths first (Instruments → Time Profiler, main thread); convert hot paths to GRDB's async `read`/`write` or `ValueObservation`. One-shot loads at import time can stay synchronous.
+### 3.2 Data race: captured `var card` mutated inside a `@Sendable` GRDB write closure
+- **Location:** `Shared/Services/ChapterCardDrafter.swift:72-97` (mutation at `:97`)
+- **What:** `var card` (line 72) is captured by the `@Sendable` `db.write { db in try card.insert(db) }` closure (line 97); GRDB's `insert` is `mutating`, so the closure mutates a `var` that also lives in the enclosing scope — "mutation of captured var 'card' in concurrently-executing code" (Swift-6-mode error).
+- **Why:** Today the `await` serializes execution so no runtime race occurs, but it is a Swift-6 blocker and a genuinely fragile pattern in the new auto-draft path.
+- **Action:** Capture an immutable copy into the closure (`let toInsert = card; try await db.write { db in var c = toInsert; try c.insert(db) }`), or move the insert into a free function that takes the record by value.
 - **Severity:** High
 
-### 3.3 Unstructured `Task {}` without cancellation tracking
-- **Status:** ✅ **FIXED 2026-06-10.** `ContinuousAlignmentService` stores `transcriptionTask` and cancels in `stop()` (`2f51268`); `WhisperSession` / `ModelRetainBox` tracks its unload Task as `pendingUnload` (see §3.1); `ReaderTab` cancels `autoAlignmentTask` in `.onDisappear`; `TimelineService` load-window Tasks (`loadEarlier`, `loadLater`, `loadCurrentWindow`) are gated by a `loadGeneration` counter so stale results are dropped when a newer load supersedes them (`e45685c`).
-- **Location:** `EchoCore/Services/ContinuousAlignmentService.swift:97-109`; `EchoCore/Services/TimelineService.swift:79`, `:101`, `:123`; `EchoCore/Views/ReaderTab.swift:27`
-- **Severity:** Medium
+### 3.3 Pure stats / FSRS functions are implicitly `@MainActor` but invoked off-main
+- **Location:** call sites `Shared/Stats/StatsRepository.swift:333, 354, 374, 450`; definitions `Shared/Stats/StatsAggregator.swift:303, 320, 344, 354`
+- **What:** `retentionCurve`, `dueForecast`, `gradeDistribution`, and `plannerAdherence` are pure static functions but are implicitly main-actor-isolated under default isolation; `StatsRepository` calls them inside `nonisolated`/DB-reader contexts → "call to main actor-isolated static method … in a synchronous nonisolated context."
+- **Why:** Forces analytics math onto the main actor (jank risk on large histories) and is a Swift-6-mode error at each call site.
+- **Action:** Mark the four functions `nonisolated static` (or hoist them to free functions in a non-isolated file). They take their inputs as parameters and have no main-actor state, so this is safe.
+- **Severity:** High
 
-### 3.4 `@MainActor` service hops to a private queue for DB work
-- **Location:** `EchoCore/Services/TimelineService.swift:36` (queue declaration), `:172-184` (`pushForwardUncompletedItems`)
-- **What:** A `@MainActor` class dispatches onto `pushForwardQueue` capturing `self` and `db.writer`.
-- **Why:** Functionally safe today (GRDB locks internally; `Logger` is thread-safe), but capturing MainActor-isolated `self` in a plain queue closure is exactly what Swift 6 strict mode rejects — this is the codebase's main Swift-6-migration exemplar.
-- **Action:** Replace the queue with GRDB's own async write API (`try await db.writer.write { … }`) so isolation is compiler-checked; drop `pushForwardQueue`.
-- **Severity:** Medium
-
-### 3.5 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` drift across targets
-- **Status:** ✅ **FIXED 2026-06-10.** `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` now set on all 8 targets (all Debug + Release configurations). Previously only the iOS and Watch App targets had it; widget, macOS, and all 4 test targets defaulted to nonisolated. Shared/ files now compile with consistent implicit isolation across every target.
-- **Location:** `Echo.xcodeproj/project.pbxproj` (8 targets × 2 configurations = 16 occurrences)
-- **Severity:** Medium
-
-### 3.6 Unnecessary `@unchecked Sendable` on `ReaderCardItem`
-- **Location:** `EchoCore/Models/ReaderCardItem.swift:54`; payload type `Shared/Database/EPubBlockRecord.swift:6`
-- **What:** `ReaderCardItem` is marked `@unchecked Sendable` even though `EPubBlockRecord` already declares plain `Sendable` (it's a value-type GRDB record).
-- **Why:** `@unchecked` opts out of compiler verification for a conformance the compiler could verify — it will silently mask a future non-Sendable member.
-- **Action:** Replace with a plain `Sendable` conformance; if it doesn't compile, the error identifies the actual unsafe member to fix.
+### 3.4 `nonisolated(unsafe)` has no effect on the AudioEngine subsystem properties
+- **Location:** `EchoCore/Services/AudioEngine.swift:71-73` (`soundscapeMixer`, `chimePlayer`, `visualizerTap`)
+- **What:** All three are declared `nonisolated(unsafe) var`; the compiler reports the `unsafe` qualifier "has no effect, consider using 'nonisolated'."
+- **Why:** Misleading annotation — it signals a data-race concern that the compiler says doesn't exist here, adding cognitive noise.
+- **Action:** Replace with plain `nonisolated`. If these are only ever read on the audio path and set once at graph-configuration time, consider `let` + injection to make the immutability explicit.
 - **Severity:** Low
 
-**Verified clean:** `AudioRingBuffer` is a correctly designed lock-free SPSC buffer (no locks/allocations on the producer side; release/acquire barriers present); `WCSessionDelegate` handlers consistently hop to `@MainActor`; `XMLParser` delegates run synchronously on the calling thread (no cross-thread access); no `nonisolated(unsafe)` anywhere.
+### 3.5 Redundant `DispatchQueue.main.async` inside already-`@MainActor` methods
+- **Location:** `EchoCore/Services/PlaybackController.swift:160, 317, 333, 489, 509, 549, 661, 693, 706, 794, 847, 868`; `EchoCore/ViewModels/PlayerModel.swift:683`
+- **What:** Completion handlers inside main-actor-isolated methods re-hop to main via `DispatchQueue.main.async`.
+- **Why:** Redundant thread hops add latency and obscure the actual isolation; in async contexts they defeat structured-concurrency ordering guarantees.
+- **Action:** Where the enclosing context is already `@MainActor`, mutate directly. Where the callback truly arrives off-main (AVFoundation completion), prefer `Task { @MainActor in … }` or `MainActor.assumeIsolated`. Audit each site — several are no-ops.
+- **Severity:** Medium
+
+### 3.6 `Task.detached` without a retained handle or cancellation
+- **Location:** `EchoCore/Services/InlineFlashcardTriggerController.swift:48, 130`; `EchoCore/Services/TranscriptService.swift:24, 43`; `EchoCore/Services/StandaloneTranscriptionService.swift:59`
+- **What:** Detached tasks are spawned without storing the handle or checking `Task.isCancelled` in their loops.
+- **Why:** They outlive their owner and keep running after the view/service is gone — wasted CPU and possible access to stale state. Transcription tasks in particular are long-running.
+- **Action:** Store each `Task` and `.cancel()` it in `deinit`/`onDisappear`, and add `try Task.checkCancellation()` (or `guard !Task.isCancelled`) inside long loops. Prefer structured `Task {}` tied to the owner over `Task.detached` unless isolation truly must be shed.
+- **Severity:** Medium
+
+### 3.7 CarPlay reaches `PlayerModel` through a static weak singleton backdoor
+- **Location:** `EchoCore/EchoCoreApp.swift:21` (used by `CarPlaySceneDelegate`)
+- **What:** `@MainActor static weak var playerModel: PlayerModel?` is a documented `REFACTOR-TODO (§3.13)` backdoor so the non-SwiftUI CarPlay scene delegate can reach the shared model.
+- **Why:** Global mutable state creates initialization-ordering and concurrency hazards and blocks testability; the TODO is already acknowledged.
+- **Action:** Replace with a small `@MainActor` registry/container keyed by scene identifier (or inject via the scene's `userInfo`), then delete the static. Low risk because the CarPlay code paths don't change.
+- **Severity:** Medium
+
+### 3.8 `withCheckedContinuation` + KVO + `asyncAfter` timeout race (macOS)
+- **Location:** `Echo macOS/Views/MacPlayerModel.swift:120-134`; `Echo macOS/Views/TranscriptionManager.swift:244`
+- **What:** An AVPlayer status change is awaited via `withCheckedContinuation`, with a `DispatchQueue.main.asyncAfter` timeout fallback; the observer and the timeout can both try to resume.
+- **Why:** A checked continuation resumed twice traps; the KVO observer can also dangle if the timeout wins first.
+- **Action:** Guard resumption with a single-shot flag, remove the observer on resume, and prefer wrapping the KVO in an `AsyncSequence` or using a `Task` timeout helper. (macOS target received lighter coverage — see §11.)
+- **Severity:** Medium
+
+### 3.9 Spurious `await` on synchronous expressions
+- **Location:** `Shared/Services/ChapterCardDrafter.swift:32, 112`
+- **What:** "no 'async' operations occur within 'await' expression" — the awaited GRDB read closures resolve synchronously here.
+- **Why:** Harmless but noisy; obscures which awaits are real suspension points.
+- **Action:** Remove the redundant `await` (or restructure to the genuinely-async GRDB API). Quick win.
+- **Severity:** Low
 
 ---
 
 ## 4. API modernity
 
-### 4.1 Deprecated `OSAtomicAdd32Barrier` in the audio ring buffer
-- **Location:** `EchoCore/Services/AudioRingBuffer.swift:59`, `:68`, `:83`, `:89`
-- **What:** Producer/consumer index publication uses `OSAtomic*` functions, deprecated since iOS 10.
-- **Why:** Deprecated-and-flagged API; taking `&head` of a stored property for atomic ops also relies on pointer-stability assumptions Swift doesn't formally guarantee.
-- **Action:** Migrate to the `Synchronization` framework's `Atomic<Int32>` (available at the 26.x deployment targets) with `.releasing`/`.acquiring` orderings; semantics map one-to-one onto the existing barriers.
+### 4.1 `Timer.scheduledTimer` for periodic work instead of structured concurrency
+- **Location:** `EchoCore/Services/TimelineService.swift:171`; `EchoCore/Services/AudioEngine.swift:273, 440` (plus `fadeTimer`/`timeTimer` fields at `:77, :82`); `EchoCore/Services/AutoAlignmentService.swift:509`; `EchoCore/Services/SleepTimerManager.swift:34` (and ~10 more sites)
+- **What:** RunLoop-based timers drive 1 Hz / 0.5 Hz ticks across long-lived services; they require manual `invalidate()` and aren't cancellation- or isolation-aware.
+- **Why:** Timers leak if invalidation is missed and don't compose with task cancellation/actor isolation, complicating teardown.
+- **Action:** Migrate to `Task { for await _ in … }` loops with `Task.sleep`, or an `AsyncTimerSequence`, owned by the service and cancelled on teardown. (UI marquee/clock timers that already use `TimelineView` are fine.)
 - **Severity:** Medium
 
-### 4.2 Completion-handler seek API bridged with 12 manual main-queue hops
-- **Location:** `EchoCore/Services/AudioEngine.swift:150-183` (`seek(to:completion:)`); call sites `EchoCore/Services/PlaybackController.swift:160`, `:317`, `:333`, `:489`, `:509`, `:549`, `:661`, `:693`, `:706`, `:794`, `:847`, `:868`
-- **What:** `AudioEngine.seek` takes a completion closure; every `PlaybackController` caller wraps its body in `DispatchQueue.main.async`.
-- **Why:** The hops are correct today but unverifiable by the compiler, and each one defers state updates (`isManualSeeking = false`) by a runloop tick whether or not that delay is intentional.
-- **Action:** Give `AudioEngine` an `async` seek (and play/pause where applicable); `@MainActor` callers then resume on the right executor automatically and the 12 hops disappear.
-- **Severity:** Medium
-
-### 4.3 View-layer `Timer.scheduledTimer` where structured equivalents fit
-- **Location:** `EchoCore/Views/AutoAlignmentProgressView.swift:142` (see §8.1), `EchoCore/Views/ManualAlignmentSheet.swift:95`, `:103`, `Echo Watch App/Views/PlayerPage.swift:816`, `Echo Watch App/Views/ContentView.swift:216`
-- **What:** Views drive repeating work with Timer + `Task { @MainActor … }` shims.
-- **Why:** Lifecycle is manual (invalidate-on-disappear discipline) where `.task(id:)` with an async sleep loop is self-cancelling.
-- **Action:** Prefer `.task(id:)`/`Task.sleep` loops in views; keep Timer only where runloop-mode behaviour is actually wanted.
+### 4.2 Legacy AVPlayer KVO status observation (macOS)
+- **Location:** `Echo macOS/Views/MacPlayerModel.swift:120-134`
+- **What:** AVPlayer item readiness is observed via manual KVO wrapped in a continuation rather than an async-friendly abstraction.
+- **Why:** KVO bridging is error-prone (see §3.8) and harder to cancel than an `AsyncSequence`.
+- **Action:** Wrap the KVO in an `AsyncStream` once and reuse, or adopt the modern timed-metadata/observation patterns. Low urgency.
 - **Severity:** Low
 
-**Verified clean:** No deprecated SwiftUI API usage found (one-arg `.animation`, `NavigationView`, `UIScreen.main` — all absent); `@Observable` migration is complete (zero `ObservableObject`/`@StateObject`); no stale `#available` guards below the 26.x targets.
+> _Positive note:_ the codebase is otherwise modern for its iOS-18/macOS-15/watchOS-11 floor — `@Observable` throughout (no `ObservableObject`/`@Published`), `Synchronization.Atomic` (post-`OSAtomic`), and `CLLocationUpdate.liveUpdates()` rather than the CLLocationManager delegate. No dead `@available(iOS ≤18, *)` guards were found.
 
 ---
 
 ## 5. Bugs / logic errors
 
-### 5.1 The Echo macOS target does not build (two root causes)
-- **Status:** ✅ **FIXED 2026-06-09** (`307c236`, `ba1f439`). Revived the target: linked WhisperKit to Echo macOS, removed the orphaned "Build and Copy OrbitTranscriptionCLI" shell phase, and added the `group.com.echo.audiobooks` app-group entitlement. Remaining cleanup tracked under §9.3 (move the duplicated `Mac*` logic into `Shared/`).
-- **Location:** (a) `Echo macOS/Services/MacGlobalAlignmentService.swift:4` — `import WhisperKit` while the WhisperKit product is linked only to the iOS target (`Echo.xcodeproj/project.pbxproj:220`, sole Frameworks entry); (b) `Echo.xcodeproj/project.pbxproj:577-601` — "Build and Copy OrbitTranscriptionCLI" shell phase owned by the macOS target (`:303`), `alwaysOutOfDate = 1`, `set -euo pipefail`, runs `swift build` against `Tools/OrbitTranscriptionCLI/`, a package deleted from git in commit `751e89c` (only untracked `.build/` remains on disk; a fresh clone has nothing)
-- **What:** `xcodebuild -scheme "Echo macOS"` fails at compile ("Unable to resolve module dependency: 'WhisperKit'"); even after fixing that, the unguarded script phase fails every build.
-- **Why:** The macOS product is entirely dead on main; CI or a fresh contributor cannot build it. Related: `Echo macOS/Views/MacPlayerModel.swift` uses `AppGroupDefaults` but `Echo macOS/Echo_macOS.entitlements` lacks the `group.com.echo.audiobooks` entitlement, so even a fixed build hits the `assertionFailure` guard in `Shared/AppGroupDefaults.swift:11-13`.
-- **Action:** Decide the target's fate. To revive: link WhisperKit to Echo macOS, delete the orphaned script phase, add the app-group entitlement. To park: remove the scheme/target or mark it clearly in README so the broken state is intentional.
+### 5.1 `@frozen` on an internal struct — build-breaking  ✅ FIXED
+- **Location:** `EchoCore/Views/Visualizer/VisualizerView.swift:7-8`
+- **What:** `@frozen struct VisualizerUniforms` was `internal`; `@frozen` is only valid on `public`/`package`/`@usableFromInline` declarations, so the compiler emitted a hard `error:`.
+- **Why:** EchoCore did not compile, which broke the Echo app, macOS, and Widget targets that embed it (mirrors the prior audit's #1 finding where a target didn't build). Critically, this error **aborted type-checking before the rest of the module was reached**, masking §5.8–§5.11 below.
+- **Action:** ✅ Deleted the `@frozen` attribute. **Still open:** add a CI build gate (`xcodebuild build`, RAM-capped) so a non-compiling commit can't merge again — see §10 (recommendation 5).
 - **Severity:** Critical
 
-### 5.2 Security-scoped bookmark created with `.minimalBookmark`
-- **Location:** `EchoCore/Services/Persistence.swift:172-178` (creation); `:191-222` (restore — the stale-refresh path itself is correct)
-- **What:** The folder-access bookmark is created with `options: [.minimalBookmark]`.
-- **Why:** Apple's guidance for security-scoped bookmarks on iOS is to pass empty options; minimal bookmarks store reduced information and may omit the sandbox-extension data needed for `startAccessingSecurityScopedResource()` to succeed after relaunch — i.e. the user's library folder silently becomes inaccessible.
-- **Action:** Create with `[]`, then verify the full cycle on device: pick folder → relaunch → confirm `startAccessing…` returns true. (Keychain storage of the bookmark, lines 168-189, is good practice and unchanged.)
+### 5.8 `VisualizerUniforms` init writes to a tuple via a mis-typed pointer  ✅ FIXED
+- **Location:** `EchoCore/Views/Visualizer/VisualizerView.swift:22-27`
+- **What:** `withUnsafeMutablePointer(to: &s)` yields a pointer to the 16-`Float` *tuple*, so `UnsafeMutableBufferPointer(start: ptr, …)` was typed `<(Float×16)>` and `buf[i] = spectrum[i]` was a `Float`-to-tuple assignment error.
+- **Why:** Compile error (masked behind §5.1) in the spectrum-upload path of the new visualizer.
+- **Action:** ✅ Rebound the pointer with `withMemoryRebound(to: Float.self, capacity: 16)` (valid — a homogeneous tuple is contiguous, identical layout to `[Float]`).
+- **Severity:** High (was build-breaking)
+
+### 5.9 CarPlay `CPListItem.handler` closures had the wrong arity  ✅ FIXED
+- **Location:** `EchoCore/CarPlay/CarPlayManager.swift:153, 216, 229, 273`
+- **What:** Each `item.handler = { _ in … }` (or `{ [weak model] _ in … }`) supplied a **one-argument** closure, but `CPListItem.handler` (via `CPSelectableListItem`) is `(item, completion) -> Void`. The arity mismatch made each enclosing `.map` un-type-checkable ("failed to produce diagnostic for expression").
+- **Why:** Compile error (masked behind §5.1) across all four CarPlay list templates (library, aggregated chapters, chapters, bookmarks).
+- **Action:** ✅ Changed to `{ _, completion in … completion() }`, calling `completion()` to dismiss CarPlay's loading indicator (used `defer` on the library item that has an early `return`). Distinct from §5.2 (the dead `didDisconnect` delegate), which remains open.
+- **Severity:** High (was build-breaking)
+
+### 5.10 `DefaultChimePlayer` scheduled a file via the now-`async` overload  ✅ FIXED
+- **Location:** `EchoCore/Services/DefaultChimePlayer.swift:64`
+- **What:** Bare `playerNode.scheduleFile(file, at: nil)` resolved, in the `async` `fireChime`, to the iOS-18 `async` overload that suspends until playback finishes — "expression is 'async' but is not marked with 'await'." Adding bare `await` would compile but break the logic (it would wait for playback to complete *before* `play()` is ever called).
+- **Why:** Compile error (masked behind §5.1); naive `await` fix would be a silent functional bug.
+- **Action:** ✅ Passed `completionHandler: nil` to select the non-blocking overload, preserving the schedule-then-play ordering. (Sibling calls in `DefaultSoundscapeMixer`/`BookmarkStore` pass trailing closures and were already unambiguous.)
+- **Severity:** High (was build-breaking)
+
+### 5.11 GRDB symbols used without `import GRDB`; un-awaited async DB reads  ✅ FIXED
+- **Location:** `EchoCore/ViewModels/PlayerModel.swift:371`; `Echo macOS/Views/MacAnkiExportView.swift:140, 172`; `Echo macOS/Services/MacApkgExportService.swift:64, 78`
+- **What:** Three files referenced GRDB's `Column`/records without `import GRDB` ("cannot find 'Column' in scope"), and two macOS call sites invoked `async` `DatabaseWriter.read`/`export(...)` without `await`. All were masked behind §5.1 (iOS) and the macOS GRDB error (macOS target).
+- **Why:** Compile errors blocking both the iOS and macOS builds; the never-compiled Wave-1 code (standalone-transcript check, Anki export) shipped with these.
+- **Action:** ✅ Added `import GRDB` (qualifying `GRDB.Column` in `PlayerModel` to avoid an ambiguity with another imported module), and added `try await` to the genuinely-async DB/export calls (sync `db.read` inside the non-async `compactMap` at `MacApkgExportService:67` was correctly left as-is).
+- **Severity:** High (was build-breaking)
+
+### 5.2 CarPlay `didDisconnect` delegate method never fires
+- **Location:** `EchoCore/CarPlay/CarPlaySceneDelegate.swift:17-23`
+- **What:** `templateApplicationScene(_:didDisconnect:)` matches no `CPTemplateApplicationSceneDelegate` requirement (compiler: "nearly matches optional requirement … `didSelect`"), so CarPlay never calls it; `manager?.disconnect()` and `self.manager = nil` are dead.
+- **Why:** On CarPlay disconnect the `CarPlayManager` (and its `CPInterfaceController` reference + templates) are never torn down — a leak and stale state on reconnect.
+- **Action:** Rename to the exact SDK requirement (`templateApplicationScene(_:didDisconnectInterfaceController:)`, verify against the CarPlay headers) so the disconnect path actually runs.
+- **Severity:** High
+
+### 5.3 Metal command-buffer / encoder force-unwraps in the per-frame draw loop
+- **Location:** `EchoCore/Views/Visualizer/VisualizerView.swift:114-115`
+- **What:** `commandQueue.makeCommandBuffer()!` and `buffer.makeRenderCommandEncoder(descriptor:)!` are force-unwrapped inside `draw(in:)` (called every frame), while the rest of the method correctly `guard let`s its Metal resources (lines 94-97, 105).
+- **Why:** Both can return nil under GPU memory pressure, command-buffer exhaustion, or app backgrounding mid-draw — a crash, inconsistent with the safe handling around it.
+- **Action:** `guard let buffer = commandQueue.makeCommandBuffer(), let encoder = buffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }` and skip the frame.
 - **Severity:** Medium
 
-### 5.3 App-group UserDefaults read-modify-write without coordination
-- **Location:** `EchoCore/Services/Persistence.swift:33`, `:51`, `:69`, `:121`, `:149` (whole-dictionary RMW per save); cross-process writers in `Echo Widget/Models/AppIntent.swift:13`, `:50`
-- **What:** Progress/speed/loop-mode are stored as one dictionary per key; every save reads the whole dictionary, mutates one entry, and writes it back, while the watch-widget process writes the same suite.
-- **Why:** Concurrent writes lose updates (last-writer-wins on the whole dictionary); the dictionaries also grow unboundedly (one entry per book ever played).
-- **Action:** Store one defaults key per book (`progress_<id>`) so writes don't collide, or move durable state into GRDB and keep only the widget-display snapshot in the suite.
+### 5.4 FSRS scheduler silently drops the next-review date on calendar overflow
+- **Location:** `Shared/Database/FSRSScheduler.swift:76-77`
+- **What:** `Calendar.current.date(byAdding: .day, value: interval, to: now)` returns optional; on overflow (very large stability intervals near `Date.distantFuture`) it yields nil with no logging or clamp, leaving `nextReviewDate` unset.
+- **Why:** A card with an unset next-review date silently falls out of the spaced-repetition queue — a correctness bug in the scheduling core.
+- **Action:** Clamp `interval` to a sane maximum (e.g. 36,500 days) before the calendar add, and log if the result is still nil.
 - **Severity:** Medium
 
-### 5.4 Failed artwork load poisons the palette cache for that artwork version
-- **Location:** `EchoCore/ViewModels/PlayerModel.swift:206-219`
-- **What:** When `currentDisplayArtwork ?? thumbnailImage` is nil, an empty palette is cached under the current artwork version; the empty result is then served until the version changes.
-- **Why:** If artwork later becomes loadable without a version bump (e.g. file restored, race at load), accent colouring stays disabled for the session.
-- **Action:** Cache only successful extractions; on nil image return the empty palette without recording the version.
+### 5.5 `LocationCaptureService` never requests `.notDetermined` authorization
+- **Location:** `EchoCore/Services/LocationCaptureService.swift:19-36`
+- **What:** `capture()` proceeds only for `.authorizedWhenInUse`/`.authorizedAlways`; on `.notDetermined` it returns nil without ever calling `requestWhenInUseAuthorization()`.
+- **Why:** If permission was never requested elsewhere, the location-tagging feature silently no-ops and the user is never prompted, appearing broken.
+- **Action:** Handle `.notDetermined` by requesting authorization (or confirm the request is made at onboarding and document the precondition). Also handle `.denied`/`.restricted` with user-visible messaging.
+- **Severity:** Medium
+
+### 5.6 Force-unwraps that are provably safe but read as fragile
+- **Location:** `EchoCore/CarPlay/CarPlayManager.swift:33-35`; `EchoCore/Services/AlignmentService.swift:232`; `EchoCore/Views/ReaderFeedCollectionView.swift:389`; `Echo macOS/Views/MacAnkiExportView.swift:219, 310`
+- **What:** Each `!` is safe given a local invariant — CarPlay templates are assigned non-nil immediately above (lines 27-29); `anchorTimeByBlockID[…]!` keys are guaranteed by the `filter` at `AlignmentService.swift:218`; `uniqueStack.last!` is gated by `count == uniqueStack.count >= 3` (line 375); the AnkiConnect `URL(string:)!` is a static literal.
+- **Why:** No crash today, but invariant-dependent force-unwraps are landmines for future edits (e.g. someone mutates `anchorTimeByBlockID` between filter and access).
+- **Action:** Replace with `guard let`/`?? <fallback>` to make the invariants explicit. Low priority.
 - **Severity:** Low
 
-### 5.5 Time-remaining labels divide by unvalidated speed
-- **Location:** `EchoCore/Services/PlaybackProgressPresenter.swift:88`, `:100-101`
-- **What:** `speed` comes from `speedProvider?() ?? 1.0` and divides elapsed/remaining time with no zero/finite guard.
-- **Why:** A zero speed yields `Inf` (not a crash — but "-inf" rendered into the progress label); cheap to make impossible.
-- **Action:** Clamp speed to a sane minimum (e.g. `max(0.1, …)`) at the read site.
-- **Severity:** Low
-
-### 5.6 Force-unwrap style in CarPlay chapter list
-- **Location:** `EchoCore/CarPlay/CarPlaySceneDelegate.swift:44-45`
-- **What:** `model?.isMultiM4B == true, !model!.aggregatedChapters.isEmpty` — the `!` is safe today because `model` is a local `let` bound at `:35`, but the pattern invites a crash if the binding ever becomes a property.
-- **Why:** Fragile under refactoring; trivially expressible safely.
-- **Action:** Rebind with `if let model, model.isMultiM4B, !model.aggregatedChapters.isEmpty`.
-- **Severity:** Low
-
-### 5.7 Unbalanced `stopAccessingSecurityScopedResource` in the auto-import scanner
-- **Location:** `EchoCore/Services/EPUBAutoImportScanner.swift:38-45` (compare the correct `didStart` pattern at `EchoCore/Services/Persistence.swift:273-274`)
-- **What:** The `startAccessing…` result is discarded and the `defer` calls `stopAccessing…` unconditionally, so a failed start still gets a stop.
-- **Why:** Apple requires start/stop calls to balance; an unmatched stop can over-release another holder's sandbox extension on the same URL.
-- **Action:** Capture the Bool and stop only when start succeeded (the codebase already does this correctly elsewhere).
-- **Severity:** Low
-
-### 5.8 `updateApplicationContext` whole-payload semantics deserve a guard rail
-- **Location:** `EchoCore/Services/WatchSyncManager.swift` (context send site, ~`:87`)
-- **What:** Application context replaces the previous dictionary wholesale; any "significant state" key omitted from a send silently reverts to stale on the watch.
-- **Why:** The recent "durable application context" work makes this the watch's source of truth; a future partial-payload send becomes a subtle stale-UI bug.
-- **Action:** Funnel all context sends through one builder that always emits the complete key set (document the invariant there); assert key-set equality in DEBUG.
-- **Severity:** Low
+### 5.7 Widget `CreateBookmarkIntent` writes bookmarks into a UserDefaults JSON blob
+- **Location:** `Echo Widget/Models/AppIntent.swift:45-51`
+- **What:** The intent appends a `Bookmark` to `bookmarks_<folderKey>` as JSON in `AppGroupDefaults`, while the main app's bookmark persistence was migrated to GRDB/per-book storage in the prior remediation (§5.3 of the 2026-06-09 audit).
+- **Why:** If the app no longer reads this UserDefaults path, widget-created bookmarks are silently lost — a data-integrity gap.
+- **Action:** Verify the app still ingests `bookmarks_<folderKey>` from the app group on launch; if not, route the widget intent through the shared persistence layer (or a hand-off queue the app drains).
+- **Severity:** Medium
 
 ---
 
 ## 6. Security
 
-### 6.1 Zip-slip path traversal in EPUB extraction
-- **Status:** ✅ **FIXED 2026-06-09** (TDD). Added `EPUBAutoImportScanner.safeDestination(for:within:)`, which rejects absolute entry paths and any `..`-traversal that escapes the extraction root (standardize + prefix check), and gated the extraction loop on it so no directory is created or file written until the path is validated. New error case `ScannerError.unsafeEntryPath`. Regression tests: `EchoTests/EPUBExtractionPathSafetyTests.swift` (parameterized over `../escape.txt`, `../../etc/passwd`, `OEBPS/../../escape.txt`, absolute paths, plus legitimate and in-root-`..` cases).
-- **Location:** `EchoCore/Services/EPUBAutoImportScanner.swift:314-321`
-- **What:** Manual entry iteration extracts to `destDir.appendingPathComponent(entry.path)` with no validation; ZIPFoundation's traversal protection applies to `unzipItem(at:to:)`, not to manual `extract(_:to:)`.
-- **Why:** A malicious EPUB (books are routinely downloaded from arbitrary sources) containing `../`-prefixed entry paths writes outside `destDir` — within the sandbox that still reaches the GRDB database and imported library, i.e. data corruption/loss.
-- **Action:** Standardize each destination URL and require its path to keep `destDir` as a prefix before extracting (also reject absolute entry paths); or switch to `unzipItem`.
-- **Severity:** High
+### 6.1 `.apkg` extraction has no per-entry or total size cap (zip-bomb DoS)
+- **Location:** `EchoCore/Services/ApkgImportService.swift:106-139` (`extractSafely`)
+- **What:** Each archive entry is extracted to temp with no size/entry-count ceiling; a crafted `.apkg` (highly compressible payload) could exhaust temp disk during import.
+- **Why:** Local DoS / disk exhaustion from an untrusted file. (Zip-slip itself **is** handled — see §6.5.)
+- **Action:** Enforce a per-entry uncompressed-size limit and a total-extraction budget; abort with `ImportError.extractionFailed` when exceeded. The same guard belongs in `EPUBAutoImportScanner`.
+- **Severity:** Medium
 
-### 6.2 XML parser hardening for untrusted EPUB content
-- **Location:** `Shared/EPUBXMLParsing.swift:50`, `:82`, `:134`, `:218`
-- **What:** Parsers rely on `XMLParser`'s default `shouldResolveExternalEntities == false` rather than setting it explicitly.
-- **Why:** The default is safe today (this audit verified the property is never enabled), but the files parse fully untrusted input; an explicit `false` plus a comment documents the trust boundary and survives future refactors.
-- **Action:** Set `shouldResolveExternalEntities = false` at all four construction sites.
+### 6.2 AnkiConnect bridge uses plain HTTP to localhost
+- **Location:** `Echo macOS/Views/MacAnkiExportView.swift:219, 310` (`http://localhost:8765`)
+- **What:** The JSON-RPC bridge talks plain HTTP to the AnkiConnect addon on loopback.
+- **Why:** Acceptable in practice — AnkiConnect offers no TLS and loopback isn't network-exposed — but it warrants two guardrails: the host must be pinned to loopback, and any App Transport Security exception must be scoped to `localhost`, not a blanket `NSAllowsArbitraryLoads`.
+- **Action:** Confirm the `Info.plist` ATS exception is `NSExceptionDomains: localhost` only, and keep the host hardcoded to `localhost`/`127.0.0.1`. No protocol change needed.
 - **Severity:** Low
 
-### 6.3 One entitlements file shared by watch app and watch widget
-- **Location:** `Echo.xcodeproj/project.pbxproj:779`, `:814` (widget), `:1155`, `:1194` (watch app) → both point at root `Echo.entitlements`, which contains the app group *and* the `iCloud.com.echo.audiobooks` container
-- **What:** The watch widget inherits the iCloud container entitlement it doesn't use; the file's root-level name doesn't indicate ownership.
-- **Why:** Entitlements should be least-privilege per target; the shared file makes future entitlement changes apply to both silently.
-- **Action:** Split into per-target entitlements files declaring only what each target uses.
+### 6.3 Hand-rolled JSON string escaping in the Anki exporter
+- **Location:** `EchoCore/Services/ApkgExportService.swift:310-314`
+- **What:** `makeDeckJSON` escapes strings via `replacingOccurrences(of:with:)`, which misses control characters (`\u{00}`, `\r`, `\t`) and other JSON edge cases.
+- **Why:** Flashcard text containing control characters can produce malformed JSON in the exported deck.
+- **Action:** Build the payload with `JSONEncoder`/`JSONSerialization` instead of manual escaping.
 - **Severity:** Low
 
-**Verified clean:** No hardcoded secrets/tokens (grep for bearer/apiKey/secret/password patterns); security-scoped bookmark stored in Keychain with a UserDefaults→Keychain migration path (`Persistence.swift:191-201`); log statements sanitize home-directory prefixes (`EPUBAutoImportScanner.swift:330-334`); StoreKit 2 transaction listener and entitlement refresh present (`StoreManager.swift:82`, `:96`).
+### 6.4 Exported voice-memo URLs copied without container validation
+- **Location:** `EchoCore/Services/StudyNotesExportService.swift:38-44`
+- **What:** `bm.voiceMemoURL(in: nil)` is copied into `assets/` without asserting the source is inside the app container.
+- **Why:** Low risk because the URL is derived from app-controlled `Bookmark` records, but a corrupted record pointing outside the container would copy an unintended file into an export.
+- **Action:** Assert the resolved source URL is within Documents/Application Support before copying; skip otherwise.
+- **Severity:** Low
+
+### 6.5 _Verified clean: `.apkg` SQLite handling is not injectable_
+- **Location:** `EchoCore/Services/ApkgImportService.swift:74-99, 200-320`
+- **What:** The untrusted Anki collection DB is opened **read-only** (`config.readonly = true`, line 78); all reads are static `SELECT`s and all writes into Echo's DB use parameterized `arguments:`. Zip extraction is guarded by `safeDestination` (lines 143-156), the same hardened pattern as the remediated EPUB path.
+- **Why:** Recorded so the agent-reported "SQL injection from untrusted .apkg" claim isn't re-raised — there is no string interpolation of untrusted data into SQL, and read-only mode mitigates a malicious DB.
+- **Action:** None. Optionally add a lightweight schema sanity-check (expected tables present) for friendlier error messages on corrupt files.
+- **Severity:** Low (informational)
 
 ---
 
 ## 7. Performance
 
-### 7.1 Main-thread database work
-See **§3.2** — the same 23 synchronous DAO sites are the codebase's largest jank risk; profile before converting.
-
-### 7.2 Watch marquee animates at frame rate whenever the title overflows
-- **Location:** `Echo Watch App/Views/PlayerPage.swift:911-947` (`TimelineView(.animation)` at `:919`)
-- **What:** The scrolling-title marquee uses an unpaused `.animation` schedule, redrawing at display refresh rate any time the text is wider than its container — including while playback is paused.
-- **Why:** Continuous per-frame invalidation is one of the most expensive things a watch view can do (battery + thermals); the recent "wrist-down tick fix" commit shows this class of issue already bit once.
-- **Action:** Use `TimelineView(.animation(minimumInterval:paused:))`, pausing when not playing and when `@Environment(\.isLuminanceReduced)` is true; consider pausing after one full scroll cycle.
+### 7.1 Visualizer audio tap copies the full sample buffer every callback on the realtime thread
+- **Location:** `EchoCore/Services/DefaultVisualizerTap.swift:52-60` (copy at `:58`)
+- **What:** The `installTap` block runs on the realtime audio render thread and does `Array(samples)` (a full allocation + copy) plus an `AsyncStream` yield each callback (~30–60 Hz).
+- **Why:** Allocations on the audio render thread risk priority inversion and audio glitches; this is the hottest path in the new visualizer subsystem.
+- **Action:** Analyze in place via the `UnsafeBufferPointer` (compute RMS/peak/FFT bins without copying), reuse a preallocated scratch buffer, and yield only the small `VisualizerFrame` — never the raw samples. Keep the tap block allocation-free.
 - **Severity:** Medium
 
-### 7.3 Watch artwork JPEG re-encode is uncached
-- **Location:** `EchoCore/Services/ArtworkCache.swift:129`
-- **What:** The 0.75-quality JPEG for watch transfer is re-encoded from `watchImage` on demand; the send path dedupes by artwork key, but the encode itself isn't cached.
-- **Why:** Redundant CPU on artwork-change bursts (book switches); small but free to fix alongside §9.7's constant extraction.
-- **Action:** Cache encoded `Data` keyed by the same artwork version used for send-dedupe.
-- **Severity:** Low
+### 7.2 `VisualizerView` creates two `MTLDevice`s and re-derives pipeline state
+- **Location:** `EchoCore/Views/Visualizer/VisualizerView.swift:50, 81-82`
+- **What:** `MTLCreateSystemDefaultDevice()` is called in both `makeUIView` (line 50, for `view.device`) and `Coordinator.init` (line 81, for the command queue). The command queue is built from a *different* device handle than the view's.
+- **Why:** Wasteful and subtly inconsistent — commands are encoded on the Coordinator's device but presented to the view's drawable. On iOS there is one system GPU so it works, but it's fragile.
+- **Action:** Create the device once in `makeUIView`, pass it to the Coordinator, and build the command queue from `view.device`. Cache the pipeline state keyed by style (already partly done via `needsRebuild`).
+- **Severity:** Medium
+
+### 7.3 CarPlay library refresh runs a synchronous GRDB read on the main actor
+- **Location:** `EchoCore/CarPlay/CarPlayManager.swift:134-140` (called from `connect` at `:40-42`)
+- **What:** `refreshLibrary()` (and the chapters/bookmarks refreshes) do `AudiobookDAO(db: db.writer).all()` synchronously on the `@MainActor`.
+- **Why:** A large library blocks the CarPlay UI thread on connect — visible lag or watchdog risk in the car (the prior audit's §3.2 flagged the same synchronous-DAO pattern elsewhere).
+- **Action:** Make the refreshes `async` and use `try await db.read { … }`, populating templates once the data returns.
+- **Severity:** Medium
+
+### 7.4 `PlaybackSessionRecorder` has an unbounded `AsyncStream` buffer
+- **Location:** `EchoCore/Services/PlaybackSessionRecorder.swift:73-76`
+- **What:** Events are `yield`ed with the default unbounded buffering policy; a slow consumer (e.g. during fast scrubbing) lets the buffer grow without bound.
+- **Why:** Memory growth under bursty playback events.
+- **Action:** Construct the stream with `.bufferingNewest(n)` (or `.bufferingOldest`) so backpressure drops rather than accumulates.
+- **Severity:** Medium
 
 ---
 
 ## 8. SwiftUI / UI
 
-### 8.1 Progress view polls `@Observable` state with a timer
-- **Location:** `EchoCore/Views/AutoAlignmentProgressView.swift:132-157`; state type `EchoCore/Services/AutoAlignmentState.swift:5-6` (`@MainActor @Observable`)
-- **What:** A 0.3 s `Timer` copies `sharedState.phase/progress/statusMessage` into local `@State` each tick.
-- **Why:** `AutoAlignmentState` is already `@Observable` — reading it directly in `body` gives per-property change tracking with zero timers, lower latency, and no invalidate-on-disappear bookkeeping (the copy also makes the progress UI lag up to 300 ms).
-- **Action:** Delete the timer and local mirror state; read `sharedState` properties directly in `body` (inject via `@Environment` or a stored `let`).
+### 8.1 Fidget physics mutate `@State` inside the `Canvas` render closure
+- **Location:** `EchoCore/Views/Fidget/KineticSandView.swift:21-29` (mutations at `:27-28`)
+- **What:** Inside `TimelineView(.animation).Canvas { … }`, the body mutates `@State` (`lastUpdate`, and `particles` via `updateParticles`) during view rendering.
+- **Why:** "Modifying state during view update" is undefined behavior in SwiftUI (purple runtime warning); it can also drive extra invalidations. The 60 Hz loop also keeps running while the fidget overlay is open on a paged-away tab.
+- **Action:** Drive the simulation from the `TimelineView` date input (compute `dt` from the provided context date, not stored `@State`), keep particle state in an `@Observable` model updated outside `body`, and gate the timeline with `paused:` when the fidget isn't the active page.
 - **Severity:** Medium
 
-### 8.2 Non-private `@State` across a cross-file extension split
-- **Location:** `EchoCore/Views/ReaderTab.swift:11-29` (8 internal `@State` properties); consumer `EchoCore/Views/ReaderTab+Alignment.swift:8`
-- **What:** `@State` is left internal so a same-type extension in another file can reach it.
-- **Why:** Internal `@State` invites external mutation (undefined behaviour if anything outside the view writes it) and signals the view owns workflow state that belongs in a model; the alignment workflow already has `ReaderFeedViewModel` and `AutoAlignmentState` available.
-- **Action:** Move alignment-workflow state (task handle, sheet/alert flags) into the view model; restore `private` on what remains.
+### 8.2 Stats aggregations computed in `body` instead of being cached
+- **Location:** `EchoCore/Views/Stats/DeckListView.swift:30-31` (`reduce` over decks); `EchoCore/Views/Stats/DeckDetailView.swift:17-23` (`filteredCards` computed filter); `EchoCore/Views/Stats/StatsView.swift:89-112`
+- **What:** Totals (`decks.reduce`) and case-insensitive filters run on every body evaluation rather than being computed once when data loads or `searchText` changes.
+- **Why:** O(n)/O(n·m) work per redraw causes jank as decks/cards grow.
+- **Action:** Compute totals in the `load()` task and store in `@State`; drive filtering off `.onChange(of: searchText)` or move it into the view model; split `booksSection` into its own `Equatable` subview to localize redraws.
+- **Severity:** Medium
+
+### 8.3 Onboarding icons use fixed point sizes (no Dynamic Type)
+- **Location:** `EchoCore/Views/OnboardingView.swift:32-33, 47-48, 62-63, 77-78`
+- **What:** Four hero SF Symbols are `.font(.system(size: 60))` — fixed, ignoring Dynamic Type.
+- **Why:** They won't scale for accessibility text sizes, breaking the onboarding hierarchy on the first screen users see.
+- **Action:** Use `@ScaledMetric` for the icon size (or a text style), and add `.accessibilityHidden(true)` since the adjacent `Text` already carries the meaning.
+- **Severity:** Medium
+
+### 8.4 Image-derived theme color may fail contrast in dark mode
+- **Location:** `EchoCore/Views/ReaderTab.swift:38, 79`
+- **What:** A cover-derived hex theme color is applied as a background/tint without a luminance-based contrast check; line 38 uses semantic `Color(uiColor: .systemBackground)` but line 79 layers the raw theme color.
+- **Why:** User/image-derived colors don't auto-invert; a dark cover can yield dark-on-dark text.
+- **Action:** Derive a contrasting foreground from the theme color's luminance (the new `OKLCH`/`CoverThemeBuilder` utilities already compute lightness — reuse them), and verify in both appearances.
+- **Severity:** Medium
+
+### 8.5 Missing `Equatable` on hot leaf views
+- **Location:** `EchoCore/Views/Stats/StatCardView.swift:1-40` (used in a `LazyVGrid` in `StatsView`); pattern also applies to chart row subviews
+- **What:** Leaf cards lack `Equatable`, so they re-render whenever the parent's unrelated state (e.g. `selectedBucket`) changes.
+- **Why:** Redundant layout/render passes in grids of stat cards.
+- **Action:** Conform hot, parameter-only leaf views to `Equatable` (or wrap with `.equatable()`), comparing just their displayed values.
 - **Severity:** Low
 
-### 8.3 App-icon completion mutates `@State` without an explicit main-actor hop
-- **Location:** `EchoCore/Views/SettingsView.swift:313-317`
-- **What:** `setAlternateIconName`'s completion (delivery queue undocumented) assigns `currentIcon` and logs via `print`.
-- **Why:** Under Swift 5 mode nothing enforces main-thread delivery here; wrapping in `Task { @MainActor … }` makes it compiler-checked and future-proof (and the `print` should be `Logger` — see §2).
-- **Action:** Hop to `@MainActor` in the completion before touching view state.
+### 8.6 `PKCanvasView` held in `@State`
+- **Location:** `EchoCore/Views/Fidget/DoodlePadView.swift:11`
+- **What:** A `PKCanvasView` (UIView) is stored in `@State` and mutated directly.
+- **Why:** Accepted PencilKit practice, but `@State` won't observe the reference type's mutations, which can confuse future readers.
+- **Action:** Optionally hold the canvas in the representable's `Coordinator` instead, leaving `@State` for value types. Low priority.
 - **Severity:** Low
 
-### 8.4 Accessibility coverage is good where sampled — finish the sweep
-- **Location:** Spot-checked exemplar: `EchoCore/Views/TransportControlsView.swift:64-116` (icon-only buttons all labelled); 12 of 52 files in `EchoCore/Views/` reference `accessibilityLabel`
-- **What:** Transport controls are properly labelled; the remaining icon-only buttons across the other view files weren't exhaustively verified.
-- **Why:** Icon-only buttons without labels read as the SF Symbol name in VoiceOver.
-- **Action:** Sweep `Image(systemName:)`-only buttons in the unsampled files (Bookmarks, PlaylistView, ReaderTab toolbars) and label any gaps; run the Accessibility Inspector audit once.
+### 8.7 `ForEach(id: \.self)` on `CaseIterable` enums
+- **Location:** `EchoCore/Views/Fidget/FidgetOverlayView.swift:54`; `EchoCore/Views/Visualizer/VisualizerPickerView.swift:21`
+- **What:** Pickers iterate enum `allCases` with `id: \.self`.
+- **Why:** Fine for small immutable enums, but identity shifts if cases are reordered/renamed.
+- **Action:** Acceptable as-is; if you want robustness, give the enums an explicit stable `id`. Low priority.
 - **Severity:** Low
 
 ---
 
 ## 9. Dead code / duplication / refactor
 
-### 9.1 Files and directories to delete or untrack
-- `OrbitAudioBooks/`, `Orbit Audiobooks macOS/` — rebrand leftovers, zero pbxproj references (verified).
-- `scratch/` — git-tracked design scraps (2 Swift before/after files, 4 SVGs).
-- `Tools/OrbitTranscriptionCLI/` — untracked `.build/` + `Package.resolved` for a deleted package; `Tools/__pycache__/`.
-- `build.log` — untracked build output at repo root; gitignore it.
-- **Severity:** High (cleanup; zero risk, removes an entire phantom subproject)
-
-### 9.2 Two parallel audio snippet players
-- **Locations:** `EchoCore/Services/SnippetPlayer.swift` (used by `PlayerModel`) vs `EchoCore/Services/AudioSnippetPlayer.swift` (used only by `EchoCore/Views/Bookmarks.swift:396`, `:752`)
-- **What:** Two implementations of "play a short audio range" with separate AVFoundation setup.
-- **Why:** Double maintenance; behavioural drift between bookmark preview and other snippet playback.
-- **Action:** Pick one (the protocol-oriented `MediaPlayable` direction in CLAUDE.md suggests folding both behind one service) and migrate the two Bookmarks call sites.
+### 9.1 `sanitize(_:)` triplicated across export services
+- **Locations:** `EchoCore/Services/ApkgExportService.swift:332-336`, `EchoCore/Services/StudyNotesExportService.swift:124-128`, `Echo macOS/Services/MacApkgExportService.swift:345` (related: `EchoCore/Services/EPUBAutoImportScanner.swift:365` `sanitizedPath`)
+- **What:** Three identical filename-sanitization helpers (strip invalid filesystem chars + trim).
+- **Why:** Three copies drift independently; the macOS copy duplicates the iOS exporter wholesale.
+- **Action:** Extract one helper into `Shared/SafeFileName.swift` (distinct from the existing SHA-256 `fromAudiobookID`) and call it from all three. Worth checking `MacApkgExportService` vs `ApkgExportService` for further shareable export logic.
 - **Severity:** Medium
 
-### 9.3 macOS target reimplements iOS EPUB parsing and alignment
-- **Status:** ✅ **FIXED 2026-06-10.** Pure alignment utility functions (`tokenizeForAlignment`, `jaccardScore`, `formatTimeHMS`) extracted to `Shared/TextAlignmentUtilities.swift`. `MacGlobalAlignmentService` delegates tokenize/score/formatTime to the shared free functions, eliminating private copies. All five hardcoded `Logger(subsystem:)` sites in the macOS target replaced with `Logger(category:)`. `MacEPUBParser` already used `parseXHTML`/`parseOPF`/`parseContainerXML` from `Shared/EPUBXMLParsing.swift` — its thin wrappers add platform-appropriate file I/O.
-- **Locations:** `Echo macOS/Services/MacEPUBParser.swift`, `Echo macOS/Services/MacGlobalAlignmentService.swift` vs `Shared/TextAlignmentUtilities.swift` + `Shared/EPUBXMLParsing.swift`
+### 9.2 Oversized files (>500 LOC)
+- **`EchoCore/ViewModels/PlayerModel.swift:1360`** — already split into extensions (`+Bookmarks`, `+MarkedPassages`, `+WatchState`, …); continue extracting the playback-delegate and now-playing logic.
+- **`Echo Watch App/Services/WatchViewModel.swift:973`** and **`Echo Watch App/Views/PlayerPage.swift:968`** — split watch playback state vs. connectivity, and page subviews.
+- **`EchoCore/Services/PlaybackController.swift:922`** — extract the AVFoundation observation/seek code (also the §3.5 hotspot).
+- **`EchoCore/Views/PlaylistView.swift:858`**, **`Bookmarks.swift:789`**, **`WatchAppSettingsView.swift:728`**, **`SettingsView.swift:639`**, **`ReaderTab.swift:629`**, **`Shared/EPUBXMLParsing.swift:744`**, **`EchoCore/Views/TimelineFeedCollectionView.swift:601`**.
+- **Why:** Large files slow incremental compile and obscure ownership; the prior audit deferred these (§9.6) as "refactor when next touched."
+- **Action:** Split opportunistically when editing each; no big-bang refactor needed for v1.0.
 - **Severity:** Medium
 
-### 9.4 `AudiobookPlayerUIArchitect` design scaffold ships in the app target
-- **Locations:** `EchoCore/Views/AudiobookPlayerUIArchitect.swift` (no references from any other source file — verified; no `#if DEBUG`); companion script `add_architect.rb` at repo root; positional-identity `ForEach(0..<segments.count, id: \.self)` at `:230`
-- **What:** A large interactive design-tuning surface compiled into release builds, plus the one-off Ruby script that injected it.
-- **Why:** Dead weight in the shipped binary; the dynamic positional `ForEach` is also the only real identity anti-pattern found in the view layer.
-- **Action:** Move behind `#if DEBUG` (or delete) and delete `add_architect.rb` either way.
-- **Severity:** Medium
-
-### 9.5 Rebrand residue: identifiers still `com.orbit*` — decide, don't drift
-- **Locations:** All 8 `PRODUCT_BUNDLE_IDENTIFIER`s (`com.echo.audiobooks*`); `group.com.echo.audiobooks` (`Shared/AppGroupDefaults.swift:6` + entitlements); `iCloud.com.echo.audiobooks` (entitlements); `Logger.orbitSubsystem` = `"com.echo.audiobooks"` (`Shared/Logger+Subsystem.swift:8`); queue label (`EchoCore/Services/TimelineService.swift:36`); `CLAUDE.md:9`
-- **What:** The Orbit→Echo rebrand (`751e89c`) renamed user-facing surfaces but left every machine identifier on the old name.
-- **Why:** This is *not* a mechanical fix: bundle IDs, app-group IDs, and the CloudKit container are the app's identity — changing them after release orphans user data and IAP. Before first public release is the only cheap moment to decide.
-- **Action:** Make the call now: either migrate all identifiers to an Echo domain in one commit (pre-release), or freeze the Orbit identifiers permanently and document that in README/CLAUDE.md so they stop looking like an oversight.
-- **Severity:** Medium
-
-### 9.6 Oversized files (>600 LOC)
-- **`EchoCore/ViewModels/PlayerModel.swift` (1255)** — extensions (+Bookmarks, +PlaybackControllerDelegate, +WatchState) already exist; next extractions: artwork/palette caching (`:198-260`) into a `PlayerArtworkPresenter`, and deep-link/chapter-navigation orchestration.
-- **`Echo Watch App/Services/WatchViewModel.swift` (973)** — split the Pomodoro state machine and connectivity message handling into separate types.
-- **`Echo Watch App/Views/PlayerPage.swift` (964)** — marquee (`:908-947`), quick-bookmark gesture, and cover viewer are separable leaf views/files.
-- **`EchoCore/Services/PlaybackController.swift` (922)** — chapter-clamp seek math (`:630-668` and siblings) is a pure-function candidate for extraction + unit tests.
-- **`EchoCore/Views/Bookmarks.swift` (778)**, **`WatchAppSettingsView.swift` (728)**, **`ReaderTab.swift` (725)**, **`PlaylistView.swift` (719)**, **`AutoAlignmentService.swift` (663)**, **`TimelineFeedCollectionView.swift` (627)**, **`SettingsView.swift` (624)** — same treatment when next touched.
-- **Severity:** Medium (refactor-when-touched; don't big-bang)
-
-### 9.7 Magic constants
-- JPEG/artwork: `EchoCore/Views/Bookmarks.swift:694` (`maxDimension: 1600`, quality `0.84`), `EchoCore/Services/ArtworkCache.swift:129` (quality `0.75`) → one `ImageEncoding` constants enum.
-- Watch messaging: the `"command"` key appears as a string literal at 6 sites across `Echo Watch App/` and `EchoCore/` → shared `WatchMessageKey` constants.
+### 9.3 Magic constants that should be named
+- **Locations / values:** JPEG quality `0.8` at `EchoCore/Views/PDFDocumentView.swift:110` (vs the centralized `ImageEncoding.bookmarkJPEGQuality`); `.spring(response: 0.35, dampingFraction: 0.8)` duplicated at `BottomToolbarView.swift:141` and `Components/PlayerControlBar.swift:9`; voice-memo gain `targetPeak 0.9`/`maxGain 3.0`/`peak > 0.001` at `Bookmarks.swift:43-46`; audio chunk `8192` at `Bookmarks.swift:20` and sample rate `44100` at `DefaultVisualizerTap.swift:40`; scale/opacity `0.95`/`0.96` scattered across view transitions.
+- **Why:** Tuning these requires hunting multiple files; the project already centralizes such values (`ImageEncoding`, `AnimationDurations`).
+- **Action:** Move image-quality constants into `ImageEncoding`, add a named spring/transition preset to `AnimationDurations`, and create a small `AudioTuning` for buffer/sample-rate/gain values.
 - **Severity:** Low
 
-### 9.8 Open TODO census
-- Exactly one TODO in project code (a documented REFACTOR-TODO in `EchoCore/CarPlay/CarPlaySceneDelegate.swift`); no `#if false` blocks or commented-out code regions found.
-- **Severity:** Low (informational — unusually clean)
+### 9.4 Technical-debt markers — essentially clean
+- **What:** Repo-wide scan found **0** `TODO`/`FIXME`/`HACK`/`XXX`/`#warning` markers and **0** stray `print()` calls. The single tracked marker is `REFACTOR-TODO (§3.13)` at `EchoCore/EchoCoreApp.swift:21` (covered as §3.7).
+- **Action:** None — recorded as a positive baseline.
+- **Severity:** Low (informational)
+
+### 9.5 Unused immutable binding
+- **Location:** `Shared/Stats/StatsRepository.swift:108`
+- **What:** `dailyTotals` is assigned from `StatsAggregator.dailyTotals(...)` and never read.
+- **Action:** Delete the binding (or `_ =` if the call has needed side effects — it doesn't). Quick win.
+- **Severity:** Low
 
 ---
 
 ## 10. Cross-cutting recommendations
 
-1. **Run the Swift 6 migration as a project, starting with the settings.** §3.4, §3.5, and §3.6 are facets of one effort: unify `SWIFT_DEFAULT_ACTOR_ISOLATION` across targets, flip one target at a time to the Swift 6 language mode in a branch, and treat its diagnostics as the authoritative concurrency audit. The codebase is unusually close (zero warnings, Approachable Concurrency on, no `nonisolated(unsafe)`) — the remaining cost is concentrated in the queue-hop and fire-and-forget-Task patterns already cited.
-2. **Adopt one async-database policy.** The 23 synchronous DAO sites (§3.2) should resolve to a written rule: reads/writes on user-interaction paths are async; import-time batch work may stay sync. Encode it in the DAO layer (offer async variants, deprecate sync entry points for hot tables) rather than relying on per-call-site discipline.
-3. **Make Task lifecycle a convention.** §3.1 and §3.3 share a root cause: ad-hoc `Task {}` spawning. A tiny utility (store-replace-cancel, plus snapshot-before-spawn for guards) used everywhere ends the class of bug.
-4. **Close the rebrand.** §9.5's identifier decision plus §2's typo/doc fixes and §9.1's deletions retire "Orbit" from the repo in an afternoon — or enshrine it deliberately. Either outcome beats the current half-state, which already produced one Critical (§5.1's orphaned script phase).
-5. **Decide the macOS target's status in writing.** Every macOS finding (§5.1, §9.3, the entitlement gap) stems from the target evolving outside the iOS code-sharing path. Revive it through `Shared/`, or park it explicitly.
+1. **Close the Swift-6 readiness gap.** The 18 build diagnostics reduce to a handful of root causes: §3.1 (widget/main-actor `UserDefaults`), §3.2 (captured-var write), §3.3 (`@MainActor` pure functions), §3.4 (`nonisolated(unsafe)`), and §5.1 (the build error). Fixing these gets the project compiling cleanly and most of the way to enabling the Swift 6 language mode. Track it as one milestone.
+2. **Give the new realtime-audio subsystems an isolation + allocation contract.** The visualizer tap (§7.1), soundscape mixer, and chime player all touch the AVAudioEngine render thread. Establish one rule: tap/callback blocks are allocation-free and `Sendable`-clean, all engine-graph mutation happens on `@MainActor` in `configureEngineGraph`, and only small value snapshots cross to the UI. §3.4 and §7.1 are symptoms of this not being written down.
+3. **Unify the export/import support code.** `.apkg` import/export (iOS + macOS), study-notes export, and EPUB import each re-implement filename sanitization (§9.1), zip extraction, and JSON building (§6.3). Extract a shared `ExportSupport`/`ArchiveSupport` with the hardened zip-slip guard, the size cap (§6.1), `JSONEncoder` helpers, and one `sanitize`. One place to harden, one place to test.
+4. **Centralize tuning constants** (§9.3) in the existing `Shared/` constant files so audio/animation feel is adjustable in one spot.
+5. **Add a CI build-gate.** §5.1 is a one-line error that shipped in a commit; a `xcodebuild build` smoke check on the Echo scheme (RAM-capped per `CLAUDE.md`) in CI would have caught it before merge.
 
 ---
 
 ## 11. What was NOT audited
 
-- `build/`, `vendor/`, `scratch/` contents, `docs/`, `fastlane/`, `Echo.xcodeproj` beyond the build settings/phases cited above.
-- Third-party dependency internals (WhisperKit, GRDB, ZIPFoundation, swift-transformers, swift-jinja, yyjson).
-- Algorithmic correctness of the alignment math (`TokenDTW.swift`, Levenshtein/Jaccard thresholds in `AutoAlignmentTextMatcher.swift`) — structure was reviewed; constants and matching quality were not.
-- `Tools/transcription_generator.py` (Python pipeline) — not reviewed this pass.
-- Test targets (`EchoTests/`, `Echo Watch AppTests/`, UI tests) — existence confirmed, coverage and quality not assessed.
-- Localization (`Localizable.xcstrings`) and Dynamic Type behaviour beyond spot checks.
-- CloudKit schema/record design in `CloudKitSyncService.swift` (concurrency posture sampled only).
-- StoreKit product configuration vs App Store Connect (`com.echo.pro.unlock` exists in build settings; not validated).
-- Runtime profiling — no Instruments traces were captured; performance findings are static-analysis only.
+- `Tools/` (Python Whisper pipeline), `Scripts/`, `docs/`, `fastlane/` — out of scope.
+- Algorithmic correctness of the single Metal shader (`VisualizerShaders.metal`) and the on-device WhisperKit/DTW alignment math — surface issues only.
+- Third-party SPM internals (GRDB, WhisperKit, ZIPFoundation, swift-transformers, swift-crypto, yyjson) — treated as black boxes.
+- The **Echo macOS** target and **Widget** target received lighter coverage than iOS/EchoCore; their entitlements files were not opened — verify the App Group / iCloud container IDs match the values used elsewhere (the prior rebrand to `com.echo.*`).
+- StoreKit 2 product configuration (`StoreManager` / any `.storekit` file) — code structure only, not App Store Connect parity.
+- Deep test-coverage review of `EchoTests`/`Echo Watch AppTests` — scanned only, not assessed for adequacy.
+- Localization / string catalogs and Dynamic Type at extreme sizes across all screens — spot-checked in new views only.
+- Instruments profiling (hangs/hitches/allocations) — §7 identifies *potential* hot paths by inspection, not from traces.
+- Build settings / scheme configuration beyond what the shared Echo scheme exposes.
 
 ---
 
 ## 12. Verification
 
-Open each cited location; every Critical/High claim below was confirmed by reading the lines during the audit.
+Spot-check pattern: in Xcode, command-click any `path:line` below — it should land on the cited code. Every Critical/High has an exact range, not "scattered throughout." Several agent-reported "Critical/High" items were **demoted or dropped** during this pass:
 
-- **§5.1** — run `xcodebuild -project Echo.xcodeproj -scheme "Echo macOS" build`: fails with "Unable to resolve module dependency: 'WhisperKit'" at `Echo macOS/Services/MacGlobalAlignmentService.swift:4`. Then open `Echo.xcodeproj/project.pbxproj:577-601`: the shell phase runs `swift build --package-path "${SRCROOT}/Tools/OrbitTranscriptionCLI"` under `set -euo pipefail` with no existence guard; `git ls-files Tools` shows the package is not in the repo.
-- **§6.1** — open `EchoCore/Services/EPUBAutoImportScanner.swift:314-321`: the loop appends raw `entry.path` to `destDir` and extracts; no `..`/absolute-path check exists in the function.
-- **§3.1** — open `EchoCore/Services/WhisperSession.swift:73-75`: `capturedGeneration` is assigned *inside* the `Task` from the already-current `generation`; compare `:53-54` where `release()` assigns it *before* the `Task`.
-- **§3.2** — `grep -rn "DAO(db: db.writer)" EchoCore/Services` returns 23 sites; the enclosing services are `@MainActor` (implicitly, via the Echo target's default isolation).
-- **§9.1** — `git ls-files scratch` lists 6 tracked files; `grep -c "OrbitAudioBooks" Echo.xcodeproj/project.pbxproj` returns 0.
+- **Dropped** — `Shared/Database/ClozeParser.swift:48-49` "bounds panic": Swift's `dropFirst`/`dropLast` saturate (never trap) and the regex `([^}]+)` requires ≥1 answer char, so `{{c1::}}` never matches. The "ReDoS" claim is also false — a single non-nested character class can't backtrack catastrophically.
+- **Dropped** — `.apkg` "SQL injection / unvalidated SQLite": the collection DB is opened read-only with parameterized/static queries (§6.5).
+- **Demoted to Low** — `CarPlayManager.swift:33-35`, `AlignmentService.swift:232`, `ReaderFeedCollectionView.swift:389` force-unwraps: each is safe under a verified local invariant (§5.6).
+- **Demoted to Low** — AnkiConnect "HTTP is insecure" (§6.2) and `DoodlePadView` `PKCanvasView`-in-`@State` "undefined behavior" (§8.6).
 
-**Claims investigated and demoted/dropped during verification** (for transparency): CarPlay force-unwrap "Critical crash" → safe local binding, kept as Low style (§5.6); XMLParser XXE "High" → default already safe, kept as Low hardening (§6.2); XMLParser delegate "background-thread race" → delegates run synchronously on the calling thread, dropped; `DominantColorExtractor` NaN-index crash → impossible (saturation guard precedes bucket math), dropped; audio-tap "locks the realtime thread" → ring buffer is lock-free by design, dropped; stale-bookmark "uses stale data" → refresh path is correct, replaced by the `.minimalBookmark` concern (§5.2); `aggregatedChapters[idx]` bounds race → index derived from the same array in the same MainActor turn, dropped.
+Lines that prove each Critical/High claim:
 
-If any finding doesn't reproduce at the cited line, flag the §number and it will be re-investigated.
+- **§5.1** — open `EchoCore/Views/Visualizer/VisualizerView.swift`, lines 7-8: `@frozen` sits directly above `struct VisualizerUniforms` (no `public`/`@usableFromInline`). The build log shows the matching `error:` on line 7.
+- **§5.2** — open `EchoCore/CarPlay/CarPlaySceneDelegate.swift`, lines 17-23: the method is `templateApplicationScene(_:didDisconnect:)`; the compiler warns it "nearly matches optional requirement … `didSelect`," confirming it satisfies no requirement and never fires.
+- **§3.2** — open `Shared/Services/ChapterCardDrafter.swift`, lines 72 and 97: `var card` is declared at 72 and mutated inside the `@Sendable` `db.write { … card.insert(db) }` at 97.
+- **§3.1** — open `Echo Widget/Models/AppIntent.swift`, lines 11, 28, 36: `AppGroupDefaults.shared` is read/written in nonisolated `perform()`s and `Bookmark(...)` is constructed at 36; cross-reference the 5 build warnings.
+- **§3.3** — open `Shared/Stats/StatsRepository.swift`, lines 333, 354, 374, 450 (call sites) and `Shared/Stats/StatsAggregator.swift`, lines 303, 320, 344, 354 (pure static defs).
+- **§5.3** — open `EchoCore/Views/Visualizer/VisualizerView.swift`, lines 114-115: `makeCommandBuffer()!` and `makeRenderCommandEncoder(descriptor:)!`, contrasted with the `guard let`s at 94-97 and 105.
+- **§7.1** — open `EchoCore/Services/DefaultVisualizerTap.swift`, lines 52-60: `Array(samples)` (line 58) inside the realtime tap block.
+- **§7.3** — open `EchoCore/CarPlay/CarPlayManager.swift`, lines 134-140: synchronous DAO read invoked from `connect` (lines 40-42), class is `@MainActor` (line 12).
+- **§5.4** — open `Shared/Database/FSRSScheduler.swift`, lines 76-77: optional `Calendar.date(byAdding:)` result assigned with no clamp/log.
+- **§9.1** — open `ApkgExportService.swift:332`, `StudyNotesExportService.swift:124`, `MacApkgExportService.swift:345`: three identical `sanitize(_:)` bodies.
 
----
-
-## 13. Post-audit addendum
-
-### 13.1 `ColorMetrics.isLegible` ΔE76 chroma gate passed unreadable accents (found 2026-06-10, superseded)
-
-The two-gate legibility check (`WCAG ≥ 2.4 OR ΔE76 ≥ 52`) approved accents with
-high chromatic distance but near-zero luminance contrast — extractor gold
-`#EEC32B` on the Company of One beige surface measured **1.06:1** WCAG with
-ΔE76 65, so the `AccentSafetyNet` rescue ladder never ran. Higher saturation
-inflated ΔE76, making the most problematic accents the most likely to bypass
-rescue. Root cause: human acuity for fine detail is carried by the luminance
-channel; a chroma-only gate cannot certify glyph legibility. Resolved by
-replacing extract-then-rescue with constructed OKLCH tone recipes
-(`CoverThemeBuilder`, spec `docs/superpowers/specs/2026-06-10-cover-tonal-theme-design.md`);
-the gate, ladder, and their tests were deleted.
+If any finding doesn't reproduce when you open the line, flag the specific §N.M and I'll re-investigate.
