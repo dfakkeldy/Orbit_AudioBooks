@@ -9,6 +9,7 @@ struct KineticSandView: View {
     @State private var particles: [SandParticle] = []
     @State private var dragLocation: CGPoint?
     @State private var lastUpdate = Date()
+    @State private var canvasSize: CGSize = .zero
 
     struct SandParticle {
         var x: CGFloat
@@ -18,23 +19,31 @@ struct KineticSandView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 60)) { _ in
-            Canvas { context, size in
-                // Update physics once per frame
-                let now = Date()
-                let dt = min(now.timeIntervalSince(lastUpdate), 1 / 30) // cap dt
-                if dt > 0 {
-                    lastUpdate = now
-                    updateParticles(size: size, dt: dt)
-                }
-
-                // Render
+        TimelineView(.animation(minimumInterval: 1 / 60)) { context in
+            Canvas { gc, _ in
+                // Render only — physics is advanced outside the render pass.
                 for p in particles {
                     let rect = CGRect(x: p.x - 2, y: p.y - 2, width: 4, height: 4)
-                    context.fill(Path(ellipseIn: rect), with: .color(.sand))
+                    gc.fill(Path(ellipseIn: rect), with: .color(.sand))
                 }
             }
+            // Advance the simulation from the timeline date in an action closure,
+            // not inside Canvas: mutating @State during the render pass is
+            // undefined behavior in SwiftUI (audit §8.1).
+            .onChange(of: context.date) { _, now in
+                let dt = min(now.timeIntervalSince(lastUpdate), 1 / 30) // cap dt
+                guard dt > 0, canvasSize != .zero else { return }
+                lastUpdate = now
+                updateParticles(size: canvasSize, dt: dt)
+            }
         }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { canvasSize = geo.size }
+                    .onChange(of: geo.size) { _, size in canvasSize = size }
+            }
+        )
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { dragLocation = $0.location }
