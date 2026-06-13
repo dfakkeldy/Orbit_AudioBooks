@@ -39,10 +39,12 @@ _2026-06-13 (session 2), branch `claude/elegant-heyrovsky-309173` (fast-forwarde
 
 ### ✅ Bugs surfaced by repairing the test target (beyond the original audit scope)
 - **The EchoTests target had never compiled** — `EchoTests/SchedulingAlgorithmTests.swift` was missing `import Foundation` (`Date` unresolved under the `MemberImportVisibility` upcoming feature). Added the import. _The prior audit verified `xcodebuild build` (app), not `build-for-testing`, so this and the two bugs below were invisible._
-- **`ChapterCardDrafter` produced zero cards** — it never set `cardType`, so every insert hit `card_type NOT NULL` (V16's column default does not apply to an explicit NULL). Added `cardType: "normal"`; `ChapterCardDrafterTests` now passes.
+- **All flashcard creation was broken (`card_type NOT NULL`)** — `Flashcard.cardType` was `String?` with no default while V16's `card_type` column is `NOT NULL`; the memberwise initializer defaults an omitted optional to `nil`, which GRDB writes as an explicit `NULL` (the column default only applies when the column is *omitted from the INSERT*). **10 construction sites** omitted it — 9 production paths (manual creation, card inbox, watch, deck/`.apkg` import, …) plus the auto-draft drafter — so every insert failed. Root-caused at the model: `var cardType: String? = "normal"`, fixing all sites at once. `ChapterCardDrafterTests` and `RealTimeEventIntegrityTests` now pass. (The earlier per-site `cardType: "normal"` in `ChapterCardDrafter` is now redundant but harmless.)
 
-### ⏭ Delegated (separate task)
-- **FSRS / SM-2 schedulers off-spec** — `SchedulingAlgorithmTests` has 6 failures (wrong SM-2 intervals `[1,6,14,33,77]` vs canonical `[1,6,15,37,92]`; FSRS stability stuck at `1.0`). Surfaced once the test target compiled. Spun off as its own task — algorithm-correctness work, not an audit finding (§11 noted scheduler math was unreviewed). Fold §5.4 (FSRS calendar overflow) into that fix.
+### ✅ FSRS / SM-2 scheduler correctness (surfaced by the test target; §11 noted scheduler math was unreviewed)
+`SchedulingAlgorithmTests` had 6 failures across 3 tests — all 10 now green:
+- **SM-2 `intervalGrowsOverPerfectReviews`** — the *test* was wrong, the impl is canonical. Grades `[3,4,4,4,4]`: the grade-3 review drops EF 2.5→2.36, so intervals are `[1,6,14,33,77]`, not the test's EF-stays-2.5 `[1,6,15,37,92]`. Corrected the expectation.
+- **FSRS (`firstFail`, `stabilityGrows`)** — the *impl* was broken. `FSRSScheduler` had the canonical FSRS-4.5 default weights but misapplied them: no first-review path, wrong `S₀` indexing (`w[2]` for fail vs canonical `w[0]`), `easyBonus = exp(w₁₆·(D−1))` (explodes; canonical is `w₁₆`), hard penalty on Good not Hard, inverted difficulty update, and `interval ≈ S/100`. Rewrote to canonical FSRS-4.5 (first-review seeds `S₀/D₀`; recall/lapse stability, mean-reverting difficulty, `R=(1+FACTOR·t/S)^DECAY`, `interval≈S` at 90% retention). Corrected the two tests (fail S₀=`w[0]`=0.4; the growth test now advances the clock so `R<1`, since same-instant reviews correctly yield no gain). **Also fixes §5.4** (interval clamped to 36,500 days). Removed the dead, duplicate `SpacedRepetitionService` SM-2 in `Flashcard.swift` (zero references).
 
 ### 🔲 Still open from this audit
 Highs: **none remaining.** Mediums/Lows: §3.5–§3.8, §4.x, §5.3–§5.7, §6.x, §7.x, §8.x, §9.1–§9.3, and the CI build-gate (§10 rec. 5).
@@ -223,6 +225,7 @@ These deliver outsized value relative to effort and have no architectural ripple
 - **Severity:** Medium
 
 ### 5.4 FSRS scheduler silently drops the next-review date on calendar overflow
+- **Status:** ✅ **FIXED (2026-06-13 session 2)** — `nextInterval` now clamps to `maximumIntervalDays` (36,500) so `Calendar.date(byAdding:)` cannot overflow, and the (now-unreachable) nil branch logs instead of silently dropping the schedule. Fixed as part of the canonical FSRS-4.5 rewrite (see the FSRS/SM-2 note in the Remediation progress section).
 - **Location:** `Shared/Database/FSRSScheduler.swift:76-77`
 - **What:** `Calendar.current.date(byAdding: .day, value: interval, to: now)` returns optional; on overflow (very large stability intervals near `Date.distantFuture`) it yields nil with no logging or clamp, leaving `nextReviewDate` unset.
 - **Why:** A card with an unset next-review date silently falls out of the spaced-repetition queue — a correctness bug in the scheduling core.
