@@ -29,7 +29,7 @@ struct ChapterCardDrafter {
         // 1. Query heading blocks — exclude front matter and junk headings
         let headings: [Row]
         do {
-            headings = try await db.read { db in
+            headings = try db.read { db in
                 try Row.fetchAll(db, sql: """
                     SELECT id, text, chapter_index
                     FROM epub_block
@@ -69,7 +69,7 @@ struct ChapterCardDrafter {
             }) ?? false
             guard !exists else { continue }
 
-            var card = Flashcard(
+            let card = Flashcard(
                 id: UUID().uuidString,
                 audiobookID: audiobookID,
                 frontText: headingText,
@@ -90,11 +90,22 @@ struct ChapterCardDrafter {
                 sourceBlockID: headingID,
                 playlistPosition: nil,
                 createdAt: Date().ISO8601Format(),
-                modifiedAt: Date().ISO8601Format()
+                modifiedAt: Date().ISO8601Format(),
+                // Required: `card_type` is NOT NULL in schema V16. A nil here is
+                // written as an explicit NULL (the column default only applies when
+                // the column is omitted), failing the insert. "normal" also matches
+                // the idempotency filter above (`Column("card_type") == "normal"`).
+                cardType: "normal"
             )
 
             do {
-                try await db.write { db in try card.insert(db) }
+                // Capture `card` by value (immutable `let`); take a local mutable
+                // copy inside the @Sendable write closure so GRDB's `mutating`
+                // insert never mutates a var shared with the enclosing scope (audit §3.2).
+                try await db.write { db in
+                    var insertable = card
+                    try insertable.insert(db)
+                }
                 created += 1
             } catch {
                 // Log and continue — one failed insert should not abort the batch
@@ -109,7 +120,7 @@ struct ChapterCardDrafter {
 
     private func findOrCreateDeck(named name: String, db: DatabaseWriter) async throws -> String {
         // Check if deck exists
-        if let existing = try await db.read({ db in
+        if let existing = try db.read({ db in
             try Row.fetchOne(db, sql: "SELECT id FROM deck WHERE name = ?", arguments: [name])
         }) {
             return existing["id"]
