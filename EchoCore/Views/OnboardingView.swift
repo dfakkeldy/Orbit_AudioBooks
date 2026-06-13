@@ -4,6 +4,8 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    /// Hero icon size that scales with the user's Dynamic Type setting (audit §8.3).
+    @ScaledMetric private var heroIconSize: CGFloat = 60
 
     var body: some View {
         NavigationStack {
@@ -30,7 +32,8 @@ struct OnboardingView: View {
     private var welcomePage: some View {
         VStack(spacing: 24) {
             Image(systemName: "headphones")
-                .font(.system(size: 60))
+                .font(.system(size: heroIconSize))
+                .accessibilityHidden(true)
                 .foregroundStyle(.tint)
             Text("Your Audiobook Study Player")
                 .font(.title)
@@ -45,7 +48,8 @@ struct OnboardingView: View {
     private var listenPage: some View {
         VStack(spacing: 24) {
             Image(systemName: "bookmark.fill")
-                .font(.system(size: 60))
+                .font(.system(size: heroIconSize))
+                .accessibilityHidden(true)
                 .foregroundStyle(.orange)
             Text("Capture as You Listen")
                 .font(.title2)
@@ -60,7 +64,8 @@ struct OnboardingView: View {
     private var studyPage: some View {
         VStack(spacing: 24) {
             Image(systemName: "brain")
-                .font(.system(size: 60))
+                .font(.system(size: heroIconSize))
+                .accessibilityHidden(true)
                 .foregroundStyle(.purple)
             Text("Study with Spaced Repetition")
                 .font(.title2)
@@ -75,7 +80,8 @@ struct OnboardingView: View {
     private var privacyPage: some View {
         VStack(spacing: 24) {
             Image(systemName: "lock.shield.fill")
-                .font(.system(size: 60))
+                .font(.system(size: heroIconSize))
+                .accessibilityHidden(true)
                 .foregroundStyle(.green)
             Text("Private by Design")
                 .font(.title2)
