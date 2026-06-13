@@ -21,6 +21,11 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
     private let numberOfBands: Int = 16
     private let frameInterval: AVAudioFrameCount
 
+    /// FFT setup and log2(fftSize), created once and reused on the realtime tap
+    /// thread rather than allocated/destroyed every callback (audit §7.1).
+    private let fftLog2n: vDSP_Length
+    private var fftSetup: FFTSetup?
+
     // MARK: - AsyncStream
 
     var frames: AsyncStream<VisualizerFrame> {
@@ -39,6 +44,8 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
         // ~44100 / 30 ≈ 1470 samples per callback
         let sampleRate: Double = 44100
         self.frameInterval = AVAudioFrameCount(sampleRate / Double(frameRate))
+        self.fftLog2n = vDSP_Length(log2(Float(fftSize)))
+        self.fftSetup = vDSP_create_fftsetup(fftLog2n, FFTRadix(kFFTRadix2))
         installTap()
     }
 
@@ -55,7 +62,7 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
             guard frameLength > 0 else { return }
 
             let samples = UnsafeBufferPointer(start: channelData[0], count: frameLength)
-            let frame = self.analyze(samples: Array(samples), frameLength: frameLength)
+            let frame = self.analyze(samples: samples, count: frameLength)
             self.continuation?.yield(frame)
         }
 
@@ -70,30 +77,30 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
 
     // MARK: - Analysis
 
-    private func analyze(samples: [Float], frameLength: Int) -> VisualizerFrame {
-        let count = min(frameLength, samples.count)
-        guard count > 0 else {
+    private func analyze(samples: UnsafeBufferPointer<Float>, count: Int) -> VisualizerFrame {
+        guard count > 0, let base = samples.baseAddress else {
             return VisualizerFrame(rms: 0, peak: 0, spectrum: Array(repeating: 0, count: numberOfBands), timestamp: CACurrentMediaTime())
         }
 
-        // --- RMS ---
+        // --- RMS --- (vDSP reads the buffer in place; no copy)
         var sumSquares: Float = 0
-        vDSP_svesq(samples, 1, &sumSquares, vDSP_Length(count))
+        vDSP_svesq(base, 1, &sumSquares, vDSP_Length(count))
         let rms = sqrt(sumSquares / Float(count))
 
         // --- Peak ---
         var peak: Float = 0
-        vDSP_maxmgv(samples, 1, &peak, vDSP_Length(count))
+        vDSP_maxmgv(base, 1, &peak, vDSP_Length(count))
 
         // --- Spectrum (FFT-based, 16 bands) ---
         let spectrum: [Float]
         if count >= fftSize {
-            spectrum = computeSpectrum(samples: Array(samples.prefix(fftSize)), bands: numberOfBands)
+            // Use the first fftSize samples directly — no allocation/copy.
+            spectrum = computeSpectrum(samples: UnsafeBufferPointer(start: base, count: fftSize), bands: numberOfBands)
         } else {
-            // Pad with zeros if we have fewer samples than fftSize
-            var padded = samples
-            padded.append(contentsOf: [Float](repeating: 0, count: fftSize - count))
-            spectrum = computeSpectrum(samples: padded, bands: numberOfBands)
+            // Rare (callback shorter than fftSize): pad into a local buffer.
+            var padded = [Float](repeating: 0, count: fftSize)
+            for i in 0..<count { padded[i] = base[i] }
+            spectrum = padded.withUnsafeBufferPointer { computeSpectrum(samples: $0, bands: numberOfBands) }
         }
 
         return VisualizerFrame(rms: rms, peak: peak, spectrum: spectrum, timestamp: CACurrentMediaTime())
@@ -101,11 +108,9 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
 
     /// Compute a power spectrum via vDSP forward FFT and bin the
     /// result into `bands` frequency bins.
-    private func computeSpectrum(samples: [Float], bands: Int) -> [Float] {
+    private func computeSpectrum(samples: UnsafeBufferPointer<Float>, bands: Int) -> [Float] {
         let n = samples.count
-        let log2n = vDSP_Length(log2(Float(n)))
-
-        guard let fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else {
+        guard let fftSetup, let base = samples.baseAddress else {
             return fallbackSpectrum(samples: samples, bands: bands)
         }
 
@@ -115,16 +120,12 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
         var splitComplex = DSPSplitComplex(realp: &realp, imagp: &imagp)
 
         // Pack real samples into split-complex (odd-index = imag, even = real).
-        samples.withUnsafeBytes { src in
-            vDSP_ctoz(
-                src.bindMemory(to: DSPComplex.self).baseAddress!, 2,
-                &splitComplex, 1,
-                vDSP_Length(n / 2)
-            )
+        base.withMemoryRebound(to: DSPComplex.self, capacity: n / 2) { complexPtr in
+            vDSP_ctoz(complexPtr, 2, &splitComplex, 1, vDSP_Length(n / 2))
         }
 
-        // Forward FFT.
-        vDSP_fft_zrip(fftSetup, &splitComplex, 1, log2n, FFTDirection(kFFTDirection_Forward))
+        // Forward FFT (reusing the setup created in init).
+        vDSP_fft_zrip(fftSetup, &splitComplex, 1, fftLog2n, FFTDirection(kFFTDirection_Forward))
 
         // Compute magnitudes (|Re|² + |Im|²).
         var magnitudes = [Float](repeating: 0, count: n / 2)
@@ -135,8 +136,6 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
         var clipMin: Float = 1e-10
         vDSP_vdbcon(magnitudes, 1, &one, &magnitudes, 1, vDSP_Length(n / 2), 0)
         vDSP_vthr(magnitudes, 1, &clipMin, &magnitudes, 1, vDSP_Length(n / 2))
-
-        vDSP_destroy_fftsetup(fftSetup)
 
         // Bin into `bands` frequency bins.
         return binMagnitudes(magnitudes, bands: bands)
@@ -164,7 +163,7 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
 
     /// Fallback: compute binned magnitudes without an FFT setup
     /// by applying a crude DFT at representative frequencies.
-    private func fallbackSpectrum(samples: [Float], bands: Int) -> [Float] {
+    private func fallbackSpectrum(samples: UnsafeBufferPointer<Float>, bands: Int) -> [Float] {
         let n = samples.count
         guard n > 0 else { return Array(repeating: 0, count: bands) }
 
@@ -187,5 +186,8 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
 
     deinit {
         removeTap()
+        if let fftSetup {
+            vDSP_destroy_fftsetup(fftSetup)
+        }
     }
 }
