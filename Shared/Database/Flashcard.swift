@@ -35,7 +35,10 @@ struct Flashcard: Codable, FetchableRecord, MutablePersistableRecord {
     // MARK: FSRS fields (V16)
     var stability: Double?
     var difficulty: Double?
-    var cardType: String?
+    /// Defaults to "normal" so callers that omit it never insert an explicit
+    /// NULL into the `card_type NOT NULL` column (the schema default only applies
+    /// when the column is omitted from the INSERT, not when it is NULL).
+    var cardType: String? = "normal"
     var clozeIndex: Int?
 
     static let databaseTableName = "flashcard"
@@ -66,39 +69,5 @@ struct Flashcard: Codable, FetchableRecord, MutablePersistableRecord {
         case difficulty
         case cardType = "card_type"
         case clozeIndex = "cloze_index"
-    }
-}
-
-/// SM-2 spaced repetition algorithm.
-enum SpacedRepetitionService {
-    static func apply(grade: Int, to card: Flashcard) -> Flashcard {
-        var updated = card
-
-        if grade >= 3 {
-            // Correct response
-            if updated.repetitions == 0 {
-                updated.intervalDays = 1
-            } else if updated.repetitions == 1 {
-                updated.intervalDays = 6
-            } else {
-                updated.intervalDays = Int(Double(updated.intervalDays) * updated.easeFactor)
-            }
-            updated.repetitions += 1
-        } else {
-            // Incorrect response
-            updated.repetitions = 0
-            updated.intervalDays = 1
-        }
-
-        updated.easeFactor = max(1.3, updated.easeFactor + (0.1 - Double(5 - grade) * (0.08 + Double(5 - grade) * 0.02)))
-        updated.lastReviewedAt = Date().ISO8601Format()
-        updated.lastGrade = grade
-        updated.modifiedAt = Date().ISO8601Format()
-
-        if let nextDate = Calendar.current.date(byAdding: .day, value: updated.intervalDays, to: Date()) {
-            updated.nextReviewDate = nextDate.ISO8601Format()
-        }
-
-        return updated
     }
 }
