@@ -18,5 +18,6 @@ struct TTSChunk: Sendable, Equatable {
 
 /// The swappable narration engine boundary. Mocked in tests; Kokoro in Plan 3.
 protocol TTSEngine: Sendable {
+    func prepare() async throws
     func synthesize(_ text: String, voice: VoiceID) async throws -> TTSChunk
 }

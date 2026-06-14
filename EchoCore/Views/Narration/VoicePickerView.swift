@@ -24,9 +24,12 @@ struct VoicePickerView: View {
                         if viewModel.selectedVoice.id == voice.id {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
                         }
                     }
                     .contentShape(Rectangle())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(viewModel.selectedVoice.id == voice.id ? [.isSelected] : [])
                 }
                 .buttonStyle(.plain)
             }
