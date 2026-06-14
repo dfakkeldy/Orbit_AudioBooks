@@ -46,11 +46,15 @@ struct SilenceDetectionService {
                 file.framePosition = currentFrame
                 try file.read(into: buffer, frameCount: framesToRead)
 
+                // A zero-frame read (decode hiccup on a damaged track) would
+                // leave currentFrame unchanged and spin the loop forever (§5.8).
+                guard buffer.frameLength > 0 else { break }
+
                 guard let channelData = buffer.floatChannelData else { break }
                 let data = channelData[0]
 
                 // We calculate RMS over small windows (e.g. 0.1s)
-                let windowSize = Int(format.sampleRate * 0.1)
+                let windowSize = max(1, Int(format.sampleRate * 0.1))
                 var offset = 0
 
                 while offset < Int(buffer.frameLength) {
