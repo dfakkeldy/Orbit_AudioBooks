@@ -39,7 +39,8 @@ struct DeckImportService {
                 throw DeckImportError.invalidTimeRange(cardIndex: i)
             }
             guard validTriggerTimings.contains(card.triggerTiming.rawValue) else {
-                throw DeckImportError.invalidTriggerTiming(card.triggerTiming.rawValue, cardIndex: i)
+                throw DeckImportError.invalidTriggerTiming(
+                    card.triggerTiming.rawValue, cardIndex: i)
             }
         }
 
@@ -49,10 +50,14 @@ struct DeckImportService {
         } else {
             deckID = UUID().uuidString
             try db.write { db in
-                try db.execute(sql: """
-                    INSERT INTO deck (id, name, source, created_at, modified_at)
-                    VALUES (?, ?, 'json_import', ?, ?)
-                    """, arguments: [deckID, deck.deckName, Date().ISO8601Format(), Date().ISO8601Format()])
+                try db.execute(
+                    sql: """
+                        INSERT INTO deck (id, name, source, created_at, modified_at)
+                        VALUES (?, ?, 'json_import', ?, ?)
+                        """,
+                    arguments: [
+                        deckID, deck.deckName, Date().ISO8601Format(), Date().ISO8601Format(),
+                    ])
             }
         }
 
