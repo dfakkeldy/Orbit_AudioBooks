@@ -32,8 +32,11 @@ import os.log
 
                         let dao = BookmarkDAO(db: database.writer)
                         for bm in bookmarks {
-                            let record = BookmarkRecord(from: bm)
-                            try dao.insert(record)
+                            // Insert within THIS transaction (BookmarkDAO.insert
+                            // would open a nested write on the same writer) and
+                            // ignore duplicates so a re-run can't wedge the
+                            // one-shot migration forever (§5.10).
+                            try dao.insert(BookmarkRecord(from: bm), in: db)
                         }
                         logger.debug("Migrated \(bookmarks.count) bookmarks for \(audiobookKey)")
                     }
