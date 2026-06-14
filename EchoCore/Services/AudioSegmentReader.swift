@@ -99,7 +99,16 @@ enum AudioSegmentReader {
             )
         else { return nil }
 
+        var didSupplyInput = false
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+            // Supply the source buffer exactly once: AVAudioConverter pulls input
+            // repeatedly for sample-rate conversion, and re-returning the same
+            // (already-consumed) buffer would re-feed stale samples (§5.5).
+            if didSupplyInput {
+                outStatus.pointee = .endOfStream
+                return nil
+            }
+            didSupplyInput = true
             outStatus.pointee = .haveData
             return buffer
         }
