@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import CoreML
-@testable import EchoCore
+@testable import Echo
 
 struct KokoroBenchmarkTests {
     
@@ -16,7 +16,7 @@ struct KokoroBenchmarkTests {
         """
         
         // Ensure phonemizer runs without crashing
-        let chunk = try await engine.synthesize(sampleText, voice: "ava")
+        let chunk = try await engine.synthesize(sampleText, voice: VoiceCatalog.default.id)
         
         // Check that duration makes sense
         #expect(chunk.duration > 0)
