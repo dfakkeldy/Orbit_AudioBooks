@@ -39,6 +39,45 @@ final class CloudKitSyncService {
         return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 
+    // MARK: - Anchor merge (§6.1)
+
+    /// Decodes a CloudKit anchor payload string, tolerating missing/malformed data.
+    nonisolated static func decodeAnchors(_ payload: String?) -> [AlignmentAnchorRecord] {
+        guard let payload, let data = payload.data(using: .utf8),
+            let anchors = try? JSONDecoder().decode([AlignmentAnchorRecord].self, from: data)
+        else { return [] }
+        return anchors
+    }
+
+    /// Higher rank = more trustworthy: human-made anchors beat imported beat machine.
+    nonisolated static func sourceRank(_ source: String) -> Int {
+        switch AlignmentAnchorRecord.Source(rawValue: source) {
+        case .moveToNow, .searchResult, .chapterBoundary: return 2
+        case .imported: return 1
+        case .autoAlignment, .continuousBackground, nil: return 0
+        }
+    }
+
+    /// Unions local and remote anchors by `epubBlockID`. When both sides anchored
+    /// the same block, keeps the higher-ranked source; ties go to local (the
+    /// uploader's current view). The result always covers every remote block, so
+    /// a small local set can never shrink the shared community payload.
+    nonisolated static func mergeAnchors(
+        local: [AlignmentAnchorRecord], remote: [AlignmentAnchorRecord]
+    ) -> [AlignmentAnchorRecord] {
+        var byBlock: [String: AlignmentAnchorRecord] = [:]
+        for anchor in remote { byBlock[anchor.epubBlockID] = anchor }
+        for anchor in local {
+            if let existing = byBlock[anchor.epubBlockID],
+                sourceRank(existing.source) > sourceRank(anchor.source)
+            {
+                continue
+            }
+            byBlock[anchor.epubBlockID] = anchor
+        }
+        return Array(byBlock.values)
+    }
+
     /// Uploads manual alignment anchors for a specific audiobook to the public CloudKit database.
     func uploadAnchors(audiobookID: String, title: String, author: String, duration: Double)
         async throws
@@ -75,11 +114,25 @@ final class CloudKitSyncService {
             _ = try await publicDatabase.save(record)
             logger.info("Successfully uploaded \(anchors.count) anchors for \(title).")
         } catch let error as CKError where error.code == .serverRecordChanged {
-            // Already exists, could merge or overwrite. For now, overwrite.
+            // Merge instead of overwrite: the record name is a deterministic hash
+            // of title+author+duration, so every user of this book writes the SAME
+            // public record. Overwriting would clobber the community's anchors
+            // (CODE_AUDIT.md §6.1). Union by block, preferring human anchors; the
+            // union never shrinks the payload.
             let existingRecord = try await publicDatabase.record(for: recordID)
-            existingRecord["anchorsPayload"] = payloadString as CKRecordValue
+            let remoteAnchors = Self.decodeAnchors(existingRecord["anchorsPayload"] as? String)
+            let merged = Self.mergeAnchors(local: anchors, remote: remoteAnchors)
+            let mergedData = try encoder.encode(merged)
+            guard let mergedString = String(data: mergedData, encoding: .utf8) else {
+                throw NSError(
+                    domain: "CloudKitSync", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to encode merged anchors"])
+            }
+            existingRecord["anchorsPayload"] = mergedString as CKRecordValue
             _ = try await publicDatabase.save(existingRecord)
-            logger.info("Successfully updated \(anchors.count) anchors for \(title).")
+            logger.info(
+                "Merged \(anchors.count) local + \(remoteAnchors.count) remote -> \(merged.count) anchors for \(title)."
+            )
         } catch {
             logger.error("Failed to upload anchors: \(error.localizedDescription)")
             throw error
