@@ -203,8 +203,25 @@ final class CloudKitSyncService {
                 return updated
             }
 
-            logger.info("Successfully downloaded \(localizedAnchors.count) anchors for \(title).")
-            return localizedAnchors
+            // Drop anchors that reference EPUB blocks this device doesn't have.
+            // Block IDs are device-local (epub-<audiobookID>-s…-b…), so a payload
+            // produced from a differently-parsed EPUB references nonexistent local
+            // blocks; inserting those just creates orphan anchors that silently do
+            // nothing (§6.2). The durable fix is content-stable block IDs (§5.1).
+            let localBlockIDs = try await db.read { db in
+                try String.fetchSet(
+                    db, sql: "SELECT id FROM epub_block WHERE audiobook_id = ?",
+                    arguments: [audiobookID])
+            }
+            let resolvedAnchors = localizedAnchors.filter { localBlockIDs.contains($0.epubBlockID) }
+            if resolvedAnchors.count < localizedAnchors.count {
+                logger.warning(
+                    "Dropped \(localizedAnchors.count - resolvedAnchors.count) downloaded anchor(s) referencing blocks not present locally"
+                )
+            }
+
+            logger.info("Successfully downloaded \(resolvedAnchors.count) anchors for \(title).")
+            return resolvedAnchors
 
         case .failure(let error):
             logger.error("Failed to fetch record: \(error.localizedDescription)")
