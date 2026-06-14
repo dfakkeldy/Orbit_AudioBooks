@@ -80,6 +80,12 @@ Services/InlineFlashcardTriggerController.swift
 Services/M4BParser.swift
 Services/MockMediaProvider.swift
 Services/ModelRetainBox.swift
+Services/Narration/AudioFileWriting.swift
+Services/Narration/NarrationService.swift
+Services/Narration/NarrationState.swift
+Services/Narration/TextNormalizer.swift
+Services/Narration/TTSEngine.swift
+Services/Narration/VoiceCatalog.swift
 Services/NowPlayingController.swift
 Services/PDFImportCoordinator.swift
 Services/Persistence.swift
