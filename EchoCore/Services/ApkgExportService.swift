@@ -234,10 +234,14 @@ struct ApkgExportService {
                         "{}", modelsJSON, decksJSON, "{}", "",
                     ])
 
-                // notes + cards
-                for card in cards {
-                    let noteID =
-                        Int64(Date().timeIntervalSince1970 * 1000) + Int64(card.id.hashValue % 1000)
+                // Allocate note/card IDs from one base timestamp, strided by 2
+                // (notes = base, base+2…; cards = base+1, base+3…) so the
+                // INTEGER PRIMARY KEYs never collide. The old epoch-ms +
+                // hashValue % 1000 could collide within a millisecond, and
+                // hashValue is randomized per process.
+                let baseID = Int64(Date().timeIntervalSince1970 * 1000)
+                for (index, card) in cards.enumerated() {
+                    let noteID = baseID + Int64(index) * 2
                     let guid = String(
                         UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(32))
                     let tags = card.tags ?? ""
