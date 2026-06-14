@@ -32,7 +32,12 @@ public class MacGlobalAlignmentService {
 
     /// Aligns the EPUB at the given URL by streaming audio through WhisperKit
     /// writing the results to `[AudiobookName].alignment.json`.
-    public func alignStreaming(audioURL: URL, epubURL: URL) async throws {
+    ///
+    /// - Parameter audiobookID: Identifier embedded in every block ID via the
+    ///   shared `parseEPUBBlocks` formula (`epub-<audiobookID>-s<i>-b<j>`). Must
+    ///   match the value the consuming device assigns on import for the anchors
+    ///   to resolve (CODE_AUDIT.md §5.1 / Phase A1).
+    public func alignStreaming(audiobookID: String, audioURL: URL, epubURL: URL) async throws {
         isAligning = true
         alignmentProgress = 0
         alignmentStatus = "Extracting EPUB text..."
@@ -44,9 +49,18 @@ public class MacGlobalAlignmentService {
             self.whisperKit = nil
         }
 
-        // 1. Extract EPUB Blocks
-        let parser = MacEPUBParser()
-        let epubBlocks = try await parser.extractText(from: epubURL)
+        // 1. Extract EPUB blocks via the shared driver — the same driver the
+        // iOS importer uses, so these block IDs match the iOS database exactly
+        // (CODE_AUDIT.md §5.1 / Phase A1). Anchors below are keyed by these IDs.
+        let (epubDir, cleanupDir) = try await expandEPUBIfNeeded(epubURL)
+        defer { if let cleanupDir { try? FileManager.default.removeItem(at: cleanupDir) } }
+
+        let epubBlocks: [(id: String, text: String)] =
+            try parseEPUBBlocks(audiobookID: audiobookID, epubURL: epubDir).blocks
+            .compactMap { block in
+                guard let text = block.text, !text.isEmpty else { return nil }
+                return (id: block.id, text: text)
+            }
         guard !epubBlocks.isEmpty else {
             throw NSError(
                 domain: "MacGlobalAlignmentService", code: 1,
@@ -196,6 +210,70 @@ public class MacGlobalAlignmentService {
 
         alignmentStatus = "Alignment complete (\(exports.count) anchors saved)."
         logger.debug("Saved alignment with \(exports.count) anchors to \(sidecarURL.path)")
+    }
+
+    // MARK: - EPUB extraction
+
+    /// Expands an `.epub` archive to a temporary directory so it can be fed to
+    /// the shared `parseEPUBBlocks` driver (which, like the iOS import path,
+    /// expects an expanded directory). Returns the directory to parse and, when
+    /// extraction happened, the temp directory the caller must clean up.
+    ///
+    /// Non-`.epub` inputs (e.g. a PDF, or an already-expanded directory) are
+    /// returned unchanged; a PDF then fails the container.xml check in
+    /// `parseEPUBBlocks` exactly as before — PDF text extraction is not
+    /// implemented here.
+    private func expandEPUBIfNeeded(_ url: URL) async throws -> (dir: URL, cleanup: URL?) {
+        guard url.pathExtension.lowercased() == "epub" else { return (url, nil) }
+
+        let tempDir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-q", url.path, "-d", tempDir.path]
+
+        try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<Void, Error>) in
+            process.terminationHandler = { proc in
+                if proc.terminationStatus == 0 {
+                    continuation.resume()
+                } else {
+                    continuation.resume(
+                        throwing: NSError(
+                            domain: "MacGlobalAlignmentService", code: 3,
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "Failed to unzip EPUB (code \(proc.terminationStatus))"
+                            ]))
+                }
+            }
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                continuation.resume(throwing: error)
+            }
+        }
+
+        // Validate that no extracted file escapes the temp directory (path-traversal prevention).
+        let tempDirStandardized = tempDir.standardized
+        if let enumerator = FileManager.default.enumerator(
+            at: tempDir, includingPropertiesForKeys: nil)
+        {
+            while let fileURL = enumerator.nextObject() as? URL {
+                guard fileURL.standardized.path.hasPrefix(tempDirStandardized.path) else {
+                    throw NSError(
+                        domain: "MacGlobalAlignmentService", code: 4,
+                        userInfo: [
+                            NSLocalizedDescriptionKey:
+                                "Path traversal detected: extracted file \(fileURL.path) escapes temp directory"
+                        ])
+                }
+            }
+        }
+
+        return (tempDir, tempDir)
     }
 
     // MARK: - WhisperKit

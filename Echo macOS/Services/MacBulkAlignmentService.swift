@@ -69,17 +69,23 @@ final class MacBulkAlignmentService {
                 let pdf = siblings.first { $0.pathExtension.lowercased() == "pdf" }
 
                 do {
+                    // Mirror the iOS audiobook identifier (`folderURL.absoluteString`)
+                    // so the shared block-ID formula matches the importer's.
+                    let audiobookID = dir.absoluteString
                     if let epub {
                         logger.debug(
                             "Aligning \(audioURL.lastPathComponent) with EPUB \(epub.lastPathComponent)"
                         )
-                        try await alignmentService.alignStreaming(audioURL: audioURL, epubURL: epub)
+                        try await alignmentService.alignStreaming(
+                            audiobookID: audiobookID, audioURL: audioURL, epubURL: epub)
                     } else if let pdf {
-                        // PDF alignment uses the same pipeline — MacEPUBParser also handles PDF text extraction
+                        // PDF text extraction is not implemented; this call fails the
+                        // container.xml check and is skipped (logged below).
                         logger.debug(
                             "Aligning \(audioURL.lastPathComponent) with PDF \(pdf.lastPathComponent)"
                         )
-                        try await alignmentService.alignStreaming(audioURL: audioURL, epubURL: pdf)
+                        try await alignmentService.alignStreaming(
+                            audiobookID: audiobookID, audioURL: audioURL, epubURL: pdf)
                     } else {
                         logger.debug(
                             "Skipping \(audioURL.lastPathComponent): no EPUB or PDF found in directory"

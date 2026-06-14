@@ -108,9 +108,13 @@ struct MacContentView: View {
                         if let audioURL = player.currentURL,
                             let epubURL = showEPUBPicker()
                         {
+                            // Mirror the iOS audiobook identifier
+                            // (`folderURL.absoluteString`) so the shared
+                            // block-ID formula matches the importer's.
+                            let audiobookID = audioURL.deletingLastPathComponent().absoluteString
                             Task {
                                 try? await alignmentService.alignStreaming(
-                                    audioURL: audioURL, epubURL: epubURL)
+                                    audiobookID: audiobookID, audioURL: audioURL, epubURL: epubURL)
                             }
                         }
                     } label: {
