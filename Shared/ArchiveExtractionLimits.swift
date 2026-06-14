@@ -5,7 +5,7 @@ import Foundation
 /// that expands to gigabytes and exhausts temporary disk during import
 /// (audit §6.1). Zip-slip (path traversal) is handled separately by each
 /// scanner's `safeDestination`.
-enum ArchiveExtractionLimits {
+nonisolated enum ArchiveExtractionLimits {
     /// Largest single entry we will extract (uncompressed bytes).
     static let maxEntryBytes: UInt64 = 100 * 1024 * 1024  // 100 MB
     /// Largest cumulative extraction across all entries in one archive.

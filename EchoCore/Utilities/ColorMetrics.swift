@@ -10,7 +10,7 @@ import SwiftUI
 /// unit-testable without UIKit. Only the `Color`↔`RGB` bridge touches the
 /// platform. WCAG luminance/contrast lives here; perceptual conversions
 /// live in `OKLCH`.
-enum ColorMetrics {
+nonisolated enum ColorMetrics {
 
     /// sRGB triple, components in 0…1.
     struct RGB: Equatable {

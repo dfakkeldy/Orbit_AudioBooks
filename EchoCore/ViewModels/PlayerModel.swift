@@ -889,7 +889,9 @@ final class PlayerModel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.addBookmarkAtCurrentTime()
+            // queue: .main runs this on the main thread, so assumeIsolated lets
+            // us call the @MainActor method synchronously (CODE_AUDIT.md §3.1).
+            MainActor.assumeIsolated { _ = self?.addBookmarkAtCurrentTime() }
         }
 
         let voiceMemoObs = NotificationCenter.default.addObserver(
@@ -898,7 +900,7 @@ final class PlayerModel {
             queue: .main
         ) { [weak self] _ in
             #if canImport(UIKit)
-                self?.carPlayStartVoiceMemo()
+                MainActor.assumeIsolated { self?.carPlayStartVoiceMemo() }
             #else
                 // CarPlay is iOS-only; this observer never fires on macOS.
                 os_log("CarPlay voice memo requested — CarPlay not available on this platform")
@@ -910,7 +912,7 @@ final class PlayerModel {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.markPassageAtCurrentTime()
+            MainActor.assumeIsolated { self?.markPassageAtCurrentTime() }
         }
 
         carPlayNotificationObservers = [bookmarkObs, voiceMemoObs, markPassageObs]

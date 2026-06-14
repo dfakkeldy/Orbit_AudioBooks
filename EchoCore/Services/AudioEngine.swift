@@ -284,7 +284,11 @@ final class AudioEngine {
                 currentStep += 1
                 if currentStep >= steps {
                     self.eqNode?.globalGain = targetGain
-                    timer.invalidate()
+                    // Invalidate via the stored reference, not the captured
+                    // `timer` param: capturing a non-Sendable Timer into this
+                    // @Sendable Task is a Swift-6 error (CODE_AUDIT.md §3.1).
+                    self.fadeTimer?.invalidate()
+                    self.fadeTimer = nil
                 } else {
                     self.eqNode?.globalGain = startGain + gainDelta * Float(currentStep)
                 }

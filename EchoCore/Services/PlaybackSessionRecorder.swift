@@ -3,7 +3,7 @@ import GRDB
 import os.log
 
 /// Thread-safe count tracker for the test drain.
-private final class SafeCounter: @unchecked Sendable {
+private nonisolated final class SafeCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var _value = 0
 

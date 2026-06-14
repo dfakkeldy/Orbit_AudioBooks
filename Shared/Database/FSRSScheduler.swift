@@ -12,7 +12,7 @@ import os.log
 /// Grades use the four-button scale: 1 = Again, 2 = Hard, 3 = Good, 4 = Easy.
 /// A card's memory state is the pair `(stability, difficulty)`; a card with no
 /// `stability` yet is treated as a first review and seeded from the initial DSR.
-struct FSRSScheduler: SchedulingAlgorithm {
+nonisolated struct FSRSScheduler: SchedulingAlgorithm {
     /// Official FSRS-4.5 default parameters (MIT-licensed, from fsrs-rs).
     let w: [Double] = [
         0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01,

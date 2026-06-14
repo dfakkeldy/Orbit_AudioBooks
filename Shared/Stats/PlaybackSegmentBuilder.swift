@@ -32,7 +32,7 @@ enum SegmentAction: Equatable, Sendable {
     case extendOpen(endedAt: Date, endPosition: TimeInterval)  // heartbeat extend()
 }
 
-struct PlaybackSegmentBuilder: Sendable {
+nonisolated struct PlaybackSegmentBuilder: Sendable {
     /// Segments shorter than this wall-clock duration are noise (accidental
     /// taps, instant track skips) and are deleted rather than finalized.
     static let minimumSegmentDuration: TimeInterval = 5

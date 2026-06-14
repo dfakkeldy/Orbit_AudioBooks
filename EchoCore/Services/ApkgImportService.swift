@@ -15,7 +15,7 @@ import os.log
 /// The three formats share the same logical schema (`col`, `notes`, `cards`,
 /// `revlog` tables). The service detects the actual `.anki*` filename and
 /// opens it via GRDB, so schema-version-specific handling is minimal.
-struct ApkgImportService {
+nonisolated struct ApkgImportService {
     private let logger = Logger(category: "ApkgImport")
 
     enum ImportError: LocalizedError {

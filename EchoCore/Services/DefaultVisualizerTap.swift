@@ -32,7 +32,9 @@ final class DefaultVisualizerTap: VisualizerDataProviding {
         AsyncStream { [weak self] continuation in
             self?.continuation = continuation
             continuation.onTermination = { [weak self] _ in
-                self?.removeTap()
+                // onTermination is a @Sendable closure; removeTap() is @MainActor,
+                // so hop to the main actor (CODE_AUDIT.md §3.1).
+                Task { @MainActor in self?.removeTap() }
             }
         }
     }

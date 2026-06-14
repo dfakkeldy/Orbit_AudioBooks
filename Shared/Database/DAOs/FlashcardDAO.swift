@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct FlashcardDAO {
+nonisolated struct FlashcardDAO {
     let db: DatabaseWriter
 
     func flashcards(for audiobookID: String) throws -> [Flashcard] {
