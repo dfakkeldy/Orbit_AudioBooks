@@ -232,8 +232,11 @@ struct TokenDTW {
             // catapult the projection.
             let rate: TimeInterval
             if stats.count >= 2 {
-                rate = min(
-                    1.0, max(0.15, (stats.lastTime - stats.firstTime) / Double(stats.count - 1)))
+                // WhisperKit word times aren't guaranteed monotonic across
+                // concatenated chunks, so guard against a negative span that
+                // would otherwise produce a bogus rate (§5.11).
+                let span = max(0, stats.lastTime - stats.firstTime)
+                rate = min(1.0, max(0.15, span / Double(stats.count - 1)))
             } else {
                 rate = 0.4
             }
