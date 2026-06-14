@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-import CoreML
 @testable import Echo
 
 struct KokoroBenchmarkTests {
@@ -15,11 +14,16 @@ struct KokoroBenchmarkTests {
         making it perfect for offline, on-device audiobooks.
         """
         
-        // Ensure phonemizer runs without crashing
+        // This will download the model to cache on first run (takes network time)
+        // and compile for ANE (takes ~15s on first run).
+        try await engine.prepare()
+        
+        // Run synthesis
         let chunk = try await engine.synthesize(sampleText, voice: VoiceCatalog.default.id)
         
-        // Check that duration makes sense
+        // Check that duration makes sense and samples actually generated
         #expect(chunk.duration > 0)
+        #expect(chunk.samples.count > 0)
         
         // This test simulates the benchmark. In a real physical device run,
         // we would see the RTF output in the console.

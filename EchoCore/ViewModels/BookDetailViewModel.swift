@@ -44,6 +44,9 @@ final class BookDetailViewModel {
         
         Task {
             do {
+                // Trigger compilation/preparation early so it doesn't block the first synthesis delay
+                try await narrationService.tts.prepare()
+                
                 // In v1, we just render chapter 0 as a starting point.
                 // In full implementation, we determine the current chapter and pass its blocks.
                 try await narrationService.renderChapter(

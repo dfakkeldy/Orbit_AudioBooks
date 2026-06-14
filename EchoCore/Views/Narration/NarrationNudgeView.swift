@@ -18,6 +18,7 @@ struct NarrationNudgeView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .accessibilityElement(children: .combine)
             
             Button {
                 viewModel.isShowingVoicePicker = true

@@ -4,6 +4,10 @@ import Foundation
 
 /// Deterministic TTS double: duration = characterCount × secondsPerChar.
 final class MockTTSEngine: TTSEngine, @unchecked Sendable {
+    var preparationCallCount = 0
+    func prepare() async throws {
+        preparationCallCount += 1
+    }
     let secondsPerChar: Double
     private(set) var calls: [(text: String, voice: VoiceID)] = []
     var throwOnText: String?

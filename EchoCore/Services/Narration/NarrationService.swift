@@ -15,7 +15,7 @@ final class NarrationService {
     private let logger = Logger(category: "Narration")
     private let db: DatabaseWriter
     private let audiobookID: String
-    private let tts: TTSEngine
+    let tts: TTSEngine
     private let audioWriter: AudioFileWriting
     private let cacheDirectory: URL
     let state: NarrationState
